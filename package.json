@@ -1,0 +1,38 @@
+{
+  "name": "table-one-mahjong",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "tsx watch server/game-server.ts",
+    "start:server": "tsx server/game-server.ts",
+    "build": "tsc --noEmit && vite build",
+    "test:singleplayer": "node tests/simulate-100-games.mjs",
+    "test:multiplayer": "node tests/multiplayer-smoke.mjs",
+    "test": "tsc --noEmit && vite build && npm run test:singleplayer && npm run test:multiplayer",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^20.10.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/ws": "^8.5.10",
+    "@vitejs/plugin-react": "6.0.2",
+    "jsdom": "^29.1.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.9.3",
+    "vite": "8.0.13",
+    "vitest": "^4.1.10"
+  }
+}
