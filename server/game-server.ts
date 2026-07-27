@@ -1,10 +1,12 @@
 import { WebSocketServer, WebSocket } from "ws";
+import { createServer, IncomingMessage, ServerResponse } from "node:http";
+import { createReadStream, existsSync } from "node:fs";
+import { stat } from "node:fs/promises";
+import { extname, join, normalize, resolve } from "node:path";
 import { Game, Rules, HouseRule } from "../src/game-logic/types";
 import { dealRound } from "../src/game-logic/deck";
 import { discardTile, applyClaim, startTurn } from "../src/game-logic/flow";
-import { scoreRound } from "../src/game-logic/scoring";
 import { chooseDiscard } from "../src/game-logic/ai";
-import { isWinningHand } from "../src/game-logic/validation";
 import { ClientMessage, ServerMessage } from "../src/network/messages";
 
 // Game configuration
@@ -25,6 +27,21 @@ interface GameRoom {
 // Storage
 const rooms = new Map<string, GameRoom>();
 const PORT = Number(process.env.PORT ?? process.env.WS_PORT ?? "8080");
+const DIST_DIR = resolve(process.cwd(), "dist");
+
+const MIME_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
+};
 
 function isOpenSocket(socket: WebSocket | null) {
   return socket !== null && socket.readyState === WebSocket.OPEN;
@@ -34,11 +51,85 @@ function isHumanSeat(room: GameRoom, index: number) {
   return isOpenSocket(room.players[index] ?? null);
 }
 
-// Create WebSocket server
-const wss = new WebSocketServer({ port: PORT });
+function getMimeType(filePath: string) {
+  return MIME_TYPES[extname(filePath).toLowerCase()] ?? "application/octet-stream";
+}
 
-console.log("🎮 Mahjong Game Server");
-console.log(`📡 Listening on ws://localhost:${PORT}`);
+function sendText(res: ServerResponse, status: number, text: string) {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.end(text);
+}
+
+async function serveClient(req: IncomingMessage, res: ServerResponse) {
+  if (!req.url) {
+    sendText(res, 400, "Bad request");
+    return;
+  }
+
+  if (req.url === "/health") {
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.end(JSON.stringify({ ok: true, rooms: rooms.size }));
+    return;
+  }
+
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    sendText(res, 405, "Method not allowed");
+    return;
+  }
+
+  if (!existsSync(DIST_DIR)) {
+    sendText(
+      res,
+      503,
+      "Client build not found. Run 'npm run build' before starting production server.",
+    );
+    return;
+  }
+
+  const rawPath = decodeURIComponent(req.url.split("?")[0] || "/");
+  const requestPath = rawPath === "/" ? "/index.html" : rawPath;
+  const candidate = normalize(join(DIST_DIR, requestPath));
+  const indexFile = join(DIST_DIR, "index.html");
+
+  if (!candidate.startsWith(DIST_DIR)) {
+    sendText(res, 403, "Forbidden");
+    return;
+  }
+
+  let filePath = candidate;
+  try {
+    const info = await stat(candidate);
+    if (info.isDirectory()) {
+      filePath = indexFile;
+    }
+  } catch {
+    filePath = indexFile;
+  }
+
+  res.statusCode = 200;
+  res.setHeader("Content-Type", getMimeType(filePath));
+  createReadStream(filePath).pipe(res);
+}
+
+// Single-process hosting: HTTP + static client + WebSocket on one port
+const httpServer = createServer((req, res) => {
+  void serveClient(req, res).catch((error) => {
+    console.error("[HTTP] Failed to serve request:", error);
+    sendText(res, 500, "Internal server error");
+  });
+});
+
+// Create WebSocket server attached to HTTP server
+const wss = new WebSocketServer({ server: httpServer });
+
+httpServer.listen(PORT, () => {
+  console.log("🎮 Mahjong Game Server");
+  console.log(`🌐 HTTP listening on http://localhost:${PORT}`);
+  console.log(`📡 WebSocket listening on ws://localhost:${PORT}`);
+});
+
 
 wss.on("connection", (socket) => {
   let roomId: string = "";
@@ -170,11 +261,7 @@ wss.on("connection", (socket) => {
           }
         }
 
-        if (
-          msg.action.type === "claim" ||
-          msg.action.type === "pass" ||
-          (msg.action.type === "hu" && msg.action.source === "discard")
-        ) {
+        if (msg.action.type === "claim" || msg.action.type === "pass") {
           if (room.game.phase !== "claim") {
             socket.send(
               JSON.stringify({
@@ -189,40 +276,6 @@ wss.on("connection", (socket) => {
               JSON.stringify({
                 type: "action-rejected",
                 reason: "You are not the active claimant",
-              } as ServerMessage),
-            );
-            return;
-          }
-          if (
-            msg.action.type === "hu" &&
-            !room.game.pendingClaim?.canHu
-          ) {
-            socket.send(
-              JSON.stringify({
-                type: "action-rejected",
-                reason: "Hu is not available",
-              } as ServerMessage),
-            );
-            return;
-          }
-        }
-
-        if (msg.action.type === "hu" && msg.action.source === "self-draw") {
-          if (room.game.phase !== "discard" || room.game.turn !== playerIndex) {
-            socket.send(
-              JSON.stringify({
-                type: "action-rejected",
-                reason: `Not your turn. Current turn: Player ${room.game.turn}`,
-              } as ServerMessage),
-            );
-            return;
-          }
-          const player = room.game.players[playerIndex];
-          if (!isWinningHand(player.hand, player.melds.length)) {
-            socket.send(
-              JSON.stringify({
-                type: "action-rejected",
-                reason: "Hand is not a winning hand",
               } as ServerMessage),
             );
             return;
@@ -279,16 +332,6 @@ wss.on("connection", (socket) => {
               playerIndex,
               msg.action.claimType,
               msg.action.tiles,
-              RULES,
-              HOUSE_RULES,
-            );
-          }
-
-          if (msg.action.type === "hu") {
-            nextGame = scoreRound(
-              room.game,
-              playerIndex,
-              msg.action.source,
               RULES,
               HOUSE_RULES,
             );

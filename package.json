@@ -9,6 +9,9 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "tsx watch server/game-server.ts",
+    "dev:multiplayer": "bash ./start-multiplayer.sh",
+    "dev:multiplayer:clean": "bash -lc 'for p in 8080 5173 5174 5175; do pids=$(lsof -ti tcp:$p -sTCP:LISTEN 2>/dev/null || true); if [[ -n $pids ]]; then kill $pids 2>/dev/null || true; fi; done; npm run dev:multiplayer'",
+    "start": "tsx server/game-server.ts",
     "start:server": "tsx server/game-server.ts",
     "build": "tsc --noEmit && vite build",
     "test:singleplayer": "node tests/simulate-100-games.mjs",

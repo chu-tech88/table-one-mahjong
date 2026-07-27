@@ -56,6 +56,33 @@ For remote hosting, set a client WebSocket URL:
 VITE_WS_URL=wss://your-server.example.com npm run dev
 ```
 
+## Deploy on Render (single process)
+
+This project can run on Render free tier as one process that serves both:
+
+- the built client from `dist/`
+- the WebSocket game server on the same port
+
+Recommended Render settings:
+
+1. Build command:
+
+```bash
+npm install && npm run build
+```
+
+2. Start command:
+
+```bash
+npm start
+```
+
+Notes:
+
+- The server reads Render `PORT` automatically.
+- Client uses same-origin WebSocket by default (`ws://` or `wss://` based on page protocol).
+- You can still override with `VITE_WS_URL` when needed.
+
 ## Verify the game
 
 ```bash

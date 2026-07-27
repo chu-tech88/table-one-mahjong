@@ -1,6 +1,13 @@
 # Mahjong Multiplayer Server
 
-WebSocket server for real-time Mahjong multiplayer rooms.
+Single-process server for real-time Mahjong multiplayer rooms.
+
+It serves:
+
+- static client files from `dist/`
+- WebSocket multiplayer traffic
+
+Both run on the same port.
 
 ## Quick Start
 
@@ -62,6 +69,8 @@ Server to client:
 
 - Server port precedence: `PORT` -> `WS_PORT` -> `8080`
 
+For Render, `PORT` is provided automatically.
+
 Examples:
 
 ```bash
@@ -90,3 +99,17 @@ The smoke test validates join flow, seat conflict rejection, and cross-client st
 - Maximum seats per room: 4
 - Server is authoritative; clients should treat local checks as UI hints only
 - Use `wss://` for hosted production environments
+
+## Render single-service setup
+
+Build command:
+
+```bash
+npm install && npm run build
+```
+
+Start command:
+
+```bash
+npm start
+```

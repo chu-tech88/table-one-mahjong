@@ -26,7 +26,11 @@ import {
 import { useGame } from "./hooks/useGame";
 
 // Component rendering stays exactly the same
-const DEFAULT_SERVER_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8080";
+const DEFAULT_SERVER_URL =
+  import.meta.env.VITE_WS_URL ||
+  (typeof window !== "undefined"
+    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`
+    : "ws://localhost:8080");
 
 const difficulties: Record<Difficulty, string> = {
   calm: "Calm",
