@@ -103,7 +103,8 @@ export function useNetworkedGame(
       })
       .catch((err) => {
         if (!isMounted) return;
-        setError(`Failed to connect: ${err.message}`);
+        const message = err instanceof Error ? err.message : String(err);
+        setError(`Failed to connect: ${message}`);
       });
 
     return () => {
