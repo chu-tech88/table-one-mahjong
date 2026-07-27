@@ -34,8 +34,8 @@ sleep 2
 npm run dev &
 CLIENT_PID=$!
 
+# Cleanup on exit / Ctrl+C
+trap "kill $SERVER_PID $CLIENT_PID 2>/dev/null; echo 'Stopped'" EXIT INT TERM
+
 # Wait for both processes
 wait $SERVER_PID $CLIENT_PID
-
-# Cleanup on exit
-trap "kill $SERVER_PID $CLIENT_PID 2>/dev/null; echo 'Stopped'" EXIT
