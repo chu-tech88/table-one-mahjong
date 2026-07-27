@@ -76,15 +76,11 @@ function send(ws, payload) {
 
 function startServer(port) {
   return new Promise((resolve, reject) => {
-    const server = spawn(
-      "npx",
-      ["tsx", "server/game-server.ts"],
-      {
-        cwd: process.cwd(),
-        env: { ...process.env, WS_PORT: String(port) },
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
+    const server = spawn("npx", ["tsx", "server/game-server.ts"], {
+      cwd: process.cwd(),
+      env: { ...process.env, WS_PORT: String(port) },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
 
     const timeout = setTimeout(() => {
       cleanup();
@@ -145,19 +141,35 @@ async function main() {
     send(ws0, { type: "join-room", roomId, playerIndex: 0 });
     send(ws1, { type: "join-room", roomId, playerIndex: 1 });
 
-    const state0 = await waitForMessage(ws0, (msg) => msg.type === "game-state-update");
-    const state1 = await waitForMessage(ws1, (msg) => msg.type === "game-state-update");
+    const state0 = await waitForMessage(
+      ws0,
+      (msg) => msg.type === "game-state-update",
+    );
+    const state1 = await waitForMessage(
+      ws1,
+      (msg) => msg.type === "game-state-update",
+    );
 
-    assert.equal(state0.game.tableId, state1.game.tableId, "Both clients should receive same room state");
+    assert.equal(
+      state0.game.tableId,
+      state1.game.tableId,
+      "Both clients should receive same room state",
+    );
     assert.equal(state0.game.turn, 0, "Initial dealer turn should be seat 0");
 
     wsConflict = await connectClient(url);
     send(wsConflict, { type: "join-room", roomId, playerIndex: 1 });
     const rejection = await waitForMessage(
       wsConflict,
-      (msg) => msg.type === "action-rejected" && typeof msg.reason === "string" && msg.reason.includes("already taken"),
+      (msg) =>
+        msg.type === "action-rejected" &&
+        typeof msg.reason === "string" &&
+        msg.reason.includes("already taken"),
     );
-    assert.ok(rejection.reason.includes("already taken"), "Joining occupied seat should be rejected");
+    assert.ok(
+      rejection.reason.includes("already taken"),
+      "Joining occupied seat should be rejected",
+    );
 
     const tileId = state0.game.players[0].hand[0]?.id;
     assert.ok(tileId, "Seat 0 should have a discardable tile");
@@ -170,22 +182,36 @@ async function main() {
 
     const post0 = await waitForMessage(
       ws0,
-      (msg) => msg.type === "game-state-update" && msg.game.actionSeq > state0.game.actionSeq,
+      (msg) =>
+        msg.type === "game-state-update" &&
+        msg.game.actionSeq > state0.game.actionSeq,
     );
     const post1 = await waitForMessage(
       ws1,
-      (msg) => msg.type === "game-state-update" && msg.game.actionSeq >= post0.game.actionSeq,
+      (msg) =>
+        msg.type === "game-state-update" &&
+        msg.game.actionSeq >= post0.game.actionSeq,
     );
 
-    assert.equal(post0.game.actionSeq, post1.game.actionSeq, "Discard update should broadcast to all joined clients");
+    assert.equal(
+      post0.game.actionSeq,
+      post1.game.actionSeq,
+      "Discard update should broadcast to all joined clients",
+    );
 
-    console.log(JSON.stringify({
-      ok: true,
-      roomId,
-      server: url,
-      actionSeq: post0.game.actionSeq,
-      message: "Multiplayer smoke test passed",
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          roomId,
+          server: url,
+          actionSeq: post0.game.actionSeq,
+          message: "Multiplayer smoke test passed",
+        },
+        null,
+        2,
+      ),
+    );
   } finally {
     ws0?.close();
     ws1?.close();

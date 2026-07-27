@@ -1,5 +1,11 @@
 import { Game, HouseRule, Rules, StandardRuleKey } from "./types";
-import { countCodes, structuredCloneGame, sortTiles, appendAction, tableNarration } from "./helpers";
+import {
+  countCodes,
+  structuredCloneGame,
+  sortTiles,
+  appendAction,
+  tableNarration,
+} from "./helpers";
 
 export type ScoringGroup = {
   type: "chi" | "pong";
@@ -9,9 +15,14 @@ export type ScoringGroup = {
 
 export function decomposeWinningTiles(tiles: Tile[]) {
   const counts = countCodes(tiles);
-  const codes = Object.keys(counts).sort((a, b) => tileSortFromCode(a) - tileSortFromCode(b));
+  const codes = Object.keys(counts).sort(
+    (a, b) => tileSortFromCode(a) - tileSortFromCode(b),
+  );
 
-  const takeSets = (remaining: Record<string, number>, groups: ScoringGroup[]): ScoringGroup[] | undefined => {
+  const takeSets = (
+    remaining: Record<string, number>,
+    groups: ScoringGroup[],
+  ): ScoringGroup[] | undefined => {
     const code = Object.keys(remaining)
       .filter((key) => remaining[key] > 0)
       .sort((a, b) => tileSortFromCode(a) - tileSortFromCode(b))[0];
@@ -19,7 +30,10 @@ export function decomposeWinningTiles(tiles: Tile[]) {
 
     if (remaining[code] >= 3) {
       remaining[code] -= 3;
-      const result = takeSets(remaining, [...groups, { type: "pong", code, concealed: true }]);
+      const result = takeSets(remaining, [
+        ...groups,
+        { type: "pong", code, concealed: true },
+      ]);
       remaining[code] += 3;
       if (result) return result;
     }
@@ -33,7 +47,10 @@ export function decomposeWinningTiles(tiles: Tile[]) {
         remaining[code] -= 1;
         remaining[second] -= 1;
         remaining[third] -= 1;
-        const result = takeSets(remaining, [...groups, { type: "chi", code, concealed: true }]);
+        const result = takeSets(remaining, [
+          ...groups,
+          { type: "chi", code, concealed: true },
+        ]);
         remaining[code] += 1;
         remaining[second] += 1;
         remaining[third] += 1;
@@ -60,10 +77,15 @@ export function scoreStandardRules(
 ) {
   const player = game.players[winner];
   const concealed = decomposeWinningTiles(player.hand);
-  const concealedGroups = (concealed?.groups ?? []).map((group) => ({ ...group }));
-  const winningCode = source === "discard" ? game.lastDiscard?.tile.code : undefined;
+  const concealedGroups = (concealed?.groups ?? []).map((group) => ({
+    ...group,
+  }));
+  const winningCode =
+    source === "discard" ? game.lastDiscard?.tile.code : undefined;
   if (winningCode && concealed?.pair !== winningCode) {
-    const completedPung = concealedGroups.find((group) => group.type === "pong" && group.code === winningCode);
+    const completedPung = concealedGroups.find(
+      (group) => group.type === "pong" && group.code === winningCode,
+    );
     if (completedPung) completedPung.concealed = false;
   }
   const exposedGroups: ScoringGroup[] = player.melds.map((meld) => ({
@@ -73,17 +95,33 @@ export function scoreStandardRules(
   }));
   const groups = [...concealedGroups, ...exposedGroups];
   const pair = concealed?.pair;
-  const pongCodes = groups.filter((group) => group.type === "pong").map((group) => group.code);
-  const allTiles = [...player.hand, ...player.melds.flatMap((meld) => meld.tiles)];
-  const numberedSuits = new Set(allTiles.filter((tile) => ["dots", "bamboo", "characters"].includes(tile.suit)).map((tile) => tile.suit));
-  const hasHonors = allTiles.some((tile) => tile.suit === "winds" || tile.suit === "dragons");
+  const pongCodes = groups
+    .filter((group) => group.type === "pong")
+    .map((group) => group.code);
+  const allTiles = [
+    ...player.hand,
+    ...player.melds.flatMap((meld) => meld.tiles),
+  ];
+  const numberedSuits = new Set(
+    allTiles
+      .filter((tile) => ["dots", "bamboo", "characters"].includes(tile.suit))
+      .map((tile) => tile.suit),
+  );
+  const hasHonors = allTiles.some(
+    (tile) => tile.suit === "winds" || tile.suit === "dragons",
+  );
   const hasOpenMeld = player.melds.some((meld) => meld.concealed !== true);
   const dragonSets = pongCodes.filter((code) => code.startsWith("G")).length;
   const windSets = pongCodes.filter((code) => code.startsWith("W")).length;
-  const concealedPungs = groups.filter((group) => group.type === "pong" && group.concealed).length;
-  const seatWindRank = ["East", "South", "West", "North"].indexOf(player.wind) + 1;
-  const roundWindRank = Math.floor((game.round - 1) / 4) % 4 + 1;
-  const matchingFlowers = player.flowers.filter((tile) => ((tile.rank - 1) % 4) + 1 === seatWindRank).length;
+  const concealedPungs = groups.filter(
+    (group) => group.type === "pong" && group.concealed,
+  ).length;
+  const seatWindRank =
+    ["East", "South", "West", "North"].indexOf(player.wind) + 1;
+  const roundWindRank = (Math.floor((game.round - 1) / 4) % 4) + 1;
+  const matchingFlowers = player.flowers.filter(
+    (tile) => ((tile.rank - 1) % 4) + 1 === seatWindRank,
+  ).length;
   const isConcealedSelfDraw = source === "self-draw" && !hasOpenMeld;
   const isBigThreeDragons = dragonSets === 3;
   const isBigFourWinds = windSets === 4;
@@ -91,8 +129,12 @@ export function scoreStandardRules(
   const values: Partial<Record<StandardRuleKey, number>> = {
     "matching-flower": isAllFlowers ? 0 : matchingFlowers,
     "dragon-pung": isBigThreeDragons ? 0 : dragonSets,
-    "seat-wind": isBigFourWinds ? 0 : Number(pongCodes.includes(`W${seatWindRank}`)),
-    "round-wind": isBigFourWinds ? 0 : Number(pongCodes.includes(`W${roundWindRank}`)),
+    "seat-wind": isBigFourWinds
+      ? 0
+      : Number(pongCodes.includes(`W${seatWindRank}`)),
+    "round-wind": isBigFourWinds
+      ? 0
+      : Number(pongCodes.includes(`W${roundWindRank}`)),
     "self-draw": isConcealedSelfDraw ? 0 : Number(source === "self-draw"),
     dealer: Number(winner === game.dealer),
     "concealed-hand": Number(source === "discard" && !hasOpenMeld),
@@ -108,15 +150,21 @@ export function scoreStandardRules(
         !hasHonors,
     ),
     "three-concealed-pungs": Number(concealedPungs === 3),
-    "all-pungs": Number(groups.length === 5 && groups.every((group) => group.type === "pong")),
-    "little-three-dragons": Number(!isBigThreeDragons && dragonSets === 2 && Boolean(pair?.startsWith("G"))),
+    "all-pungs": Number(
+      groups.length === 5 && groups.every((group) => group.type === "pong"),
+    ),
+    "little-three-dragons": Number(
+      !isBigThreeDragons && dragonSets === 2 && Boolean(pair?.startsWith("G")),
+    ),
     "half-flush": Number(numberedSuits.size === 1 && hasHonors),
     "four-concealed-pungs": Number(concealedPungs === 4),
     "big-three-dragons": Number(isBigThreeDragons),
     "full-flush": Number(numberedSuits.size === 1 && !hasHonors),
     "all-honors": Number(numberedSuits.size === 0 && hasHonors),
     "five-concealed-pungs": Number(concealedPungs === 5),
-    "little-four-winds": Number(!isBigFourWinds && windSets === 3 && Boolean(pair?.startsWith("W"))),
+    "little-four-winds": Number(
+      !isBigFourWinds && windSets === 3 && Boolean(pair?.startsWith("W")),
+    ),
     "big-four-winds": Number(isBigFourWinds),
     "seven-flowers": Number(player.flowers.length === 7),
     "all-flowers": Number(isAllFlowers),
@@ -138,15 +186,27 @@ export function scoreStandardRules(
   });
 }
 
-export function scoreRound(game: Game, winner: number, source: "self-draw" | "discard", rules: Rules, houseRules: HouseRule[]) {
+export function scoreRound(
+  game: Game,
+  winner: number,
+  source: "self-draw" | "discard",
+  rules: Rules,
+  houseRules: HouseRule[],
+) {
   const next = structuredCloneGame(game);
   const player = next.players[winner];
-  if (source === "discard" && next.lastDiscard && winner !== next.lastDiscard.by) {
+  if (
+    source === "discard" &&
+    next.lastDiscard &&
+    winner !== next.lastDiscard.by
+  ) {
     const winningTile = next.lastDiscard.tile;
     if (!player.hand.some((tile) => tile.id === winningTile.id)) {
       player.hand = sortTiles([...player.hand, winningTile]);
     }
-    next.players[next.lastDiscard.by].discards = next.players[next.lastDiscard.by].discards.filter((tile) => tile.id !== winningTile.id);
+    next.players[next.lastDiscard.by].discards = next.players[
+      next.lastDiscard.by
+    ].discards.filter((tile) => tile.id !== winningTile.id);
   }
   const scoredRules = scoreStandardRules(next, winner, source, houseRules);
   const tai = scoredRules.reduce((sum, item) => sum + item.points, 0);
@@ -155,7 +215,10 @@ export function scoreRound(game: Game, winner: number, source: "self-draw" | "di
   let total = 0;
   const lineItems = [
     `Base win: ${rules.baseWin}`,
-    ...scoredRules.map((item) => `${item.name}${item.multiplier > 1 ? ` ×${item.multiplier}` : ""}: +${item.points}`),
+    ...scoredRules.map(
+      (item) =>
+        `${item.name}${item.multiplier > 1 ? ` ×${item.multiplier}` : ""}: +${item.points}`,
+    ),
   ];
 
   if (source === "self-draw") {
@@ -177,7 +240,11 @@ export function scoreRound(game: Game, winner: number, source: "self-draw" | "di
   next.drawnTileId = undefined;
   next.activity = {
     player: winner,
-    text: tableNarration("win", player.name, source === "self-draw" ? "self draw" : "discard"),
+    text: tableNarration(
+      "win",
+      player.name,
+      source === "self-draw" ? "self draw" : "discard",
+    ),
     tile: source === "discard" ? next.lastDiscard?.tile : undefined,
   };
   next.winSummary = {

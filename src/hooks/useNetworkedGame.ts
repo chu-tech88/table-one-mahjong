@@ -28,12 +28,12 @@ type UseNetworkedGameReturn = {
 
 /**
  * Hook for multiplayer networked games via WebSocket.
- * 
+ *
  * Connects to server and:
  * - Sends player actions as events
  * - Receives game state updates from server
  * - Handles disconnection and sync
- * 
+ *
  * Server handles:
  * - Game state authority
  * - Move validation
@@ -72,9 +72,12 @@ export function useNetworkedGame(
         // Keep selection if the tile still exists and the player can still discard.
         setSelectedTileId((current) => {
           if (!current) return undefined;
-          const isDiscardTurn = newGame.turn === playerIndex && newGame.phase === "discard";
+          const isDiscardTurn =
+            newGame.turn === playerIndex && newGame.phase === "discard";
           if (!isDiscardTurn) return undefined;
-          const stillInHand = newGame.players[playerIndex].hand.some((tile) => tile.id === current);
+          const stillInHand = newGame.players[playerIndex].hand.some(
+            (tile) => tile.id === current,
+          );
           return stillInHand ? current : undefined;
         });
       },
@@ -109,10 +112,13 @@ export function useNetworkedGame(
     };
   }, [enabled, serverUrl, roomId, playerIndex]);
 
-  const selectTile = useCallback((tileId: string) => {
-    if (!clientRef.current || !game) return;
-    setSelectedTileId(tileId);
-  }, [game]);
+  const selectTile = useCallback(
+    (tileId: string) => {
+      if (!clientRef.current || !game) return;
+      setSelectedTileId(tileId);
+    },
+    [game],
+  );
 
   const discard = useCallback((tileId: string) => {
     if (!clientRef.current) return;
@@ -120,13 +126,10 @@ export function useNetworkedGame(
     setSelectedTileId(undefined);
   }, []);
 
-  const claim = useCallback(
-    (type: "chi" | "pong" | "kong", tiles?: any) => {
-      if (!clientRef.current) return;
-      clientRef.current.claim(type, tiles);
-    },
-    []
-  );
+  const claim = useCallback((type: "chi" | "pong" | "kong", tiles?: any) => {
+    if (!clientRef.current) return;
+    clientRef.current.claim(type, tiles);
+  }, []);
 
   const pass = useCallback(() => {
     if (!clientRef.current) return;

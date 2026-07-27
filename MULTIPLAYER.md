@@ -3,6 +3,7 @@
 ## Overview
 
 The server has been fully scaffolded with:
+
 - ✅ WebSocket server (`server/game-server.ts`)
 - ✅ Client connector (`src/network/game-client.ts`)
 - ✅ Message protocol (`src/network/messages.ts`)
@@ -12,16 +13,19 @@ The server has been fully scaffolded with:
 ## Running the Server
 
 ### 1. Install Dependencies
+
 ```bash
 npm install
 ```
 
 ### 2. Start Server (Terminal 1)
+
 ```bash
 npm run dev:server
 ```
 
 Output:
+
 ```
 🎮 Mahjong Game Server
 📡 Listening on ws://localhost:8080
@@ -31,6 +35,7 @@ Output:
 ```
 
 ### 3. Start Client (Terminal 2)
+
 ```bash
 npm run dev
 ```
@@ -40,18 +45,21 @@ Navigate to `http://localhost:5173`
 ## Switching Between Local and Multiplayer
 
 ### Local Mode (Current Default)
+
 Edit `src/App-new.tsx`:
+
 ```typescript
 const gameHook = useGame({ mode: "local" });
 ```
 
 ### Multiplayer Mode
+
 ```typescript
-const gameHook = useGame({ 
+const gameHook = useGame({
   mode: "networked",
   serverUrl: "ws://localhost:8080",
   roomId: "my-game-room",
-  playerIndex: 0  // 0 = human, 1-3 = AI
+  playerIndex: 0, // 0 = human, 1-3 = AI
 });
 ```
 
@@ -117,10 +125,10 @@ socket.on("close")
 const rooms = new Map<string, GameRoom>();
 
 type GameRoom = {
-  game: Game;              // Current game state (from game-logic/)
-  players: (WebSocket | null)[];  // 4 players
-  created: number;         // Timestamp
-  autoPlayAI: Map<number, NodeJS.Timeout>;  // AI turn timers
+  game: Game; // Current game state (from game-logic/)
+  players: (WebSocket | null)[]; // 4 players
+  created: number; // Timestamp
+  autoPlayAI: Map<number, NodeJS.Timeout>; // AI turn timers
 };
 ```
 
@@ -134,22 +142,24 @@ import { scoreRound } from "../src/game-logic/scoring";
 
 // Validate and execute move
 const nextGame = discardTile(
-  room.game,           // current state
-  playerIndex,         // who moved
-  tileId,              // what tile
-  RULES,               // game rules
-  HOUSE_RULES          // house rules
+  room.game, // current state
+  playerIndex, // who moved
+  tileId, // what tile
+  RULES, // game rules
+  HOUSE_RULES, // house rules
 );
 
 // Update room
 room.game = nextGame;
 
 // Broadcast to all 4 players
-room.players.forEach(player => {
-  player.send(JSON.stringify({
-    type: "game-state-update",
-    game: nextGame
-  }));
+room.players.forEach((player) => {
+  player.send(
+    JSON.stringify({
+      type: "game-state-update",
+      game: nextGame,
+    }),
+  );
 });
 ```
 
@@ -188,14 +198,16 @@ class GameClient {
 export function useNetworkedGame(
   serverUrl: string,
   roomId: string,
-  playerIndex: number
+  playerIndex: number,
 ) {
   const [game, setGame] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
-  const clientRef = useRef(new GameClient({
-    onGameStateUpdate: (newGame) => setGame(newGame),
-    onActionRejected: (reason) => setError(reason),
-  }));
+  const clientRef = useRef(
+    new GameClient({
+      onGameStateUpdate: (newGame) => setGame(newGame),
+      onActionRejected: (reason) => setError(reason),
+    }),
+  );
 
   useEffect(() => {
     clientRef.current.connect(serverUrl, roomId, playerIndex);
@@ -223,19 +235,23 @@ export function useNetworkedGame(
 ### Test 2: Two Browsers
 
 **Terminal 1:**
+
 ```bash
 npm run dev:server
 ```
 
 **Terminal 2:**
+
 ```bash
 npm run dev
 ```
 
 **Browser 1:** `http://localhost:5173`
+
 - Player 0 (human) - can click/claim
 
 **Browser 2:** `http://localhost:5173?player=1`
+
 - Would need URL param support
 - Currently still shows player 0
 - Both see same game state in real-time
@@ -267,6 +283,7 @@ npm run dev:server
 ### Client Errors
 
 Browser console → check for:
+
 - Connection errors: `Failed to connect: ...`
 - Action rejected: `Server rejected action: Not your turn`
 - State sync issues: `Request fresh state`
@@ -274,6 +291,7 @@ Browser console → check for:
 ### Network Tab
 
 Chrome DevTools → Network → WS:
+
 - See real-time messages
 - Check message size
 - Verify bidirectional communication
@@ -287,11 +305,11 @@ To use multiplayer in your app:
 
 function MahjongApp() {
   // Change this line to use multiplayer:
-  const gameHook = useGame({ 
+  const gameHook = useGame({
     mode: "networked",
     serverUrl: "ws://localhost:8080",
     roomId: "my-game",
-    playerIndex: 0
+    playerIndex: 0,
   });
 
   const { game, discard, claim, pass } = gameHook;
@@ -325,16 +343,19 @@ UNCHANGED:
 ## Performance Considerations
 
 ### Network Usage
+
 - Full game state (~5KB) sent after every move
 - With 4 players, ~20KB/second during active play
 - Acceptable for LAN, good for internet
 
 ### Latency
+
 - Server adds ~50-100ms on local network
 - With network delay, total ~200-300ms perceived
 - 1.5s AI delay masks most latency
 
 ### Optimization Ideas (Future)
+
 - Delta updates instead of full state
 - Compression (gzip)
 - Message batching
@@ -343,12 +364,14 @@ UNCHANGED:
 ## Security (Future)
 
 For production:
+
 - ✅ Server validates ALL moves (current)
 - ❌ No authentication yet
 - ❌ No rate limiting
 - ❌ No SSL/TLS (use `wss://` in production)
 
 Add:
+
 ```typescript
 // Rate limiting
 if (lastActionTime > now - 500ms) reject;
@@ -357,21 +380,21 @@ if (lastActionTime > now - 500ms) reject;
 if (!user.canPlayInRoom) reject;
 
 // SSL/TLS
-const wss = new WebSocket.Server({ 
+const wss = new WebSocket.Server({
   server: httpsServer  // use HTTPS
 });
 ```
 
 ## Common Issues & Solutions
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| "Room not found" | Server restarted | Reconnect to new room |
-| "Not your turn" | Network lag | Wait for state update |
-| "Tile not in hand" | Out of sync | `client.requestState()` |
-| Connection drops | Firewall | Check port 8080 |
-| AI doesn't move | Not in discard phase | Wait for your turn |
-| State not updating | Message not sent | Check DevTools network |
+| Issue              | Cause                | Solution                |
+| ------------------ | -------------------- | ----------------------- |
+| "Room not found"   | Server restarted     | Reconnect to new room   |
+| "Not your turn"    | Network lag          | Wait for state update   |
+| "Tile not in hand" | Out of sync          | `client.requestState()` |
+| Connection drops   | Firewall             | Check port 8080         |
+| AI doesn't move    | Not in discard phase | Wait for your turn      |
+| State not updating | Message not sent     | Check DevTools network  |
 
 ## Next Steps
 

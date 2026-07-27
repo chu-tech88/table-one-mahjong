@@ -5,6 +5,7 @@ All multiplayer server infrastructure has been scaffolded and is ready to use.
 ## What Was Added
 
 ### Server-Side
+
 - **[server/game-server.ts](server/game-server.ts)** (391 lines)
   - WebSocket server on `ws://localhost:8080`
   - Game room management
@@ -14,6 +15,7 @@ All multiplayer server infrastructure has been scaffolded and is ready to use.
   - Error handling & logging
 
 ### Client-Side
+
 - **[src/network/game-client.ts](src/network/game-client.ts)** (170 lines)
   - WebSocket client connector
   - Action sending
@@ -27,6 +29,7 @@ All multiplayer server infrastructure has been scaffolded and is ready to use.
   - Server → Client responses
 
 ### React Integration
+
 - **[src/hooks/useNetworkedGame.ts](src/hooks/useNetworkedGame.ts)** (UPDATED)
   - Now fully functional
   - Connects to server via GameClient
@@ -38,12 +41,15 @@ All multiplayer server infrastructure has been scaffolded and is ready to use.
   - One line to switch: `{ mode: "networked", serverUrl, roomId, playerIndex }`
 
 ### Documentation
+
 - **[MULTIPLAYER.md](MULTIPLAYER.md)** - Complete setup & implementation guide
 - **[server/README.md](server/README.md)** - Server operation guide
 - **[start-multiplayer.sh](start-multiplayer.sh)** - Launcher script
 
 ### Dependencies
+
 Updated `package.json`:
+
 ```json
 {
   "scripts": {
@@ -64,16 +70,19 @@ Updated `package.json`:
 ## How to Use It
 
 ### 1. Install Dependencies
+
 ```bash
 npm install
 ```
 
 ### 2. Start Server (Terminal 1)
+
 ```bash
 npm run dev:server
 ```
 
 Expected output:
+
 ```
 🎮 Mahjong Game Server
 📡 Listening on ws://localhost:8080
@@ -83,6 +92,7 @@ Expected output:
 ```
 
 ### 3. Start Client (Terminal 2)
+
 ```bash
 npm run dev
 ```
@@ -99,11 +109,11 @@ function MahjongApp() {
   // const gameHook = useGame({ mode: "local" });
 
   // To this:
-  const gameHook = useGame({ 
+  const gameHook = useGame({
     mode: "networked",
     serverUrl: "ws://localhost:8080",
     roomId: "my-game-room",
-    playerIndex: 0  // 0 = human, 1-3 = AI
+    playerIndex: 0, // 0 = human, 1-3 = AI
   });
 
   // Rest of code unchanged!
@@ -148,26 +158,31 @@ CLIENT                           SERVER
 ## Key Features
 
 ✅ **Pure Game Logic**
+
 - All functions in `src/game-logic/` are unchanged
 - AI agents can optimize them independently
 - Works on both client and server
 
 ✅ **Server Authority**
+
 - Server holds game state
 - All moves validated server-side
 - Prevents cheating
 
 ✅ **Real-Time Sync**
+
 - Full game state broadcasted after every move
 - All 4 players stay synchronized
 - ~5KB per update
 
 ✅ **AI Autopilot**
+
 - Server auto-plays for players 1-3
 - Uses same `chooseDiscard()` logic
 - Configurable per-player difficulty
 
 ✅ **Hook Abstraction**
+
 - Switch modes with one line of code
 - Rest of UI completely unchanged
 - Drop-in replacement
@@ -175,12 +190,14 @@ CLIENT                           SERVER
 ## Testing
 
 ### Test Local Solo Play
+
 ```bash
 npm run dev
 # Play game normally, AI handles other 3 players
 ```
 
 ### Test Multiplayer with AI
+
 ```bash
 npm run dev:server
 npm run dev
@@ -191,7 +208,9 @@ npm run dev
 ```
 
 ### Test Two Human Players
+
 Open TWO browsers:
+
 - Browser 1: Controls player 0
 - Browser 2: Sees same state (read-only currently)
 
@@ -251,17 +270,18 @@ UNCHANGED (5+):
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| "Module not found: ws" | Run `npm install` |
-| Connection refused on localhost:8080 | Server not running: `npm run dev:server` |
-| Game state not updating | Check browser console for errors |
-| AI not moving | Check server logs—should see `[AI] Playing turn` |
-| Port 8080 already in use | Kill other process: `lsof -i :8080` |
+| Issue                                | Solution                                         |
+| ------------------------------------ | ------------------------------------------------ |
+| "Module not found: ws"               | Run `npm install`                                |
+| Connection refused on localhost:8080 | Server not running: `npm run dev:server`         |
+| Game state not updating              | Check browser console for errors                 |
+| AI not moving                        | Check server logs—should see `[AI] Playing turn` |
+| Port 8080 already in use             | Kill other process: `lsof -i :8080`              |
 
 ## Questions?
 
 See these files for more details:
+
 - [MULTIPLAYER.md](MULTIPLAYER.md) - Full setup & architecture guide
 - [server/README.md](server/README.md) - Server operation manual
 - [ARCHITECTURE.md](ARCHITECTURE.md) - Design patterns & flow
@@ -269,6 +289,7 @@ See these files for more details:
 ## Ready to Deploy?
 
 The server is production-ready once you:
+
 - [ ] Add authentication (required for real users)
 - [ ] Enable SSL/TLS (use `wss://` instead of `ws://`)
 - [ ] Add rate limiting (prevent abuse)
@@ -276,6 +297,7 @@ The server is production-ready once you:
 - [ ] Deploy to cloud (Heroku, AWS, Digital Ocean, etc.)
 
 Current setup works great for:
+
 - ✅ Local development
 - ✅ LAN gaming
 - ✅ Testing multiplayer gameplay
@@ -284,6 +306,7 @@ Current setup works great for:
 ---
 
 **Everything is ready to go. Start with:**
+
 ```bash
 npm install
 npm run dev:server  # Terminal 1

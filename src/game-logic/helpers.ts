@@ -1,21 +1,40 @@
 import { Game, GameActionType, Tile, MeldType } from "./types";
 
-export function appendAction(game: Game, type: GameActionType, actor: number, description: string) {
+export function appendAction(
+  game: Game,
+  type: GameActionType,
+  actor: number,
+  description: string,
+) {
   const seq = game.actionSeq + 1;
   game.actionSeq = seq;
-  game.actionLog = [...game.actionLog.slice(-23), { seq, type, actor, description, at: Date.now() }];
+  game.actionLog = [
+    ...game.actionLog.slice(-23),
+    { seq, type, actor, description, at: Date.now() },
+  ];
 }
 
 export function actionName(type: MeldType) {
-  return type === "kong" ? "Kong" : type.charAt(0).toUpperCase() + type.slice(1);
+  return type === "kong"
+    ? "Kong"
+    : type.charAt(0).toUpperCase() + type.slice(1);
 }
 
-export function tableNarration(kind: "deal" | "turn" | "discard" | "claim" | "kong" | "win" | "draw", playerName: string, detail?: string) {
+export function tableNarration(
+  kind: "deal" | "turn" | "discard" | "claim" | "kong" | "win" | "draw",
+  playerName: string,
+  detail?: string,
+) {
   if (kind === "deal") return `${playerName}. The hand begins.`;
-  if (kind === "turn") return playerName === "You" ? "Your turn. Choose a tile to discard." : `${playerName} is taking a turn.`;
+  if (kind === "turn")
+    return playerName === "You"
+      ? "Your turn. Choose a tile to discard."
+      : `${playerName} is taking a turn.`;
   if (kind === "discard") return `${playerName} discarded ${detail}.`;
-  if (kind === "claim") return `${playerName} called ${detail}. Choose a discard.`;
-  if (kind === "kong") return `${playerName} declared ${detail}. Draw again, then discard.`;
+  if (kind === "claim")
+    return `${playerName} called ${detail}. Choose a discard.`;
+  if (kind === "kong")
+    return `${playerName} declared ${detail}. Draw again, then discard.`;
   if (kind === "win") return `${playerName} wins by ${detail}.`;
   return "The wall is empty. This hand is a draw.";
 }
@@ -30,7 +49,9 @@ export function shuffle<T>(items: T[]) {
 }
 
 export function sortTiles(tiles: Tile[]) {
-  return [...tiles].sort((a, b) => a.sort - b.sort || a.code.localeCompare(b.code));
+  return [...tiles].sort(
+    (a, b) => a.sort - b.sort || a.code.localeCompare(b.code),
+  );
 }
 
 export function countCodes(tiles: Tile[]) {
@@ -60,7 +81,9 @@ export function structuredCloneGame(game: Game): Game {
     pendingClaim: game.pendingClaim ? { ...game.pendingClaim } : undefined,
     activity: game.activity ? { ...game.activity } : undefined,
     actionLog: [...game.actionLog],
-    winSummary: game.winSummary ? { ...game.winSummary, lineItems: [...game.winSummary.lineItems] } : undefined,
+    winSummary: game.winSummary
+      ? { ...game.winSummary, lineItems: [...game.winSummary.lineItems] }
+      : undefined,
   };
 }
 
@@ -78,13 +101,26 @@ export function tileSortFromCode(code: string) {
 export function tilePrototypeFromCode(code: string): Tile {
   const prefix = code[0];
   const rank = Number(code.slice(1));
-  const suit = 
-    prefix === "D" ? "dots" : 
-    prefix === "B" ? "bamboo" : 
-    prefix === "C" ? "characters" : 
-    prefix === "W" ? "winds" : 
-    "dragons";
-  const suitName = suit === "dots" ? "Dot" : suit === "bamboo" ? "Bamboo" : suit === "characters" ? "Character" : suit === "winds" ? "Wind" : "Dragon";
+  const suit =
+    prefix === "D"
+      ? "dots"
+      : prefix === "B"
+        ? "bamboo"
+        : prefix === "C"
+          ? "characters"
+          : prefix === "W"
+            ? "winds"
+            : "dragons";
+  const suitName =
+    suit === "dots"
+      ? "Dot"
+      : suit === "bamboo"
+        ? "Bamboo"
+        : suit === "characters"
+          ? "Character"
+          : suit === "winds"
+            ? "Wind"
+            : "Dragon";
   return {
     id: `wait-${code}`,
     code,

@@ -13,28 +13,33 @@ The architecture has been fully scaffolded and is ready to use:
 ## Quick Start
 
 ### Local Play (Current)
+
 ```typescript
 const gameHook = useGame({ mode: "local" });
 ```
 
 ### Multiplayer (Ready to Use)
+
 **Terminal 1:**
+
 ```bash
 npm run dev:server
 ```
 
 **Terminal 2:**
+
 ```bash
 npm run dev
 ```
 
 **Code:**
+
 ```typescript
-const gameHook = useGame({ 
+const gameHook = useGame({
   mode: "networked",
   serverUrl: "ws://localhost:8080",
   roomId: "my-game",
-  playerIndex: 0
+  playerIndex: 0,
 });
 ```
 
@@ -43,6 +48,7 @@ See [MULTIPLAYER.md](MULTIPLAYER.md) for full setup guide.
 ## Structure
 
 ### `src/game-logic/` — Pure Game Logic (AI-agent friendly)
+
 ```
 types.ts          → All TypeScript types (Game, Player, Tile, Rules, etc.)
 helpers.ts        → Utility functions (shuffle, sort, structuredClone, etc.)
@@ -56,6 +62,7 @@ flow.ts           → Game turns (discardTile, applyClaim, startTurn, etc.)
 **Key property:** All functions are pure (no side effects). AI agents can optimize them independently.
 
 ### `src/hooks/` — Game Orchestration (React hooks)
+
 ```
 useLocalGame.ts      → Wraps all game-logic, manages React state, auto-plays AI
 useNetworkedGame.ts  → Skeleton for WebSocket multiplayer (not implemented yet)
@@ -63,6 +70,7 @@ useGame.ts           → Abstraction that picks between local/networked
 ```
 
 ### `src/App.tsx` → UI Only
+
 - Import from `useGame` hook
 - All game logic calls go through hook methods
 - No direct game state mutations
@@ -77,6 +85,7 @@ If you want to gradually adopt this, you can:
 3. **AI agents work on `game-logic/`** — Pure functions, no React needed
 
 ### To switch to new structure:
+
 ```bash
 mv src/App.tsx src/App-old.tsx
 mv src/App-new.tsx src/App.tsx
@@ -85,23 +94,27 @@ mv src/App-new.tsx src/App.tsx
 ## WebSocket Architecture (Future)
 
 ### Client:
+
 ```typescript
-useGame({ mode: "local" })  // or...
-useGame({ mode: "networked", roomId: "abc", playerIndex: 0 })
+useGame({ mode: "local" }); // or...
+useGame({ mode: "networked", roomId: "abc", playerIndex: 0 });
 ```
 
 ### Server handles:
+
 - Move validation
 - Scoring calculation
 - AI for other players (optional)
 - Game state authority
 
 ### Client still gets:
+
 - Fast UI updates
 - Same game-logic functions
 - Reusable AI algorithm
 
 ### Network messages:
+
 ```
 → player-action: { type: "discard", tileId }
 ← game-state-update: { full state }
@@ -111,6 +124,7 @@ useGame({ mode: "networked", roomId: "abc", playerIndex: 0 })
 ## AI Agent Workflow
 
 Pure game-logic functions are isolated:
+
 ```typescript
 // AI can optimize these independently
 import { chooseDiscard, shouldCall } from "./game-logic/ai";
@@ -123,6 +137,7 @@ const canWin = isWinningHand(hand, meldCount);
 ```
 
 **Benefits:**
+
 - AI improves game quality without touching React code
 - Easy to unit test
 - Can run on server or client
@@ -131,22 +146,25 @@ const canWin = isWinningHand(hand, meldCount);
 ## Quick Start
 
 ### Local play (unchanged):
+
 ```tsx
 const gameHook = useGame({ mode: "local" });
 const { game, discard, claim, pass, kong } = gameHook;
 ```
 
 ### Multiplayer (when ready):
+
 ```tsx
-const gameHook = useGame({ 
-  mode: "networked", 
-  roomId: "game-123", 
-  playerIndex: 0 
+const gameHook = useGame({
+  mode: "networked",
+  roomId: "game-123",
+  playerIndex: 0,
 });
 // Same interface, different backend!
 ```
 
 ## File Tree
+
 ```
 src/
 ├── game-logic/        ← Pure functions (AI-optimizable)

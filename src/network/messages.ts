@@ -8,7 +8,11 @@ import { Game } from "../game-logic/types";
 
 // ============ CLIENT → SERVER ============
 
-export type ClientMessage = JoinRoomMessage | PlayerActionMessage | RequestStateMessage | RequestRoomSeatsMessage;
+export type ClientMessage =
+  | JoinRoomMessage
+  | PlayerActionMessage
+  | RequestStateMessage
+  | RequestRoomSeatsMessage;
 
 export type JoinRoomMessage = {
   type: "join-room";

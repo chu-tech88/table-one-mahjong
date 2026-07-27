@@ -31,7 +31,11 @@ export class GameClient {
 
   // ============ CONNECTION ============
 
-  connect(serverUrl: string, roomId: string, playerIndex: number): Promise<void> {
+  connect(
+    serverUrl: string,
+    roomId: string,
+    playerIndex: number,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         if (this.ws && this.isConnected) {
@@ -112,7 +116,8 @@ export class GameClient {
   // ============ SEND MESSAGES ============
 
   private sendMessage(message: ClientMessage) {
-    if (!this.ws || this.ws.readyState !== 1) {  // 1 = OPEN
+    if (!this.ws || this.ws.readyState !== 1) {
+      // 1 = OPEN
       console.error("WebSocket not connected");
       return;
     }
@@ -137,7 +142,7 @@ export class GameClient {
 
   private handleServerMessage(message: ServerMessage) {
     console.log("[GameClient] Received message:", message.type);
-    
+
     if (message.type === "game-state-update") {
       console.log("[GameClient] Game state received");
       this.game = message.game;
@@ -194,18 +199,12 @@ export class GameClient {
 
   canPlayerDiscard(): boolean {
     if (!this.game) return false;
-    return (
-      this.game.phase === "discard" &&
-      this.game.turn === this.playerIndex
-    );
+    return this.game.phase === "discard" && this.game.turn === this.playerIndex;
   }
 
   canPlayerClaim(): boolean {
     if (!this.game) return false;
-    return (
-      this.game.phase === "claim" &&
-      this.game.pendingClaim !== undefined
-    );
+    return this.game.phase === "claim" && this.game.pendingClaim !== undefined;
   }
 
   getClaimOptions() {

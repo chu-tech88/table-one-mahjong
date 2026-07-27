@@ -1,9 +1,21 @@
-export type Suit = "dots" | "bamboo" | "characters" | "winds" | "dragons" | "flowers";
+export type Suit =
+  | "dots"
+  | "bamboo"
+  | "characters"
+  | "winds"
+  | "dragons"
+  | "flowers";
 export type Difficulty = "calm" | "balanced" | "sharp";
 export type Phase = "discard" | "claim" | "round-over";
 export type MeldType = "chi" | "pong" | "kong";
 export type TableMode = "solo" | "online-ready";
-export type GameActionType = "deal-hand" | "draw" | "discard" | "claim" | "kong" | "score-round";
+export type GameActionType =
+  | "deal-hand"
+  | "draw"
+  | "discard"
+  | "claim"
+  | "kong"
+  | "score-round";
 
 export type Tile = {
   id: string;

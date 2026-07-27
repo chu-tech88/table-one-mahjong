@@ -43,19 +43,26 @@ wss.on("connection", (socket) => {
   socket.on("message", (data) => {
     try {
       const msg = JSON.parse(data.toString()) as ClientMessage;
-      console.log(`[Message] Received from ${roomId}:${playerIndex}:`, msg.type);
+      console.log(
+        `[Message] Received from ${roomId}:${playerIndex}:`,
+        msg.type,
+      );
 
       // ============ JOIN ROOM ============
       if (msg.type === "join-room") {
         const requestedRoomId = msg.roomId;
         const requestedPlayerIndex = msg.playerIndex;
 
-        if (!Number.isInteger(requestedPlayerIndex) || requestedPlayerIndex < 0 || requestedPlayerIndex > 3) {
+        if (
+          !Number.isInteger(requestedPlayerIndex) ||
+          requestedPlayerIndex < 0 ||
+          requestedPlayerIndex > 3
+        ) {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
               reason: "Invalid seat index. Choose 0-3.",
-            } as ServerMessage)
+            } as ServerMessage),
           );
           return;
         }
@@ -78,7 +85,7 @@ wss.on("connection", (socket) => {
             JSON.stringify({
               type: "action-rejected",
               reason: `Seat ${requestedPlayerIndex} is already taken in room ${requestedRoomId}`,
-            } as ServerMessage)
+            } as ServerMessage),
           );
           return;
         }
@@ -91,7 +98,7 @@ wss.on("connection", (socket) => {
           JSON.stringify({
             type: "game-state-update",
             game: room.game,
-          } as ServerMessage)
+          } as ServerMessage),
         );
 
         console.log(`[Room] Player ${playerIndex} joined room ${roomId}`);
@@ -105,7 +112,9 @@ wss.on("connection", (socket) => {
         const room = rooms.get(msg.roomId);
         const occupiedSeats = room
           ? room.players
-              .map((player, index) => (player && player.readyState === 1 ? index : -1))
+              .map((player, index) =>
+                player && player.readyState === 1 ? index : -1,
+              )
               .filter((index) => index >= 0)
           : [];
         socket.send(
@@ -113,7 +122,7 @@ wss.on("connection", (socket) => {
             type: "room-seats-update",
             roomId: msg.roomId,
             occupiedSeats,
-          } as ServerMessage)
+          } as ServerMessage),
         );
       }
 
@@ -125,7 +134,7 @@ wss.on("connection", (socket) => {
             JSON.stringify({
               type: "action-rejected",
               reason: "Room not found",
-            } as ServerMessage)
+            } as ServerMessage),
           );
           return;
         }
@@ -135,7 +144,7 @@ wss.on("connection", (socket) => {
             JSON.stringify({
               type: "action-rejected",
               reason: "Seat ownership mismatch. Rejoin with an available seat.",
-            } as ServerMessage)
+            } as ServerMessage),
           );
           socket.close(1008, "Seat ownership mismatch");
           return;
@@ -149,7 +158,7 @@ wss.on("connection", (socket) => {
               JSON.stringify({
                 type: "action-rejected",
                 reason: `Not your turn. Current turn: Player ${room.game.turn}`,
-              } as ServerMessage)
+              } as ServerMessage),
             );
             return;
           }
@@ -161,7 +170,7 @@ wss.on("connection", (socket) => {
               JSON.stringify({
                 type: "action-rejected",
                 reason: "Not in claim phase",
-              } as ServerMessage)
+              } as ServerMessage),
             );
             return;
           }
@@ -170,7 +179,7 @@ wss.on("connection", (socket) => {
               JSON.stringify({
                 type: "action-rejected",
                 reason: "You are not the active claimant",
-              } as ServerMessage)
+              } as ServerMessage),
             );
             return;
           }
@@ -182,7 +191,7 @@ wss.on("connection", (socket) => {
               JSON.stringify({
                 type: "action-rejected",
                 reason: "Only player 0 can start a new hand",
-              } as ServerMessage)
+              } as ServerMessage),
             );
             return;
           }
@@ -194,14 +203,14 @@ wss.on("connection", (socket) => {
           // -------- EXECUTE ACTION --------
           if (msg.action.type === "discard") {
             const tile = room.game.players[playerIndex].hand.find(
-              (t) => t.id === msg.action.tileId
+              (t) => t.id === msg.action.tileId,
             );
             if (!tile) {
               throw new Error("Tile not in hand");
             }
 
             console.log(
-              `[Action] Player ${playerIndex} discards ${tile.label}`
+              `[Action] Player ${playerIndex} discards ${tile.label}`,
             );
             nextGame = discardTile(
               room.game,
@@ -219,7 +228,7 @@ wss.on("connection", (socket) => {
             }
 
             console.log(
-              `[Action] Player ${playerIndex} claims ${msg.action.claimType}`
+              `[Action] Player ${playerIndex} claims ${msg.action.claimType}`,
             );
             nextGame = applyClaim(
               room.game,
@@ -227,7 +236,7 @@ wss.on("connection", (socket) => {
               msg.action.claimType,
               msg.action.tiles,
               RULES,
-              HOUSE_RULES
+              HOUSE_RULES,
             );
           }
 
@@ -248,7 +257,13 @@ wss.on("connection", (socket) => {
 
           if (msg.action.type === "new-hand") {
             if (msg.action.resetGame) {
-              nextGame = dealRound(0, undefined, 1, room.game.players, room.game.tableId);
+              nextGame = dealRound(
+                0,
+                undefined,
+                1,
+                room.game.players,
+                room.game.tableId,
+              );
             } else {
               const dealer =
                 msg.action.dealer ??
@@ -256,7 +271,8 @@ wss.on("connection", (socket) => {
                   ? room.game.dealer
                   : (room.game.dealer + 1) % 4);
               const round =
-                msg.action.dealer !== undefined && msg.action.dealer !== room.game.dealer
+                msg.action.dealer !== undefined &&
+                msg.action.dealer !== room.game.dealer
                   ? room.game.round + 1
                   : room.game.round;
               nextGame = dealRound(
@@ -264,7 +280,7 @@ wss.on("connection", (socket) => {
                 room.game.players.map((p) => p.score),
                 round,
                 room.game.players,
-                room.game.tableId
+                room.game.tableId,
               );
             }
           }
@@ -278,12 +294,13 @@ wss.on("connection", (socket) => {
 
           // -------- BROADCAST TO ALL PLAYERS --------
           room.players.forEach((player) => {
-            if (player && player.readyState === 1) {  // 1 = OPEN
+            if (player && player.readyState === 1) {
+              // 1 = OPEN
               player.send(
                 JSON.stringify({
                   type: "game-state-update",
                   game: nextGame,
-                } as ServerMessage)
+                } as ServerMessage),
               );
             }
           });
@@ -294,11 +311,8 @@ wss.on("connection", (socket) => {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason:
-                error instanceof Error
-                  ? error.message
-                  : "Unknown error",
-            } as ServerMessage)
+              reason: error instanceof Error ? error.message : "Unknown error",
+            } as ServerMessage),
           );
         }
       }
@@ -311,14 +325,14 @@ wss.on("connection", (socket) => {
             JSON.stringify({
               type: "game-state-update",
               game: room.game,
-            } as ServerMessage)
+            } as ServerMessage),
           );
         } else {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
               reason: "Not joined to a seat in this room",
-            } as ServerMessage)
+            } as ServerMessage),
           );
           socket.close(1008, "Not joined to a seat");
         }
@@ -329,7 +343,7 @@ wss.on("connection", (socket) => {
         JSON.stringify({
           type: "system",
           message: "Server error",
-        } as ServerMessage)
+        } as ServerMessage),
       );
     }
   });
@@ -344,12 +358,13 @@ wss.on("connection", (socket) => {
 
         // Broadcast disconnection to others
         room.players.forEach((player) => {
-          if (player && player.readyState === 1) {  // 1 = OPEN
+          if (player && player.readyState === 1) {
+            // 1 = OPEN
             player.send(
               JSON.stringify({
                 type: "player-disconnected",
                 playerIndex,
-              } as ServerMessage)
+              } as ServerMessage),
             );
           }
         });
@@ -401,7 +416,7 @@ function playAITurnIfNeeded(roomId: string) {
     const tile = chooseDiscard(
       player.hand,
       player.difficulty,
-      player.melds.length
+      player.melds.length,
     );
 
     // Execute AI move
@@ -417,12 +432,13 @@ function playAITurnIfNeeded(roomId: string) {
 
     // Broadcast
     room.players.forEach((p) => {
-      if (p && p.readyState === 1) {  // 1 = OPEN
+      if (p && p.readyState === 1) {
+        // 1 = OPEN
         p.send(
           JSON.stringify({
             type: "game-state-update",
             game: nextGame,
-          } as ServerMessage)
+          } as ServerMessage),
         );
       }
     });
@@ -437,10 +453,12 @@ function playAITurnIfNeeded(roomId: string) {
 // ============ STATS ============
 
 setInterval(() => {
-  console.log(`[Stats] Active rooms: ${rooms.size}, Players: ${
-    Array.from(rooms.values()).reduce(
+  console.log(
+    `[Stats] Active rooms: ${rooms.size}, Players: ${Array.from(
+      rooms.values(),
+    ).reduce(
       (sum, room) => sum + room.players.filter((p) => p !== null).length,
-      0
-    )
-  }`);
+      0,
+    )}`,
+  );
 }, 30000);

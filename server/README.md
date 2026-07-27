@@ -17,6 +17,7 @@ npm run dev:server
 ```
 
 Output:
+
 ```
 🎮 Mahjong Game Server
 📡 Listening on ws://localhost:8080
@@ -33,6 +34,7 @@ Then open `http://localhost:5173` in your browser.
 ## Architecture
 
 ### Server Responsibilities
+
 - **Game State Authority** - Holds the single source of truth
 - **Move Validation** - Ensures all moves are legal before executing
 - **Game Execution** - Runs `game-logic/` functions to update state
@@ -40,6 +42,7 @@ Then open `http://localhost:5173` in your browser.
 - **Broadcasting** - Sends updated state to all connected players
 
 ### Client Responsibilities
+
 - **Rendering** - Shows UI based on game state
 - **User Input** - Captures human player actions
 - **Local Validation** - Pre-validates moves for UI feedback (not authoritative)
@@ -82,7 +85,7 @@ Then open `http://localhost:5173` in your browser.
 
 ```typescript
 // Join a game room
-{ 
+{
   type: "join-room",
   roomId: "game-123",
   playerIndex: 0
@@ -137,11 +140,13 @@ Then open `http://localhost:5173` in your browser.
 ## Testing
 
 ### Start Server
+
 ```bash
 npm run dev:server
 ```
 
 ### Start Client (New Terminal)
+
 ```bash
 npm run dev
 ```
@@ -161,11 +166,13 @@ npm run dev
 // Connect to server
 const ws = new WebSocket("ws://localhost:8080");
 ws.onopen = () => {
-  ws.send(JSON.stringify({
-    type: "join-room",
-    roomId: "test-game",
-    playerIndex: 1
-  }));
+  ws.send(
+    JSON.stringify({
+      type: "join-room",
+      roomId: "test-game",
+      playerIndex: 1,
+    }),
+  );
 };
 
 ws.onmessage = (event) => {
@@ -174,11 +181,13 @@ ws.onmessage = (event) => {
 };
 
 // Send a discard
-ws.send(JSON.stringify({
-  type: "player-action",
-  playerIndex: 1,
-  action: { type: "discard", tileId: "D5-0-xyz123" }
-}));
+ws.send(
+  JSON.stringify({
+    type: "player-action",
+    playerIndex: 1,
+    action: { type: "discard", tileId: "D5-0-xyz123" },
+  }),
+);
 ```
 
 ## Configuration
@@ -220,6 +229,7 @@ DEBUG=game:*
 ### Client Connection
 
 Check browser DevTools → Network → WS:
+
 - See all WebSocket frames
 - Verify messages are being sent/received
 - Check for connection drops
@@ -233,21 +243,25 @@ Check browser DevTools → Network → WS:
 ## Common Issues
 
 ### "Room not found"
+
 - Server restarted, room data lost
 - Need to create new room
 - Solution: Reconnect
 
 ### "Not your turn"
+
 - Player tried to act when not their turn
 - Another player just moved
 - Expect game state update soon
 
 ### "Tile not in hand"
+
 - Tried to discard a tile you don't have
 - Can happen with bad sync
 - Request fresh state: `{ type: "request-state" }`
 
 ### Connection Drops
+
 - Check browser console for errors
 - Check server logs
 - Verify `ws://localhost:8080` is reachable
