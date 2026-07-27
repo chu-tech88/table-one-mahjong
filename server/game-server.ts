@@ -52,7 +52,9 @@ function isHumanSeat(room: GameRoom, index: number) {
 }
 
 function getMimeType(filePath: string) {
-  return MIME_TYPES[extname(filePath).toLowerCase()] ?? "application/octet-stream";
+  return (
+    MIME_TYPES[extname(filePath).toLowerCase()] ?? "application/octet-stream"
+  );
 }
 
 function sendText(res: ServerResponse, status: number, text: string) {
@@ -129,7 +131,6 @@ httpServer.listen(PORT, () => {
   console.log(`🌐 HTTP listening on http://localhost:${PORT}`);
   console.log(`📡 WebSocket listening on ws://localhost:${PORT}`);
 });
-
 
 wss.on("connection", (socket) => {
   let roomId: string = "";
