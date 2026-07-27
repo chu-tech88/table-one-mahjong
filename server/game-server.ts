@@ -24,8 +24,12 @@ interface GameRoom {
 const rooms = new Map<string, GameRoom>();
 const PORT = Number(process.env.PORT ?? process.env.WS_PORT ?? "8080");
 
+function isOpenSocket(socket: WebSocket | null) {
+  return socket !== null && socket.readyState === WebSocket.OPEN;
+}
+
 function isHumanSeat(room: GameRoom, index: number) {
-  return room.players[index] !== null;
+  return isOpenSocket(room.players[index] ?? null);
 }
 
 // Create WebSocket server
@@ -80,7 +84,7 @@ wss.on("connection", (socket) => {
 
         const room = rooms.get(requestedRoomId)!;
         const existing = room.players[requestedPlayerIndex];
-        if (existing && existing !== socket && existing.readyState === 1) {
+        if (isOpenSocket(existing ?? null) && existing !== socket) {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
@@ -113,7 +117,7 @@ wss.on("connection", (socket) => {
         const occupiedSeats = room
           ? room.players
               .map((player, index) =>
-                player && player.readyState === 1 ? index : -1,
+                isOpenSocket(player ?? null) ? index : -1,
               )
               .filter((index) => index >= 0)
           : [];
@@ -294,7 +298,7 @@ wss.on("connection", (socket) => {
 
           // -------- BROADCAST TO ALL PLAYERS --------
           room.players.forEach((player) => {
-            if (player && player.readyState === 1) {
+            if (isOpenSocket(player ?? null)) {
               // 1 = OPEN
               player.send(
                 JSON.stringify({
@@ -358,7 +362,7 @@ wss.on("connection", (socket) => {
 
         // Broadcast disconnection to others
         room.players.forEach((player) => {
-          if (player && player.readyState === 1) {
+          if (isOpenSocket(player ?? null)) {
             // 1 = OPEN
             player.send(
               JSON.stringify({
@@ -379,6 +383,9 @@ wss.on("connection", (socket) => {
         if (room.players.every((p) => p === null)) {
           rooms.delete(roomId);
           console.log(`[Room] Cleaned up empty room ${roomId}`);
+        } else {
+          // If a seat disconnects during its turn/claim, allow AI fallback progression.
+          setTimeout(() => playAITurnIfNeeded(roomId), 50);
         }
       }
     }
@@ -396,6 +403,33 @@ function playAITurnIfNeeded(roomId: string) {
   if (!room) return;
 
   const { game } = room;
+
+  // If claim is waiting on a disconnected claimant, auto-pass and continue.
+  if (game.phase === "claim" && game.pendingClaim && game.lastDiscard) {
+    const activeClaimant = game.pendingClaim.claimer;
+    if (!isHumanSeat(room, activeClaimant)) {
+      const nextGame = startTurn(
+        game,
+        (game.lastDiscard.by + 1) % 4,
+        RULES,
+        HOUSE_RULES,
+        (index) => isHumanSeat(room, index),
+      );
+      room.game = nextGame;
+      room.players.forEach((p) => {
+        if (isOpenSocket(p ?? null)) {
+          p.send(
+            JSON.stringify({
+              type: "game-state-update",
+              game: nextGame,
+            } as ServerMessage),
+          );
+        }
+      });
+      setTimeout(() => playAITurnIfNeeded(roomId), 1500);
+    }
+    return;
+  }
 
   // Check if current turn is connected human seat
   const currentPlayerIndex = game.turn;
@@ -432,7 +466,7 @@ function playAITurnIfNeeded(roomId: string) {
 
     // Broadcast
     room.players.forEach((p) => {
-      if (p && p.readyState === 1) {
+      if (isOpenSocket(p ?? null)) {
         // 1 = OPEN
         p.send(
           JSON.stringify({
@@ -457,7 +491,7 @@ setInterval(() => {
     `[Stats] Active rooms: ${rooms.size}, Players: ${Array.from(
       rooms.values(),
     ).reduce(
-      (sum, room) => sum + room.players.filter((p) => p !== null).length,
+      (sum, room) => sum + room.players.filter((p) => isOpenSocket(p)).length,
       0,
     )}`,
   );

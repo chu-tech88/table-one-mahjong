@@ -1,316 +1,77 @@
-# 🎯 Server Implementation Complete
+# Implementation Notes
 
-All multiplayer server infrastructure has been scaffolded and is ready to use.
+## Summary
 
-## What Was Added
+The codebase now supports full real-time multiplayer with up to 4 real players,
+with server-authoritative rules and seat ownership.
 
-### Server-Side
+## Implemented Components
 
-- **[server/game-server.ts](server/game-server.ts)** (391 lines)
-  - WebSocket server on `ws://localhost:8080`
-  - Game room management
-  - Move validation & execution
-  - AI autopilot for players 1-3
-  - State broadcasting
-  - Error handling & logging
+### Server
 
-### Client-Side
+- `server/game-server.ts`
+  - room lifecycle and seat ownership
+  - authoritative action validation and execution
+  - `request-state` ownership safeguards
+  - seat availability endpoint via `request-room-seats`
+  - `room-seats-update` response for lobby UI
 
-- **[src/network/game-client.ts](src/network/game-client.ts)** (170 lines)
-  - WebSocket client connector
-  - Action sending
-  - State synchronization
-  - Local validation for UI feedback
-  - Callback system for React hooks
+### Network client and protocol
 
-- **[src/network/messages.ts](src/network/messages.ts)**
-  - TypeScript message protocol
-  - Client → Server messages
-  - Server → Client responses
+- `src/network/messages.ts`
+  - join/action/state message types
+  - lobby seat-availability message types
 
-### React Integration
+- `src/network/game-client.ts`
+  - connection lifecycle and action sending
+  - server message handling and rejection handling
 
-- **[src/hooks/useNetworkedGame.ts](src/hooks/useNetworkedGame.ts)** (UPDATED)
-  - Now fully functional
-  - Connects to server via GameClient
-  - Handles game state updates
-  - Provides action methods (discard, claim, pass)
+### React hooks and app integration
 
-- **[src/hooks/useGame.ts](src/hooks/useGame.ts)** (UPDATED)
-  - Mode abstraction: local vs networked
-  - One line to switch: `{ mode: "networked", serverUrl, roomId, playerIndex }`
+- `src/hooks/useGame.ts`: local/networked mode switch
+- `src/hooks/useNetworkedGame.ts`: active network sync and actions
+- `src/hooks/useLocalGame.ts`: local solo fallback
+- `src/App.tsx`: lobby join flow, seat filtering, and perspective labels
 
-### Documentation
+## 4 Real Players
 
-- **[MULTIPLAYER.md](MULTIPLAYER.md)** - Complete setup & implementation guide
-- **[server/README.md](server/README.md)** - Server operation guide
-- **[start-multiplayer.sh](start-multiplayer.sh)** - Launcher script
+Multiplayer behavior now supports all-human rooms:
 
-### Dependencies
+1. Any of the four seats can be claimed by a real client.
+2. Seat conflicts are rejected by the server.
+3. Occupied seats are hidden in the lobby seat selector before join.
+4. AI turns execute only for seats without connected human players.
 
-Updated `package.json`:
+## Validation and Tests
 
-```json
-{
-  "scripts": {
-    "dev:server": "tsx watch server/game-server.ts",
-    ...
-  },
-  "dependencies": {
-    "ws": "^8.16.0"
-  },
-  "devDependencies": {
-    "@types/node": "^20.10.0",
-    "@types/ws": "^8.5.10",
-    "tsx": "^4.7.0"
-  }
-}
-```
-
-## How to Use It
-
-### 1. Install Dependencies
+### Full verification
 
 ```bash
-npm install
+npm test
 ```
 
-### 2. Start Server (Terminal 1)
+This runs:
+
+1. `tsc --noEmit`
+2. production build
+3. `npm run test:singleplayer`
+4. `npm run test:multiplayer`
+
+### Multiplayer smoke test
 
 ```bash
-npm run dev:server
+npm run test:multiplayer
 ```
 
-Expected output:
+`tests/multiplayer-smoke.mjs` verifies:
 
-```
-🎮 Mahjong Game Server
-📡 Listening on ws://localhost:8080
-[Connected] New client connected
-[Room] Created room default
-[Room] Player 0 joined room default
-```
+1. server boots on a random test port
+2. two clients can join one room on distinct seats
+3. duplicate seat join is rejected
+4. a discard from one client is broadcast to all joined clients
 
-### 3. Start Client (Terminal 2)
+## Deployment notes
 
-```bash
-npm run dev
-```
-
-Then visit: `http://localhost:5173`
-
-### 4. Switch App to Multiplayer Mode
-
-Edit `src/App.tsx` (or the new version you're using):
-
-```typescript
-function MahjongApp() {
-  // Change from this:
-  // const gameHook = useGame({ mode: "local" });
-
-  // To this:
-  const gameHook = useGame({
-    mode: "networked",
-    serverUrl: "ws://localhost:8080",
-    roomId: "my-game-room",
-    playerIndex: 0, // 0 = human, 1-3 = AI
-  });
-
-  // Rest of code unchanged!
-  const { game, discard, claim, pass } = gameHook;
-  // ... render as normal
-}
-```
-
-That's it! Everything else works the same.
-
-## Architecture Overview
-
-```
-CLIENT                           SERVER
-├─ React UI                       ├─ WebSocket Server
-├─ useGame() hook        ◄───────► ├─ Game Execution
-├─ GameClient (WS)        Message  ├─ Move Validation
-│  └─ Send actions    Protocol    ├─ AI Autopilot
-│  └─ Recv updates    (JSON)      ├─ State Authority
-└─ Local validation               └─ Broadcasting
-   (UI feedback)
-```
-
-### Message Flow
-
-```
-1. Human clicks "Discard D5"
-   └─ client.discard("D5-xyz")
-      └─ ws.send({ type: "player-action", ... })
-
-2. Server receives
-   └─ Validates: Is it their turn? Is tile in hand?
-   └─ Executes: discardTile(game, playerIndex, tileId, rules)
-   └─ Broadcasts: { type: "game-state-update", game }
-
-3. All clients receive
-   └─ setGame(newGame)
-   └─ UI re-renders
-   └─ If next is AI turn, triggers auto-play after 1.5s
-```
-
-## Key Features
-
-✅ **Pure Game Logic**
-
-- All functions in `src/game-logic/` are unchanged
-- AI agents can optimize them independently
-- Works on both client and server
-
-✅ **Server Authority**
-
-- Server holds game state
-- All moves validated server-side
-- Prevents cheating
-
-✅ **Real-Time Sync**
-
-- Full game state broadcasted after every move
-- All 4 players stay synchronized
-- ~5KB per update
-
-✅ **AI Autopilot**
-
-- Server auto-plays for players 1-3
-- Uses same `chooseDiscard()` logic
-- Configurable per-player difficulty
-
-✅ **Hook Abstraction**
-
-- Switch modes with one line of code
-- Rest of UI completely unchanged
-- Drop-in replacement
-
-## Testing
-
-### Test Local Solo Play
-
-```bash
-npm run dev
-# Play game normally, AI handles other 3 players
-```
-
-### Test Multiplayer with AI
-
-```bash
-npm run dev:server
-npm run dev
-
-# Server auto-plays players 1-3
-# You control player 0 in browser
-# Watch server logs for AI moves
-```
-
-### Test Two Human Players
-
-Open TWO browsers:
-
-- Browser 1: Controls player 0
-- Browser 2: Sees same state (read-only currently)
-
-(To have player 2 be human requires URL routing—future enhancement)
-
-## File Changes Summary
-
-```
-NEW FILES (6):
-  server/game-server.ts
-  server/.gitignore
-  server/README.md
-  src/network/messages.ts
-  src/network/game-client.ts
-  MULTIPLAYER.md
-  start-multiplayer.sh
-
-MODIFIED (4):
-  package.json (added dependencies)
-  src/hooks/useNetworkedGame.ts (fully implemented)
-  src/hooks/useGame.ts (updated signature)
-  ARCHITECTURE.md (added status)
-
-UNCHANGED (5+):
-  src/game-logic/* (all modules)
-  src/hooks/useLocalGame.ts
-  src/App.tsx (original still works)
-  src/App-new.tsx (template)
-  All UI components
-```
-
-## Next Steps (Optional Enhancements)
-
-1. **Add Player Selection**
-   - Let user choose which player (0-3) to control
-   - URL param or UI selector
-
-2. **Add Persistence**
-   - Save games to database
-   - Load previous games
-   - Player statistics
-
-3. **Add Authentication**
-   - User accounts
-   - Matchmaking
-   - Rating/ELO system
-
-4. **Add Spectating**
-   - Watch other games
-   - View replays
-   - Chat during play
-
-5. **Add Remote Server**
-   - Deploy to cloud (Heroku, AWS, etc.)
-   - Use `wss://` for encrypted connection
-   - Scale to multiple game rooms
-
-## Troubleshooting
-
-| Issue                                | Solution                                         |
-| ------------------------------------ | ------------------------------------------------ |
-| "Module not found: ws"               | Run `npm install`                                |
-| Connection refused on localhost:8080 | Server not running: `npm run dev:server`         |
-| Game state not updating              | Check browser console for errors                 |
-| AI not moving                        | Check server logs—should see `[AI] Playing turn` |
-| Port 8080 already in use             | Kill other process: `lsof -i :8080`              |
-
-## Questions?
-
-See these files for more details:
-
-- [MULTIPLAYER.md](MULTIPLAYER.md) - Full setup & architecture guide
-- [server/README.md](server/README.md) - Server operation manual
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Design patterns & flow
-
-## Ready to Deploy?
-
-The server is production-ready once you:
-
-- [ ] Add authentication (required for real users)
-- [ ] Enable SSL/TLS (use `wss://` instead of `ws://`)
-- [ ] Add rate limiting (prevent abuse)
-- [ ] Set up database (optional, for persistence)
-- [ ] Deploy to cloud (Heroku, AWS, Digital Ocean, etc.)
-
-Current setup works great for:
-
-- ✅ Local development
-- ✅ LAN gaming
-- ✅ Testing multiplayer gameplay
-- ✅ AI agent optimization
-
----
-
-**Everything is ready to go. Start with:**
-
-```bash
-npm install
-npm run dev:server  # Terminal 1
-npm run dev         # Terminal 2
-```
-
-Then connect at `http://localhost:5173` 🎮
+- server port: `PORT` (fallback `WS_PORT`, then `8080`)
+- client server URL: `VITE_WS_URL`
+- production transport: use `wss://`

@@ -467,6 +467,32 @@ function MahjongApp() {
     player: game?.turn ?? SELF,
     text: game?.message ?? "Loading game...",
   };
+  const currentPhase = game?.phase;
+  const currentTurn = game?.turn;
+  const currentClaimer = game?.pendingClaim?.claimer;
+  const isSelfDiscardTurn = currentPhase === "discard" && currentTurn === SELF;
+  const isSelfClaimTurn = currentPhase === "claim" && currentClaimer === SELF;
+  const activityIsTurnCall = /is taking a turn\.?$/i.test(activity.text);
+  const activityIndicatesSelfAction =
+    activity.player === SELF &&
+    /(choose a discard|is taking a turn|your turn)/i.test(activity.text);
+  const showYourTurnInCenter =
+    isSelfDiscardTurn || isSelfClaimTurn || activityIndicatesSelfAction;
+  const activityText = isSelfDiscardTurn
+    ? "Your turn"
+    : isSelfClaimTurn
+      ? "Your turn - choose an action"
+      : activityIsTurnCall && activity.player === SELF
+        ? "Your turn"
+        : activity.text;
+  const centerStatusLabel =
+    !activity.tile && showYourTurnInCenter
+      ? "Your turn"
+      : activity.tile
+        ? `${seatName(activity.player)}'s discard`
+        : "Table activity";
+  const centerStatusValue =
+    !activity.tile && showYourTurnInCenter ? "Your turn" : "Waiting";
 
   const ruleRows = useMemo(() => [["Base win", "baseWin"]] as const, []);
 
@@ -948,18 +974,14 @@ function MahjongApp() {
                 <span>
                   Round {game.round} · {dealerStatus}
                 </span>
-                <strong>{activity.text}</strong>
+                <strong>{activityText}</strong>
               </div>
               <div className="last-discard">
-                <span>
-                  {activity.tile
-                    ? `${seatName(activity.player)}'s discard`
-                    : "Table activity"}
-                </span>
+                <span>{centerStatusLabel}</span>
                 {activity.tile ? (
                   <TileView tile={activity.tile} large disabled />
                 ) : (
-                  <strong>Waiting</strong>
+                  <strong>{centerStatusValue}</strong>
                 )}
               </div>
             </div>
