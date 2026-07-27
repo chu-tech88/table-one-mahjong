@@ -712,7 +712,11 @@ function MahjongApp() {
           </button>
         ) : null}
         {game.pendingClaim?.canHu ? (
-          <button disabled type="button">
+          <button
+            disabled
+            title="Hu is not available in multiplayer yet."
+            type="button"
+          >
             Hu
           </button>
         ) : null}
@@ -766,7 +770,11 @@ function MahjongApp() {
           Discard
         </button>
         {canSelfHu ? (
-          <button disabled type="button">
+          <button
+            disabled
+            title="Hu is not available in multiplayer yet."
+            type="button"
+          >
             Hu
           </button>
         ) : null}
