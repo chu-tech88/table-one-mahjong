@@ -14,6 +14,7 @@ import {
   startTurn,
   HUMAN,
 } from "../game-logic/flow";
+import { scoreRound } from "../game-logic/scoring";
 import { chooseDiscard } from "../game-logic/ai";
 import { isWinningHand, concealedKongOptions } from "../game-logic/validation";
 
@@ -217,6 +218,7 @@ type UseLocalGameReturn = {
   discard: (tileId: string) => void;
   claim: (type: "chi" | "pong" | "kong", tiles?: any) => void;
   pass: () => void;
+  hu: (source: "discard" | "self-draw") => void;
   kong: (code: string, concealed: boolean) => void;
   addHouseRule: (name: string, description: string, points: number) => void;
   removeHouseRule: (id: string) => void;
@@ -302,6 +304,34 @@ export function useLocalGame(): UseLocalGameReturn {
       );
     });
   }, [rules, houseRules]);
+
+  const hu = useCallback(
+    (source: "discard" | "self-draw") => {
+      setGame((current) => {
+        if (source === "discard") {
+          if (
+            current.phase !== "claim" ||
+            !current.pendingClaim?.canHu ||
+            current.pendingClaim.claimer !== HUMAN
+          ) {
+            return current;
+          }
+        }
+
+        if (
+          source === "self-draw" &&
+          (current.phase !== "discard" ||
+            current.turn !== HUMAN ||
+            !isWinningHand(current.players[HUMAN].hand, current.players[HUMAN].melds.length))
+        ) {
+          return current;
+        }
+
+        return scoreRound(current, HUMAN, source, rules, houseRules);
+      });
+    },
+    [rules, houseRules],
+  );
 
   const kong = useCallback(
     (code: string, concealed: boolean) => {
@@ -399,6 +429,7 @@ export function useLocalGame(): UseLocalGameReturn {
     discard,
     claim,
     pass,
+    hu,
     kong,
     addHouseRule,
     removeHouseRule,

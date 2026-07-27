@@ -2,7 +2,9 @@ import { WebSocketServer, WebSocket } from "ws";
 import { Game, Rules, HouseRule } from "../src/game-logic/types";
 import { dealRound } from "../src/game-logic/deck";
 import { discardTile, applyClaim, startTurn } from "../src/game-logic/flow";
+import { scoreRound } from "../src/game-logic/scoring";
 import { chooseDiscard } from "../src/game-logic/ai";
+import { isWinningHand } from "../src/game-logic/validation";
 import { ClientMessage, ServerMessage } from "../src/network/messages";
 
 // Game configuration
@@ -168,7 +170,11 @@ wss.on("connection", (socket) => {
           }
         }
 
-        if (msg.action.type === "claim" || msg.action.type === "pass") {
+        if (
+          msg.action.type === "claim" ||
+          msg.action.type === "pass" ||
+          (msg.action.type === "hu" && msg.action.source === "discard")
+        ) {
           if (room.game.phase !== "claim") {
             socket.send(
               JSON.stringify({
@@ -183,6 +189,40 @@ wss.on("connection", (socket) => {
               JSON.stringify({
                 type: "action-rejected",
                 reason: "You are not the active claimant",
+              } as ServerMessage),
+            );
+            return;
+          }
+          if (
+            msg.action.type === "hu" &&
+            !room.game.pendingClaim?.canHu
+          ) {
+            socket.send(
+              JSON.stringify({
+                type: "action-rejected",
+                reason: "Hu is not available",
+              } as ServerMessage),
+            );
+            return;
+          }
+        }
+
+        if (msg.action.type === "hu" && msg.action.source === "self-draw") {
+          if (room.game.phase !== "discard" || room.game.turn !== playerIndex) {
+            socket.send(
+              JSON.stringify({
+                type: "action-rejected",
+                reason: `Not your turn. Current turn: Player ${room.game.turn}`,
+              } as ServerMessage),
+            );
+            return;
+          }
+          const player = room.game.players[playerIndex];
+          if (!isWinningHand(player.hand, player.melds.length)) {
+            socket.send(
+              JSON.stringify({
+                type: "action-rejected",
+                reason: "Hand is not a winning hand",
               } as ServerMessage),
             );
             return;
@@ -239,6 +279,16 @@ wss.on("connection", (socket) => {
               playerIndex,
               msg.action.claimType,
               msg.action.tiles,
+              RULES,
+              HOUSE_RULES,
+            );
+          }
+
+          if (msg.action.type === "hu") {
+            nextGame = scoreRound(
+              room.game,
+              playerIndex,
+              msg.action.source,
               RULES,
               HOUSE_RULES,
             );

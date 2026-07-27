@@ -362,6 +362,7 @@ function MahjongApp() {
     discard,
     claim,
     pass,
+    hu,
     kong,
     addHouseRule,
     removeHouseRule,
@@ -713,8 +714,10 @@ function MahjongApp() {
         ) : null}
         {game.pendingClaim?.canHu ? (
           <button
-            disabled
-            title="Hu is not available in multiplayer yet."
+            onClick={() => {
+              setChoosingChi(false);
+              hu("discard");
+            }}
             type="button"
           >
             Hu
@@ -771,8 +774,9 @@ function MahjongApp() {
         </button>
         {canSelfHu ? (
           <button
-            disabled
-            title="Hu is not available in multiplayer yet."
+            onClick={() => {
+              hu("self-draw");
+            }}
             type="button"
           >
             Hu

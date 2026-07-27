@@ -1,5 +1,5 @@
 import { Game, HouseRule, Rules } from "../game-logic/types";
-import { possibleChiOptions } from "../game-logic/validation";
+import { isWinningHand, possibleChiOptions } from "../game-logic/validation";
 import { ClientMessage, ServerMessage, PlayerAction } from "./messages";
 
 /**
@@ -266,6 +266,36 @@ export class GameClient {
 
     this.sendAction({
       type: "pass",
+    });
+  }
+
+  hu(source: "discard" | "self-draw") {
+    if (!this.game) {
+      return;
+    }
+
+    if (source === "discard") {
+      if (!this.canPlayerClaim() || !this.game.pendingClaim?.canHu) {
+        console.warn("Cannot hu: not in claim phase or hu unavailable");
+        return;
+      }
+    }
+
+    if (source === "self-draw") {
+      const player = this.game.players[this.playerIndex];
+      if (
+        this.game.phase !== "discard" ||
+        this.game.turn !== this.playerIndex ||
+        !isWinningHand(player.hand, player.melds.length)
+      ) {
+        console.warn("Cannot hu: invalid self-draw win state");
+        return;
+      }
+    }
+
+    this.sendAction({
+      type: "hu",
+      source,
     });
   }
 

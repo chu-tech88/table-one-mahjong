@@ -17,6 +17,7 @@ type UseNetworkedGameReturn = {
   discard: (tileId: string) => void;
   claim: (type: "chi" | "pong" | "kong", tiles?: any) => void;
   pass: () => void;
+  hu: (source: "discard" | "self-draw") => void;
   kong: (code: string, concealed: boolean) => void;
   addHouseRule: (name: string, description: string, points: number) => void;
   removeHouseRule: (id: string) => void;
@@ -137,6 +138,11 @@ export function useNetworkedGame(
     clientRef.current.pass();
   }, []);
 
+  const hu = useCallback((source: "discard" | "self-draw") => {
+    if (!clientRef.current) return;
+    clientRef.current.hu(source);
+  }, []);
+
   // Dummy implementations for settings (server doesn't support these yet)
   const setRules = useCallback(() => {}, []);
   const setHouseRules = useCallback(() => {}, []);
@@ -167,6 +173,7 @@ export function useNetworkedGame(
     discard,
     claim,
     pass,
+    hu,
     kong,
     addHouseRule,
     removeHouseRule,
