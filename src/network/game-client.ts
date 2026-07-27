@@ -54,6 +54,7 @@ export class GameClient {
 
         const onOpenTimeout = setTimeout(() => {
           console.error("[GameClient] Connection timeout");
+          this.ws?.close();
           reject(new Error("Connection timeout"));
         }, 5000);
 
