@@ -23,7 +23,6 @@ import {
   canExposedKong,
   waitCodesForHand,
 } from "./game-logic/validation";
-import { scoreRound } from "./game-logic/scoring";
 import { useGame } from "./hooks/useGame";
 
 // Component rendering stays exactly the same
@@ -713,14 +712,7 @@ function MahjongApp() {
           </button>
         ) : null}
         {game.pendingClaim?.canHu ? (
-          <button
-            onClick={() => {
-              setChoosingChi(false);
-              // Manually create a scoreRound call
-              scoreRound(game, SELF, "discard", rules, houseRules);
-            }}
-            type="button"
-          >
+          <button disabled type="button">
             Hu
           </button>
         ) : null}
@@ -774,12 +766,7 @@ function MahjongApp() {
           Discard
         </button>
         {canSelfHu ? (
-          <button
-            onClick={() => {
-              scoreRound(game, SELF, "self-draw", rules, houseRules);
-            }}
-            type="button"
-          >
+          <button disabled type="button">
             Hu
           </button>
         ) : null}
