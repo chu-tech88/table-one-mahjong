@@ -287,7 +287,11 @@ wss.on("connection", (socket) => {
 
         if (msg.action.type === "hu") {
           if (msg.action.winBy === "discard") {
-            if (room.game.phase !== "claim" || room.game.pendingClaim?.claimer !== playerIndex || !room.game.pendingClaim.canHu) {
+            if (
+              room.game.phase !== "claim" ||
+              room.game.pendingClaim?.claimer !== playerIndex ||
+              !room.game.pendingClaim.canHu
+            ) {
               socket.send(
                 JSON.stringify({
                   type: "action-rejected",
@@ -388,7 +392,9 @@ wss.on("connection", (socket) => {
           }
 
           if (action.type === "hu") {
-            console.log(`[Action] Player ${playerIndex} wins by ${action.winBy}`);
+            console.log(
+              `[Action] Player ${playerIndex} wins by ${action.winBy}`,
+            );
             nextGame = scoreRound(
               room.game,
               playerIndex,

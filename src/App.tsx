@@ -31,8 +31,8 @@ const DEFAULT_SERVER_URL =
   (import.meta.env.DEV && typeof window !== "undefined"
     ? `ws://${window.location.hostname}:8080`
     : typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`
-    : "ws://localhost:8080");
+      ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`
+      : "ws://localhost:8080");
 
 const difficulties: Record<Difficulty, string> = {
   calm: "Calm",
