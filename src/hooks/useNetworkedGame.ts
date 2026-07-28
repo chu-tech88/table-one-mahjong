@@ -17,7 +17,7 @@ type UseNetworkedGameReturn = {
   discard: (tileId: string) => void;
   claim: (type: "chi" | "pong" | "kong", tiles?: any) => void;
   pass: () => void;
-  hu: (source: "discard" | "self-draw") => void;
+  hu: (winBy: "discard" | "self-draw") => void;
   kong: (code: string, concealed: boolean) => void;
   addHouseRule: (name: string, description: string, points: number) => void;
   removeHouseRule: (id: string) => void;
@@ -104,8 +104,7 @@ export function useNetworkedGame(
       })
       .catch((err) => {
         if (!isMounted) return;
-        const message = err instanceof Error ? err.message : String(err);
-        setError(`Failed to connect: ${message}`);
+        setError(`Failed to connect: ${err.message}`);
       });
 
     return () => {
@@ -138,9 +137,10 @@ export function useNetworkedGame(
     clientRef.current.pass();
   }, []);
 
-  const hu = useCallback((source: "discard" | "self-draw") => {
+  const hu = useCallback((winBy: "discard" | "self-draw") => {
     if (!clientRef.current) return;
-    clientRef.current.hu(source);
+    clientRef.current.hu(winBy);
+    setSelectedTileId(undefined);
   }, []);
 
   // Dummy implementations for settings (server doesn't support these yet)

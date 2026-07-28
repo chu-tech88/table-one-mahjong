@@ -7,6 +7,8 @@ import { Game, Rules, HouseRule } from "../src/game-logic/types";
 import { dealRound } from "../src/game-logic/deck";
 import { discardTile, applyClaim, startTurn } from "../src/game-logic/flow";
 import { chooseDiscard } from "../src/game-logic/ai";
+import { scoreRound } from "../src/game-logic/scoring";
+import { isWinningHand } from "../src/game-logic/validation";
 import { ClientMessage, ServerMessage } from "../src/network/messages";
 
 // Game configuration
@@ -43,7 +45,7 @@ const MIME_TYPES: Record<string, string> = {
   ".ico": "image/x-icon",
 };
 
-function isOpenSocket(socket: WebSocket | null) {
+function isOpenSocket(socket: WebSocket | null): socket is WebSocket {
   return socket !== null && socket.readyState === WebSocket.OPEN;
 }
 
@@ -283,6 +285,41 @@ wss.on("connection", (socket) => {
           }
         }
 
+        if (msg.action.type === "hu") {
+          if (msg.action.winBy === "discard") {
+            if (
+              room.game.phase !== "claim" ||
+              room.game.pendingClaim?.claimer !== playerIndex ||
+              !room.game.pendingClaim.canHu
+            ) {
+              socket.send(
+                JSON.stringify({
+                  type: "action-rejected",
+                  reason: "You cannot win on this discard",
+                } as ServerMessage),
+              );
+              return;
+            }
+          }
+
+          if (msg.action.winBy === "self-draw") {
+            const player = room.game.players[playerIndex];
+            if (
+              room.game.phase !== "discard" ||
+              room.game.turn !== playerIndex ||
+              !isWinningHand(player.hand, player.melds.length)
+            ) {
+              socket.send(
+                JSON.stringify({
+                  type: "action-rejected",
+                  reason: "You cannot self-draw win right now",
+                } as ServerMessage),
+              );
+              return;
+            }
+          }
+        }
+
         if (msg.action.type === "new-hand") {
           if (playerIndex !== 0) {
             socket.send(
@@ -296,12 +333,13 @@ wss.on("connection", (socket) => {
         }
 
         let nextGame: Game | null = null;
+        const action = msg.action;
 
         try {
           // -------- EXECUTE ACTION --------
-          if (msg.action.type === "discard") {
+          if (action.type === "discard") {
             const tile = room.game.players[playerIndex].hand.find(
-              (t) => t.id === msg.action.tileId,
+              (t) => t.id === action.tileId,
             );
             if (!tile) {
               throw new Error("Tile not in hand");
@@ -313,32 +351,32 @@ wss.on("connection", (socket) => {
             nextGame = discardTile(
               room.game,
               playerIndex,
-              msg.action.tileId,
+              action.tileId,
               RULES,
               HOUSE_RULES,
               (index) => isHumanSeat(room, index),
             );
           }
 
-          if (msg.action.type === "claim") {
+          if (action.type === "claim") {
             if (room.game.phase !== "claim") {
               throw new Error("Not in claim phase");
             }
 
             console.log(
-              `[Action] Player ${playerIndex} claims ${msg.action.claimType}`,
+              `[Action] Player ${playerIndex} claims ${action.claimType}`,
             );
             nextGame = applyClaim(
               room.game,
               playerIndex,
-              msg.action.claimType,
-              msg.action.tiles,
+              action.claimType,
+              action.tiles,
               RULES,
               HOUSE_RULES,
             );
           }
 
-          if (msg.action.type === "pass") {
+          if (action.type === "pass") {
             if (room.game.phase !== "claim") {
               throw new Error("Not in claim phase");
             }
@@ -353,8 +391,21 @@ wss.on("connection", (socket) => {
             );
           }
 
-          if (msg.action.type === "new-hand") {
-            if (msg.action.resetGame) {
+          if (action.type === "hu") {
+            console.log(
+              `[Action] Player ${playerIndex} wins by ${action.winBy}`,
+            );
+            nextGame = scoreRound(
+              room.game,
+              playerIndex,
+              action.winBy,
+              RULES,
+              HOUSE_RULES,
+            );
+          }
+
+          if (action.type === "new-hand") {
+            if (action.resetGame) {
               nextGame = dealRound(
                 0,
                 undefined,
@@ -364,13 +415,13 @@ wss.on("connection", (socket) => {
               );
             } else {
               const dealer =
-                msg.action.dealer ??
+                action.dealer ??
                 (room.game.winner === room.game.dealer
                   ? room.game.dealer
                   : (room.game.dealer + 1) % 4);
               const round =
-                msg.action.dealer !== undefined &&
-                msg.action.dealer !== room.game.dealer
+                action.dealer !== undefined &&
+                action.dealer !== room.game.dealer
                   ? room.game.round + 1
                   : room.game.round;
               nextGame = dealRound(
@@ -392,7 +443,7 @@ wss.on("connection", (socket) => {
 
           // -------- BROADCAST TO ALL PLAYERS --------
           room.players.forEach((player) => {
-            if (isOpenSocket(player ?? null)) {
+            if (isOpenSocket(player)) {
               // 1 = OPEN
               player.send(
                 JSON.stringify({
@@ -456,7 +507,7 @@ wss.on("connection", (socket) => {
 
         // Broadcast disconnection to others
         room.players.forEach((player) => {
-          if (isOpenSocket(player ?? null)) {
+          if (isOpenSocket(player)) {
             // 1 = OPEN
             player.send(
               JSON.stringify({
@@ -511,7 +562,7 @@ function playAITurnIfNeeded(roomId: string) {
       );
       room.game = nextGame;
       room.players.forEach((p) => {
-        if (isOpenSocket(p ?? null)) {
+        if (isOpenSocket(p)) {
           p.send(
             JSON.stringify({
               type: "game-state-update",
@@ -560,7 +611,7 @@ function playAITurnIfNeeded(roomId: string) {
 
     // Broadcast
     room.players.forEach((p) => {
-      if (isOpenSocket(p ?? null)) {
+      if (isOpenSocket(p)) {
         // 1 = OPEN
         p.send(
           JSON.stringify({
