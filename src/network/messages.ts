@@ -30,7 +30,7 @@ export type PlayerAction =
   | { type: "discard"; tileId: string }
   | { type: "claim"; claimType: "chi" | "pong" | "kong"; tiles?: any }
   | { type: "pass" }
-  | { type: "hu"; source: "discard" | "self-draw" }
+  | { type: "hu"; winBy: "discard" | "self-draw" }
   | { type: "new-hand"; dealer?: number; resetGame?: boolean };
 
 export type RequestStateMessage = {

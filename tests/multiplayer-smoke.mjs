@@ -90,7 +90,10 @@ function startServer(port) {
 
     const onStdout = (chunk) => {
       const text = chunk.toString();
-      if (text.includes(`Listening on ws://localhost:${port}`)) {
+      if (
+        text.includes(`Listening on ws://localhost:${port}`) ||
+        text.includes(`WebSocket listening on ws://localhost:${port}`)
+      ) {
         cleanup();
         resolve(server);
       }
