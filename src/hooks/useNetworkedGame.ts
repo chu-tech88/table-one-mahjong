@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Game, Rules, HouseRule, Difficulty } from "../game-logic/types";
 import { GameClient } from "../network/game-client";
+import { createDefaultHouseRules, DEFAULT_RULES } from "../game-logic/rules";
 
 type UseNetworkedGameReturn = {
   game: Game | null;
@@ -45,6 +46,7 @@ export function useNetworkedGame(
   serverUrl: string,
   roomId: string,
   playerIndex: number,
+  playerName: string,
   enabled = true,
 ): UseNetworkedGameReturn {
   const [game, setGame] = useState<Game | null>(null);
@@ -53,8 +55,8 @@ export function useNetworkedGame(
   const [selectedTileId, setSelectedTileId] = useState<string | undefined>();
   const clientRef = useRef<GameClient | null>(null);
 
-  const rules: Rules = { baseWin: 5 };
-  const houseRules: HouseRule[] = [];
+  const rules: Rules = game?.rules ?? DEFAULT_RULES;
+  const houseRules: HouseRule[] = game?.houseRules ?? createDefaultHouseRules();
 
   // Connect to server
   useEffect(() => {
@@ -95,7 +97,7 @@ export function useNetworkedGame(
     let isMounted = true;
 
     client
-      .connect(serverUrl, roomId, playerIndex)
+      .connect(serverUrl, roomId, playerIndex, playerName)
       .then(() => {
         if (!isMounted) return;
         setIsConnected(true);
@@ -111,7 +113,7 @@ export function useNetworkedGame(
       isMounted = false;
       client.disconnect();
     };
-  }, [enabled, serverUrl, roomId, playerIndex]);
+  }, [enabled, serverUrl, roomId, playerIndex, playerName]);
 
   const selectTile = useCallback(
     (tileId: string) => {
@@ -143,15 +145,91 @@ export function useNetworkedGame(
     setSelectedTileId(undefined);
   }, []);
 
-  // Dummy implementations for settings (server doesn't support these yet)
-  const setRules = useCallback(() => {}, []);
-  const setHouseRules = useCallback(() => {}, []);
-  const kong = useCallback(() => {}, []);
-  const addHouseRule = useCallback(() => {}, []);
-  const removeHouseRule = useCallback(() => {}, []);
-  const updateHouseRule = useCallback(() => {}, []);
-  const updatePlayerName = useCallback(() => {}, []);
-  const updateDifficulty = useCallback(() => {}, []);
+  const setRules = useCallback(
+    (nextRules: Rules) => {
+      setGame((current) =>
+        current ? { ...current, rules: { ...nextRules } } : current,
+      );
+      clientRef.current?.updateTableRules(nextRules, houseRules);
+    },
+    [houseRules],
+  );
+  const setHouseRules = useCallback(
+    (nextRules: HouseRule[]) => {
+      setGame((current) =>
+        current
+          ? {
+              ...current,
+              houseRules: nextRules.map((rule) => ({ ...rule })),
+            }
+          : current,
+      );
+      clientRef.current?.updateTableRules(rules, nextRules);
+    },
+    [rules],
+  );
+  const kong = useCallback((code: string, concealed: boolean) => {
+    clientRef.current?.kong(code, concealed);
+  }, []);
+  const addHouseRule = useCallback(
+    (name: string, description: string, points: number) => {
+      setHouseRules([
+        ...houseRules,
+        {
+          id: `house-${Date.now()}`,
+          name,
+          description,
+          points: Math.max(0, points),
+          enabled: true,
+          category: "Custom",
+        },
+      ]);
+    },
+    [houseRules, setHouseRules],
+  );
+  const removeHouseRule = useCallback(
+    (id: string) => setHouseRules(houseRules.filter((rule) => rule.id !== id)),
+    [houseRules, setHouseRules],
+  );
+  const updateHouseRule = useCallback(
+    (id: string, points: number, enabled: boolean) =>
+      setHouseRules(
+        houseRules.map((rule) =>
+          rule.id === id ? { ...rule, points: Math.max(0, points), enabled } : rule,
+        ),
+      ),
+    [houseRules, setHouseRules],
+  );
+  const updatePlayerName = useCallback(
+    (targetPlayerIndex: number, name: string) => {
+      setGame((current) => {
+        if (!current?.players[targetPlayerIndex]) return current;
+        const players = [...current.players];
+        players[targetPlayerIndex] = {
+          ...players[targetPlayerIndex],
+          name,
+        };
+        return { ...current, players };
+      });
+      clientRef.current?.updatePlayerName(targetPlayerIndex, name);
+    },
+    [],
+  );
+  const updateDifficulty = useCallback(
+    (targetPlayerIndex: number, difficulty: Difficulty) => {
+      setGame((current) => {
+        if (!current?.players[targetPlayerIndex]) return current;
+        const players = [...current.players];
+        players[targetPlayerIndex] = {
+          ...players[targetPlayerIndex],
+          difficulty,
+        };
+        return { ...current, players };
+      });
+      clientRef.current?.updateDifficulty(targetPlayerIndex, difficulty);
+    },
+    [],
+  );
   const newHand = useCallback((dealer?: number, resetGame = false) => {
     if (!clientRef.current) return;
     clientRef.current.newHand(dealer, resetGame);

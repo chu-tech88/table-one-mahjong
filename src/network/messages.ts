@@ -1,4 +1,4 @@
-import { Game } from "../game-logic/types";
+import { Difficulty, Game, HouseRule, Rules } from "../game-logic/types";
 
 /**
  * Messages between client and server
@@ -18,6 +18,7 @@ export type JoinRoomMessage = {
   type: "join-room";
   roomId: string;
   playerIndex: number;
+  playerName: string;
 };
 
 export type PlayerActionMessage = {
@@ -31,6 +32,10 @@ export type PlayerAction =
   | { type: "claim"; claimType: "chi" | "pong" | "kong"; tiles?: any }
   | { type: "pass" }
   | { type: "hu"; winBy: "discard" | "self-draw" }
+  | { type: "kong"; code: string; concealed: boolean }
+  | { type: "update-player-name"; playerIndex: number; name: string }
+  | { type: "update-difficulty"; playerIndex: number; difficulty: Difficulty }
+  | { type: "update-table-rules"; rules: Rules; houseRules: HouseRule[] }
   | { type: "new-hand"; dealer?: number; resetGame?: boolean };
 
 export type RequestStateMessage = {

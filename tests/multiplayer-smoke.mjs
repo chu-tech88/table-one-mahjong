@@ -76,11 +76,15 @@ function send(ws, payload) {
 
 function startServer(port) {
   return new Promise((resolve, reject) => {
-    const server = spawn("npx", ["tsx", "server/game-server.ts"], {
-      cwd: process.cwd(),
-      env: { ...process.env, WS_PORT: String(port) },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const server = spawn(
+      process.execPath,
+      ["node_modules/tsx/dist/cli.mjs", "server/game-server.ts"],
+      {
+        cwd: process.cwd(),
+        env: { ...process.env, WS_PORT: String(port) },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
 
     const timeout = setTimeout(() => {
       cleanup();
@@ -141,8 +145,8 @@ async function main() {
     ws0 = await connectClient(url);
     ws1 = await connectClient(url);
 
-    send(ws0, { type: "join-room", roomId, playerIndex: 0 });
-    send(ws1, { type: "join-room", roomId, playerIndex: 1 });
+    send(ws0, { type: "join-room", roomId, playerIndex: 0, playerName: "Eric" });
+    send(ws1, { type: "join-room", roomId, playerIndex: 1, playerName: "Partner" });
 
     const state0 = await waitForMessage(
       ws0,
@@ -159,9 +163,40 @@ async function main() {
       "Both clients should receive same room state",
     );
     assert.equal(state0.game.turn, 0, "Initial dealer turn should be seat 0");
+    assert.equal(state0.game.players[0].name, "Eric");
+    assert.equal(state1.game.players[1].name, "Partner");
+    assert.equal(state1.game.players[0].controller, "human");
+    assert.equal(state1.game.players[2].controller, "ai");
+    assert.ok(state0.game.houseRules.length >= 20);
+
+    send(ws0, {
+      type: "player-action",
+      playerIndex: 0,
+      action: {
+        type: "update-table-rules",
+        rules: { baseWin: 7 },
+        houseRules: state0.game.houseRules.map((rule, index) => ({
+          ...rule,
+          enabled: index !== 0,
+        })),
+      },
+    });
+    const settingsUpdate = await waitForMessage(
+      ws1,
+      (msg) =>
+        msg.type === "game-state-update" &&
+        msg.game.rules.baseWin === 7 &&
+        msg.game.houseRules[0].enabled === false,
+    );
+    assert.equal(settingsUpdate.game.rules.baseWin, 7);
 
     wsConflict = await connectClient(url);
-    send(wsConflict, { type: "join-room", roomId, playerIndex: 1 });
+    send(wsConflict, {
+      type: "join-room",
+      roomId,
+      playerIndex: 1,
+      playerName: "Conflict",
+    });
     const rejection = await waitForMessage(
       wsConflict,
       (msg) =>

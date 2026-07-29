@@ -8,6 +8,7 @@ type UseGameOptions =
       serverUrl: string;
       roomId: string;
       playerIndex: number;
+      playerName: string;
       enabled?: boolean;
     };
 
@@ -32,6 +33,7 @@ export function useGame(options: UseGameOptions) {
       options.serverUrl,
       options.roomId,
       options.playerIndex,
+      options.playerName,
       options.enabled ?? true,
     );
   }

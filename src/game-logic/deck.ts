@@ -1,4 +1,5 @@
-import { Game, Player, Tile, Difficulty } from "./types";
+import { Game, Player, Tile, Difficulty, HouseRule, Rules } from "./types";
+import { createDefaultHouseRules, DEFAULT_RULES } from "./rules";
 import {
   shuffle,
   sortTiles,
@@ -132,8 +133,10 @@ export function dealRound(
   dealer = 0,
   scores?: number[],
   round = 1,
-  profiles?: Pick<Player, "name" | "difficulty">[],
+  profiles?: Pick<Player, "name" | "difficulty" | "controller">[],
   tableId = "local-table-one",
+  rules: Rules = DEFAULT_RULES,
+  houseRules: HouseRule[] = createDefaultHouseRules(),
 ): Game {
   let wall = makeDeck();
   const defaultNames = ["You", "Mina", "Theo", "Grace"];
@@ -145,6 +148,7 @@ export function dealRound(
   ];
   const players: Player[] = defaultNames.map((defaultName, index) => ({
     name: profiles?.[index]?.name.trim() || defaultName,
+    controller: profiles?.[index]?.controller ?? (index === 0 ? "human" : "ai"),
     wind: ["East", "South", "West", "North"][(index - dealer + 4) % 4],
     difficulty: profiles?.[index]?.difficulty ?? defaultDifficulties[index],
     hand: [],
@@ -190,6 +194,8 @@ export function dealRound(
     phase: "discard",
     message: tableNarration("deal", dealerMessage),
     activity: { player: dealer, text: tableNarration("deal", dealerMessage) },
+    rules: { ...rules },
+    houseRules: houseRules.map((rule) => ({ ...rule })),
   };
   appendAction(
     game,

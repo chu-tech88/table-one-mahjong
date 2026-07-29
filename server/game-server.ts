@@ -3,20 +3,22 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { createReadStream, existsSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
-import { Game, Rules, HouseRule } from "../src/game-logic/types";
+import { Game } from "../src/game-logic/types";
 import { dealRound } from "../src/game-logic/deck";
-import { discardTile, applyClaim, startTurn } from "../src/game-logic/flow";
+import {
+  discardTile,
+  applyClaim,
+  applyKong,
+  startTurn,
+} from "../src/game-logic/flow";
 import { chooseDiscard } from "../src/game-logic/ai";
 import { scoreRound } from "../src/game-logic/scoring";
-import { isWinningHand } from "../src/game-logic/validation";
+import {
+  concealedKongOptions,
+  isWinningHand,
+} from "../src/game-logic/validation";
+import { structuredCloneGame } from "../src/game-logic/helpers";
 import { ClientMessage, ServerMessage } from "../src/network/messages";
-
-// Game configuration
-const RULES: Rules = {
-  baseWin: 5,
-};
-
-const HOUSE_RULES: HouseRule[] = [];
 
 // Types
 interface GameRoom {
@@ -51,6 +53,18 @@ function isOpenSocket(socket: WebSocket | null): socket is WebSocket {
 
 function isHumanSeat(room: GameRoom, index: number) {
   return isOpenSocket(room.players[index] ?? null);
+}
+
+function cleanPlayerName(value: unknown) {
+  return (
+    String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 18) || "Player"
+  );
+}
+
+function syncControllers(room: GameRoom) {
+  room.game.players.forEach((player, index) => {
+    player.controller = isHumanSeat(room, index) ? "human" : "ai";
+  });
 }
 
 function getMimeType(filePath: string) {
@@ -192,6 +206,8 @@ wss.on("connection", (socket) => {
         roomId = requestedRoomId;
         playerIndex = requestedPlayerIndex;
         room.players[playerIndex] = socket;
+        room.game.players[playerIndex].name = cleanPlayerName(msg.playerName);
+        syncControllers(room);
 
         // Send current game state to joining player
         socket.send(
@@ -200,6 +216,16 @@ wss.on("connection", (socket) => {
             game: room.game,
           } as ServerMessage),
         );
+        room.players.forEach((player) => {
+          if (isOpenSocket(player) && player !== socket) {
+            player.send(
+              JSON.stringify({
+                type: "game-state-update",
+                game: room.game,
+              } as ServerMessage),
+            );
+          }
+        });
 
         console.log(`[Room] Player ${playerIndex} joined room ${roomId}`);
 
@@ -258,6 +284,25 @@ wss.on("connection", (socket) => {
               JSON.stringify({
                 type: "action-rejected",
                 reason: `Not your turn. Current turn: Player ${room.game.turn}`,
+              } as ServerMessage),
+            );
+            return;
+          }
+        }
+
+        if (msg.action.type === "kong") {
+          const availableKongs = concealedKongOptions(
+            room.game.players[playerIndex].hand,
+          );
+          if (
+            room.game.phase !== "discard" ||
+            room.game.turn !== playerIndex ||
+            !availableKongs.includes(msg.action.code)
+          ) {
+            socket.send(
+              JSON.stringify({
+                type: "action-rejected",
+                reason: "That Gong is not available right now",
               } as ServerMessage),
             );
             return;
@@ -352,8 +397,8 @@ wss.on("connection", (socket) => {
               room.game,
               playerIndex,
               action.tileId,
-              RULES,
-              HOUSE_RULES,
+              room.game.rules,
+              room.game.houseRules,
               (index) => isHumanSeat(room, index),
             );
           }
@@ -371,8 +416,8 @@ wss.on("connection", (socket) => {
               playerIndex,
               action.claimType,
               action.tiles,
-              RULES,
-              HOUSE_RULES,
+              room.game.rules,
+              room.game.houseRules,
             );
           }
 
@@ -385,8 +430,8 @@ wss.on("connection", (socket) => {
             nextGame = startTurn(
               room.game,
               (room.game.lastDiscard!.by + 1) % 4,
-              RULES,
-              HOUSE_RULES,
+              room.game.rules,
+              room.game.houseRules,
               (index) => isHumanSeat(room, index),
             );
           }
@@ -399,9 +444,64 @@ wss.on("connection", (socket) => {
               room.game,
               playerIndex,
               action.winBy,
-              RULES,
-              HOUSE_RULES,
+              room.game.rules,
+              room.game.houseRules,
             );
+          }
+
+          if (action.type === "kong") {
+            nextGame = applyKong(
+              room.game,
+              playerIndex,
+              action.code,
+              action.concealed,
+              room.game.rules,
+              room.game.houseRules,
+            );
+          }
+
+          if (action.type === "update-player-name") {
+            if (
+              action.playerIndex !== playerIndex &&
+              room.game.players[action.playerIndex]?.controller !== "ai"
+            ) {
+              throw new Error("You can only rename yourself or an AI player");
+            }
+            nextGame = structuredCloneGame(room.game);
+            nextGame.players[action.playerIndex].name = cleanPlayerName(
+              action.name,
+            );
+          }
+
+          if (action.type === "update-difficulty") {
+            if (
+              action.playerIndex < 0 ||
+              action.playerIndex > 3 ||
+              room.game.players[action.playerIndex]?.controller === "human" ||
+              !["calm", "balanced", "sharp"].includes(action.difficulty)
+            ) {
+              throw new Error("Only AI difficulty can be changed");
+            }
+            nextGame = structuredCloneGame(room.game);
+            nextGame.players[action.playerIndex].difficulty = action.difficulty;
+          }
+
+          if (action.type === "update-table-rules") {
+            nextGame = structuredCloneGame(room.game);
+            nextGame.rules = {
+              baseWin: Math.max(
+                0,
+                Math.min(100, Number(action.rules.baseWin) || 0),
+              ),
+            };
+            nextGame.houseRules = action.houseRules.slice(0, 60).map((rule) => ({
+              ...rule,
+              id: String(rule.id).slice(0, 64),
+              name: String(rule.name).slice(0, 80),
+              description: String(rule.description).slice(0, 240),
+              points: Math.max(0, Math.min(100, Number(rule.points) || 0)),
+              enabled: Boolean(rule.enabled),
+            }));
           }
 
           if (action.type === "new-hand") {
@@ -412,6 +512,8 @@ wss.on("connection", (socket) => {
                 1,
                 room.game.players,
                 room.game.tableId,
+                room.game.rules,
+                room.game.houseRules,
               );
             } else {
               const dealer =
@@ -430,6 +532,8 @@ wss.on("connection", (socket) => {
                 round,
                 room.game.players,
                 room.game.tableId,
+                room.game.rules,
+                room.game.houseRules,
               );
             }
           }
@@ -504,6 +608,7 @@ wss.on("connection", (socket) => {
       const room = rooms.get(roomId);
       if (room) {
         room.players[playerIndex] = null;
+        syncControllers(room);
 
         // Broadcast disconnection to others
         room.players.forEach((player) => {
@@ -513,6 +618,12 @@ wss.on("connection", (socket) => {
               JSON.stringify({
                 type: "player-disconnected",
                 playerIndex,
+              } as ServerMessage),
+            );
+            player.send(
+              JSON.stringify({
+                type: "game-state-update",
+                game: room.game,
               } as ServerMessage),
             );
           }
@@ -556,8 +667,8 @@ function playAITurnIfNeeded(roomId: string) {
       const nextGame = startTurn(
         game,
         (game.lastDiscard.by + 1) % 4,
-        RULES,
-        HOUSE_RULES,
+        game.rules,
+        game.houseRules,
         (index) => isHumanSeat(room, index),
       );
       room.game = nextGame;
@@ -603,8 +714,8 @@ function playAITurnIfNeeded(roomId: string) {
       game,
       currentPlayerIndex,
       tile.id,
-      RULES,
-      HOUSE_RULES,
+      game.rules,
+      game.houseRules,
       (index) => isHumanSeat(room, index),
     );
     room.game = nextGame;

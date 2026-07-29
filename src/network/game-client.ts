@@ -1,4 +1,4 @@
-import { Game, HouseRule, Rules } from "../game-logic/types";
+import { Difficulty, Game, HouseRule, Rules } from "../game-logic/types";
 import { possibleChiOptions } from "../game-logic/validation";
 import { ClientMessage, ServerMessage, PlayerAction } from "./messages";
 
@@ -21,6 +21,7 @@ export class GameClient {
   private ws: WebSocket | null = null;
   private roomId: string = "";
   private playerIndex: number = -1;
+  private playerName: string = "";
   private game: Game | null = null;
   private callbacks: GameClientCallbacks;
   private isConnected = false;
@@ -35,6 +36,7 @@ export class GameClient {
     serverUrl: string,
     roomId: string,
     playerIndex: number,
+    playerName: string,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
@@ -46,6 +48,7 @@ export class GameClient {
 
         this.roomId = roomId;
         this.playerIndex = playerIndex;
+        this.playerName = playerName;
 
         console.log(`[GameClient] Connecting to ${serverUrl}`);
 
@@ -67,6 +70,7 @@ export class GameClient {
             type: "join-room",
             roomId,
             playerIndex,
+            playerName,
           });
 
           resolve();
@@ -157,6 +161,7 @@ export class GameClient {
           type: "join-room",
           roomId: this.roomId,
           playerIndex: this.playerIndex,
+          playerName: this.playerName,
         });
       }
       if (
@@ -301,5 +306,22 @@ export class GameClient {
       dealer,
       resetGame,
     });
+  }
+
+  kong(code: string, concealed: boolean) {
+    this.sendAction({ type: "kong", code, concealed });
+  }
+
+  updatePlayerName(playerIndex: number, name: string) {
+    if (playerIndex === this.playerIndex) this.playerName = name;
+    this.sendAction({ type: "update-player-name", playerIndex, name });
+  }
+
+  updateDifficulty(playerIndex: number, difficulty: Difficulty) {
+    this.sendAction({ type: "update-difficulty", playerIndex, difficulty });
+  }
+
+  updateTableRules(rules: Rules, houseRules: HouseRule[]) {
+    this.sendAction({ type: "update-table-rules", rules, houseRules });
   }
 }

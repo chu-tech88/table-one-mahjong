@@ -37,6 +37,7 @@ export type Meld = {
 
 export type Player = {
   name: string;
+  controller: "human" | "ai";
   wind: string;
   difficulty: Difficulty;
   hand: Tile[];
@@ -141,6 +142,8 @@ export type Game = {
   activity?: Activity;
   winner?: number;
   winSummary?: WinSummary;
+  rules: Rules;
+  houseRules: HouseRule[];
 };
 
 export type GameActionLog = {

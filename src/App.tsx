@@ -317,6 +317,9 @@ function Opponent({
         <strong>{player.name}</strong>
         <div className="seat-badges">
           {dealer ? <span className="dealer-badge">Dealer</span> : null}
+          <span className="identity-badge">
+            {player.controller === "human" ? "Human" : "AI"}
+          </span>
           <span>{player.wind}</span>
         </div>
       </div>
@@ -345,6 +348,7 @@ function MahjongApp() {
   const [connection, setConnection] = useState({
     roomId: "test-game",
     playerIndex: 0,
+    playerName: "",
     joined: false,
   });
   const [occupiedSeats, setOccupiedSeats] = useState<number[]>([]);
@@ -355,6 +359,7 @@ function MahjongApp() {
     serverUrl: DEFAULT_SERVER_URL,
     roomId: connection.roomId,
     playerIndex: connection.playerIndex,
+    playerName: connection.playerName.trim() || "Player",
     enabled: connection.joined,
   });
   const {
@@ -392,6 +397,8 @@ function MahjongApp() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [choosingChi, setChoosingChi] = useState(false);
+  const [choosingKong, setChoosingKong] = useState(false);
+  const [selectedKongCode, setSelectedKongCode] = useState<string | undefined>();
   const [uiSelectedTileId, setUiSelectedTileId] = useState<string | undefined>(
     undefined,
   );
@@ -399,7 +406,8 @@ function MahjongApp() {
   const effectiveSelectedTileId =
     uiSelectedTileId ?? selectedTileId ?? game?.selectedId;
   const humanKongs = human ? concealedKongOptions(human.hand) : [];
-  const activeHumanKong = humanKongs[0];
+  const activeHumanKong =
+    humanKongs.find((code) => code === selectedKongCode) ?? humanKongs[0];
   const canSelfHu =
     !!game &&
     !!human &&
@@ -429,6 +437,17 @@ function MahjongApp() {
   useEffect(() => {
     setChoosingChi(false);
   }, [game?.phase, game?.pendingClaim?.tile.id]);
+
+  useEffect(() => {
+    if (
+      game?.phase !== "discard" ||
+      game.turn !== SELF ||
+      humanKongs.length === 0
+    ) {
+      setChoosingKong(false);
+      setSelectedKongCode(undefined);
+    }
+  }, [game?.phase, game?.turn, SELF, humanKongs.join("|")]);
 
   useEffect(() => {
     if (!game || !human) {
@@ -600,6 +619,22 @@ function MahjongApp() {
           >
             <h2>Join table</h2>
             <label>
+              <span>Your name</span>
+              <input
+                autoComplete="nickname"
+                maxLength={18}
+                placeholder="Enter your name"
+                type="text"
+                value={connection.playerName}
+                onChange={(event) =>
+                  setConnection((current) => ({
+                    ...current,
+                    playerName: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
               <span>Room ID</span>
               <input
                 type="text"
@@ -645,7 +680,9 @@ function MahjongApp() {
             <button
               className="full-width-button"
               type="button"
-              disabled={seatOptions.length === 0}
+              disabled={
+                seatOptions.length === 0 || !connection.playerName.trim()
+              }
               onClick={() =>
                 setConnection((current) => ({ ...current, joined: true }))
               }
@@ -794,6 +831,8 @@ function MahjongApp() {
           <button
             onClick={() => {
               if (!activeHumanKong) return;
+              setSelectedKongCode(activeHumanKong);
+              setChoosingKong(true);
             }}
             type="button"
           >
@@ -806,14 +845,50 @@ function MahjongApp() {
   const actionControls = game.phase === "claim" ? claimActions : defaultActions;
 
   const kongChoiceControls =
-    game.phase === "discard" && game.turn === SELF && activeHumanKong ? (
+    choosingKong &&
+    game.phase === "discard" &&
+    game.turn === SELF &&
+    activeHumanKong ? (
       <div className="kong-choice-panel" aria-label="Choose Kong type">
-        <span>{kongLabel(activeHumanKong)}</span>
-        <button type="button" onClick={() => kong(activeHumanKong, true)}>
+        {humanKongs.length > 1 ? (
+          <select
+            aria-label="Tile to use for Gong"
+            value={activeHumanKong}
+            onChange={(event) => setSelectedKongCode(event.target.value)}
+          >
+            {humanKongs.map((code) => (
+              <option key={code} value={code}>
+                {kongLabel(code)}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span>{kongLabel(activeHumanKong)}</span>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            kong(activeHumanKong, true);
+            setChoosingKong(false);
+          }}
+        >
           Silent Kong
         </button>
-        <button type="button" onClick={() => kong(activeHumanKong, false)}>
+        <button
+          type="button"
+          onClick={() => {
+            kong(activeHumanKong, false);
+            setChoosingKong(false);
+          }}
+        >
           Reveal Kong
+        </button>
+        <button
+          className="secondary-action"
+          type="button"
+          onClick={() => setChoosingKong(false)}
+        >
+          Cancel
         </button>
       </div>
     ) : null;
@@ -880,11 +955,12 @@ function MahjongApp() {
             className={`human-seat ${game.turn === SELF ? "active" : ""} ${game.dealer === SELF ? "dealer-seat" : ""}`}
           >
             <div className="seat-heading">
-              <strong>You</strong>
+              <strong>{human.name} (You)</strong>
               <div className="seat-badges">
                 {game.dealer === SELF ? (
                   <span className="dealer-badge">Dealer</span>
                 ) : null}
+                <span className="identity-badge">Human</span>
                 <span>{human.wind}</span>
               </div>
             </div>
@@ -1046,8 +1122,10 @@ function MahjongApp() {
                         {player.wind} · {player.score} pts
                       </span>
                     </div>
-                    {index === SELF ? (
-                      <span className="profile-badge">You</span>
+                    {player.controller === "human" ? (
+                      <span className="profile-badge">
+                        {index === SELF ? "You · Human" : "Human"}
+                      </span>
                     ) : (
                       <select
                         value={player.difficulty}
