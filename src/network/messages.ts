@@ -33,6 +33,7 @@ export type PlayerAction =
   | { type: "pass" }
   | { type: "hu"; winBy: "discard" | "self-draw" }
   | { type: "kong"; code: string; concealed: boolean }
+  | { type: "declare-ready"; tileId: string }
   | { type: "update-player-name"; playerIndex: number; name: string }
   | { type: "update-difficulty"; playerIndex: number; difficulty: Difficulty }
   | { type: "update-table-rules"; rules: Rules; houseRules: HouseRule[] }

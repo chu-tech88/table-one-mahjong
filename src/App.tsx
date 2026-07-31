@@ -18,11 +18,13 @@ import {
 import {
   isWinningHand,
   concealedKongOptions,
+  addedKongOptions,
   waitingSupportTileIds,
   possibleChiOptions,
   canExposedKong,
   waitCodesForHand,
 } from "./game-logic/validation";
+import { canDeclareReady } from "./game-logic/flow";
 import { useGame } from "./hooks/useGame";
 
 // Component rendering stays exactly the same
@@ -215,12 +217,13 @@ function formatChiOption(tiles: Tile[]) {
 }
 
 function MeldView({ meld }: { meld: Meld }) {
+  const meldName = meld.type === "kong" ? "Gong" : meld.type.charAt(0).toUpperCase() + meld.type.slice(1);
   return (
     <div
       className="meld"
-      title={`${meld.concealed ? "Concealed " : ""}${meld.type}`}
+      title={`${meld.concealed ? "Concealed " : ""}${meldName}`}
     >
-      <span>{meld.concealed ? "Silent Kong" : meld.type.toUpperCase()}</span>
+      <span>{meld.concealed ? "Silent Gong" : meldName.toUpperCase()}</span>
       <div>
         {meld.tiles.map((tile) => (
           <TileView
@@ -249,21 +252,29 @@ function DiscardRiver({ player }: { player: Player }) {
 function TableDiscardGrid({
   players,
   selfIndex,
+  onInspect,
 }: {
   players: Player[];
   selfIndex: number;
+  onInspect: (index: number) => void;
 }) {
   return (
     <div className="table-discard-grid" aria-label="Center discard area">
-      {players.map((player, index) => (
-        <section
-          className={`table-discard-lane discard-lane-${index}`}
-          key={`${player.name}-${index}`}
-        >
-          <span>{index === selfIndex ? "You" : player.wind}</span>
-          <DiscardRiver player={player} />
-        </section>
-      ))}
+      {players.map((player, index) => {
+        const relativeSeat = (index - selfIndex + 4) % 4;
+        return (
+          <section
+            className={`table-discard-lane discard-lane-${relativeSeat}`}
+            key={`${player.name}-${index}`}
+          >
+            <button type="button" onClick={() => onInspect(index)}>
+              <span>{index === selfIndex ? "You" : player.wind}</span>
+              <small>{player.discards.length}</small>
+            </button>
+            <DiscardRiver player={player} />
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -300,29 +311,34 @@ function Opponent({
   player,
   active,
   dealer,
+  ready,
   reveal,
   position,
+  onInspect,
 }: {
   player: Player;
   active: boolean;
   dealer: boolean;
+  ready: boolean;
   reveal: boolean;
   position: "left" | "top" | "right";
+  onInspect: () => void;
 }) {
   return (
     <section
       className={`opponent opponent-${position} ${active ? "active" : ""} ${dealer ? "dealer-seat" : ""}`}
     >
-      <div className="seat-heading">
+      <button className="seat-heading" type="button" onClick={onInspect}>
         <strong>{player.name}</strong>
         <div className="seat-badges">
           {dealer ? <span className="dealer-badge">Dealer</span> : null}
+          {ready ? <span className="ready-badge">Ready</span> : null}
           <span className="identity-badge">
             {player.controller === "human" ? "Human" : "AI"}
           </span>
           <span>{player.wind}</span>
         </div>
-      </div>
+      </button>
       <div className="seat-meta">
         <span>{difficulties[player.difficulty]}</span>
         <span>{player.score} pts</span>
@@ -344,13 +360,93 @@ function Opponent({
   );
 }
 
+function PlayerInspector({
+  player,
+  isSelf,
+  dealer,
+  ready,
+  reveal,
+  onClose,
+}: {
+  player: Player;
+  isSelf: boolean;
+  dealer: boolean;
+  ready: boolean;
+  reveal: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="player-inspector"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="player-inspector-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="modal-header">
+          <div>
+            <p className="eyebrow">{player.wind} seat</p>
+            <h2 id="player-inspector-title">
+              {player.name}{isSelf ? " (You)" : ""}
+            </h2>
+          </div>
+          <button className="inspector-close" type="button" aria-label="Close player details" onClick={onClose}>
+            ×
+          </button>
+        </div>
+        <div className="inspector-summary">
+          <strong>{player.score} pts</strong>
+          <span>{player.controller === "human" ? "Human" : `AI · ${difficulties[player.difficulty]}`}</span>
+          {dealer ? <span className="dealer-badge">Dealer</span> : null}
+          {ready ? <span className="ready-badge">Ready</span> : null}
+        </div>
+        <section className="inspector-section">
+          <div className="inspector-section-heading">
+            <h3>Discards</h3>
+            <span>{player.discards.length}</span>
+          </div>
+          <div className="inspector-tile-row">
+            {player.discards.length > 0 ? player.discards.map((tile) => (
+              <TileView key={tile.id} tile={tile} disabled />
+            )) : <p>None yet</p>}
+          </div>
+        </section>
+        <section className="inspector-section">
+          <div className="inspector-section-heading">
+            <h3>Flowers and declared sets</h3>
+            <span>{player.flowers.length} flowers · {player.melds.length} sets</span>
+          </div>
+          <SeatSets flowers={player.flowers} melds={player.melds} />
+        </section>
+        <section className="inspector-section">
+          <div className="inspector-section-heading">
+            <h3>{isSelf || reveal ? "Hand" : "Concealed hand"}</h3>
+            <span>{player.hand.length} tiles</span>
+          </div>
+          <div className="inspector-tile-row inspector-hand-row">
+            {player.hand.map((tile) => (
+              <TileView key={tile.id} tile={tile} hidden={!isSelf && !reveal} disabled />
+            ))}
+          </div>
+        </section>
+      </section>
+    </div>
+  );
+}
+
+function createSoloRoomId() {
+  return `solo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 function MahjongApp() {
-  const [connection, setConnection] = useState({
-    roomId: "test-game",
+  const [playMode, setPlayMode] = useState<"solo" | "online">("solo");
+  const [connection, setConnection] = useState(() => ({
+    roomId: createSoloRoomId(),
     playerIndex: 0,
     playerName: "",
     joined: false,
-  });
+  }));
   const [occupiedSeats, setOccupiedSeats] = useState<number[]>([]);
   const [lobbySeatError, setLobbySeatError] = useState<string | null>(null);
 
@@ -375,6 +471,7 @@ function MahjongApp() {
     pass,
     hu,
     kong,
+    declareReady,
     addHouseRule,
     removeHouseRule,
     updateHouseRule,
@@ -396,6 +493,7 @@ function MahjongApp() {
   };
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inspectedSeat, setInspectedSeat] = useState<number | undefined>();
   const [choosingChi, setChoosingChi] = useState(false);
   const [choosingKong, setChoosingKong] = useState(false);
   const [selectedKongCode, setSelectedKongCode] = useState<string | undefined>();
@@ -405,9 +503,19 @@ function MahjongApp() {
   const human = game?.players[SELF];
   const effectiveSelectedTileId =
     uiSelectedTileId ?? selectedTileId ?? game?.selectedId;
-  const humanKongs = human ? concealedKongOptions(human.hand) : [];
+  const concealedHumanKongs = human ? concealedKongOptions(human.hand) : [];
+  const addedHumanKongs = human ? addedKongOptions(human) : [];
+  const humanKongs = [...new Set([...concealedHumanKongs, ...addedHumanKongs])];
   const activeHumanKong =
     humanKongs.find((code) => code === selectedKongCode) ?? humanKongs[0];
+  const activeKongIsAdded = !!activeHumanKong && addedHumanKongs.includes(activeHumanKong);
+  const humanDeclaredReady = game?.declaredReady?.includes(SELF) ?? false;
+  const canDeclareSelected =
+    !!game && !!effectiveSelectedTileId &&
+    canDeclareReady(game, SELF, effectiveSelectedTileId);
+  const canDiscardSelected =
+    !!effectiveSelectedTileId &&
+    (!humanDeclaredReady || human?.discards.length === 0 || effectiveSelectedTileId === game?.drawnTileId);
   const canSelfHu =
     !!game &&
     !!human &&
@@ -516,9 +624,6 @@ function MahjongApp() {
       : activity.tile
         ? `${seatName(activity.player)}'s discard`
         : "Table activity";
-  const centerStatusValue =
-    !activity.tile && showYourTurnInCenter ? "Your turn" : "Waiting";
-
   const ruleRows = useMemo(() => [["Base win", "baseWin"]] as const, []);
 
   const [houseDraft, setHouseDraft] = useState({
@@ -612,12 +717,39 @@ function MahjongApp() {
             <strong>Choose room and seat</strong>
           </div>
         </header>
-        <section className="game-layout">
-          <div
-            className="panel-block settings-section"
-            style={{ maxWidth: 480, margin: "0 auto" }}
-          >
+        <section className="game-layout lobby-layout">
+          <div className="panel-block settings-section join-panel">
             <h2>Join table</h2>
+            <div className="play-mode-control" aria-label="Game mode">
+              <button
+                className={playMode === "solo" ? "active" : ""}
+                type="button"
+                onClick={() => {
+                  setPlayMode("solo");
+                  setConnection((current) => ({
+                    ...current,
+                    roomId: createSoloRoomId(),
+                    playerIndex: 0,
+                  }));
+                }}
+              >
+                Solo vs AI
+              </button>
+              <button
+                className={playMode === "online" ? "active" : ""}
+                type="button"
+                onClick={() => {
+                  setPlayMode("online");
+                  setConnection((current) => ({
+                    ...current,
+                    roomId: "table-one",
+                  }));
+                }}
+              >
+                Shared room
+              </button>
+            </div>
+            <div className="join-fields">
             <label>
               <span>Your name</span>
               <input
@@ -634,39 +766,49 @@ function MahjongApp() {
                 }
               />
             </label>
-            <label>
-              <span>Room ID</span>
-              <input
-                type="text"
-                value={connection.roomId}
-                onChange={(event) =>
-                  setConnection((current) => ({
-                    ...current,
-                    roomId:
-                      event.target.value.replace(/\s+/g, "-") || "test-game",
-                  }))
-                }
-              />
-            </label>
-            <label>
-              <span>Seat</span>
-              <select
-                value={connection.playerIndex}
-                onChange={(event) =>
-                  setConnection((current) => ({
-                    ...current,
-                    playerIndex: Number(event.target.value),
-                  }))
-                }
-                disabled={seatOptions.length === 0}
-              >
-                {seatOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {playMode === "online" ? (
+              <>
+                <label>
+                  <span>Room ID</span>
+                  <input
+                    type="text"
+                    value={connection.roomId}
+                    onChange={(event) =>
+                      setConnection((current) => ({
+                        ...current,
+                        roomId:
+                          event.target.value.replace(/\s+/g, "-") || "table-one",
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Seat</span>
+                  <select
+                    value={connection.playerIndex}
+                    onChange={(event) =>
+                      setConnection((current) => ({
+                        ...current,
+                        playerIndex: Number(event.target.value),
+                      }))
+                    }
+                    disabled={seatOptions.length === 0}
+                  >
+                    {seatOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : (
+              <div className="solo-table-summary">
+                <span>Your seat</span>
+                <strong>East · 3 AI opponents</strong>
+              </div>
+            )}
+            </div>
             {lobbySeatError ? (
               <p style={{ fontSize: "0.9rem", color: "#a33" }}>
                 {lobbySeatError}
@@ -681,13 +823,14 @@ function MahjongApp() {
               className="full-width-button"
               type="button"
               disabled={
-                seatOptions.length === 0 || !connection.playerName.trim()
+                (playMode === "online" && seatOptions.length === 0) ||
+                !connection.playerName.trim()
               }
               onClick={() =>
                 setConnection((current) => ({ ...current, joined: true }))
               }
             >
-              Join room
+              {playMode === "solo" ? "Start game" : "Join room"}
             </button>
           </div>
         </section>
@@ -804,7 +947,7 @@ function MahjongApp() {
           disabled={
             game.turn !== SELF ||
             game.phase !== "discard" ||
-            !effectiveSelectedTileId
+            !canDiscardSelected
           }
           onClick={() => {
             if (!effectiveSelectedTileId) return;
@@ -839,6 +982,18 @@ function MahjongApp() {
             Gong
           </button>
         ) : null}
+        {canDeclareSelected ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (!effectiveSelectedTileId) return;
+              declareReady(effectiveSelectedTileId);
+              setUiSelectedTileId(undefined);
+            }}
+          >
+            Declare Ready
+          </button>
+        ) : null}
       </>
     ) : null;
 
@@ -849,7 +1004,7 @@ function MahjongApp() {
     game.phase === "discard" &&
     game.turn === SELF &&
     activeHumanKong ? (
-      <div className="kong-choice-panel" aria-label="Choose Kong type">
+      <div className="kong-choice-panel" aria-label="Choose Gong type">
         {humanKongs.length > 1 ? (
           <select
             aria-label="Tile to use for Gong"
@@ -865,24 +1020,38 @@ function MahjongApp() {
         ) : (
           <span>{kongLabel(activeHumanKong)}</span>
         )}
-        <button
-          type="button"
-          onClick={() => {
-            kong(activeHumanKong, true);
-            setChoosingKong(false);
-          }}
-        >
-          Silent Kong
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            kong(activeHumanKong, false);
-            setChoosingKong(false);
-          }}
-        >
-          Reveal Kong
-        </button>
+        {activeKongIsAdded ? (
+          <button
+            type="button"
+            onClick={() => {
+              kong(activeHumanKong, false);
+              setChoosingKong(false);
+            }}
+          >
+            Add to Pong
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                kong(activeHumanKong, true);
+                setChoosingKong(false);
+              }}
+            >
+              Silent Gong
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                kong(activeHumanKong, false);
+                setChoosingKong(false);
+              }}
+            >
+              Reveal Gong
+            </button>
+          </>
+        )}
         <button
           className="secondary-action"
           type="button"
@@ -905,20 +1074,22 @@ function MahjongApp() {
 
       <section className="game-layout">
         <section className="table" aria-label="Mahjong table">
-          <div className="table-hand-label" aria-hidden="true">
-            <span>East Wind</span>
-            <strong>East Hand</strong>
-          </div>
           <div className="board-toolbar">
+            <div className="table-brand">
+              <strong>Table One Mahjong</strong>
+              <span>Round {game.round} · {dealerStatus}</span>
+            </div>
             <div className="tiles-remaining">
-              <span>Tiles remaining</span>
+              <span>Tiles</span>
               <strong>{game.wall.length}</strong>
             </div>
+            <div className="table-activity-strip" aria-live="polite">
+              {centerStatusLabel !== activityText ? <span>{centerStatusLabel}</span> : null}
+              <strong>{activityText}</strong>
+            </div>
             <div className="online-status" aria-label="Online readiness">
-              <span>
-                {game.mode === "online-ready" ? "Online ready" : "Solo"}
-              </span>
-              <strong>{game.tableId}</strong>
+              <span>{playMode === "solo" ? "Solo" : "Shared room"}</span>
+              <strong>{playMode === "solo" ? "3 AI" : connection.roomId}</strong>
             </div>
             <button
               className="gear-button"
@@ -948,26 +1119,31 @@ function MahjongApp() {
             player={{ ...game.players[topSeat], name: seatName(topSeat) }}
             active={game.turn === topSeat}
             dealer={game.dealer === topSeat}
+            ready={game.declaredReady?.includes(topSeat) ?? false}
             reveal={game.winner === topSeat}
             position="top"
+            onInspect={() => setInspectedSeat(topSeat)}
           />
           <section
             className={`human-seat ${game.turn === SELF ? "active" : ""} ${game.dealer === SELF ? "dealer-seat" : ""}`}
           >
-            <div className="seat-heading">
-              <strong>{human.name} (You)</strong>
+            <div className="human-profile">
+              <button className="human-name" type="button" onClick={() => setInspectedSeat(SELF)}>
+                <strong>{human.name} (You)</strong>
+              </button>
               <div className="seat-badges">
                 {game.dealer === SELF ? (
                   <span className="dealer-badge">Dealer</span>
                 ) : null}
+                {humanDeclaredReady ? <span className="ready-badge">Ready</span> : null}
                 <span className="identity-badge">Human</span>
                 <span>{human.wind}</span>
               </div>
-            </div>
-            <div className="seat-meta">
-              <span>{human.score} pts</span>
-              <span>{human.flowers.length} flowers</span>
-              <span>{human.hand.length} in hand</span>
+              <div className="seat-meta">
+                <span>{human.score} pts</span>
+                <span>{human.flowers.length} flowers</span>
+                <span>{human.hand.length} in hand</span>
+              </div>
             </div>
             <SeatSets flowers={human.flowers} melds={human.melds} />
             {choosingChi && humanChiOptions.length > 1 ? (
@@ -1016,7 +1192,11 @@ function MahjongApp() {
                     game.phase === "discard"
                   }
                   waiting={humanIsWaiting && waitingTileIds.has(tile.id)}
-                  disabled={game.phase !== "discard" || game.turn !== SELF}
+                  disabled={
+                    game.phase !== "discard" ||
+                    game.turn !== SELF ||
+                    (humanDeclaredReady && human.discards.length > 0 && tile.id !== game.drawnTileId)
+                  }
                   onMouseDown={() => {
                     setUiSelectedTileId(tile.id);
                     selectTile(tile.id);
@@ -1045,37 +1225,49 @@ function MahjongApp() {
             player={{ ...game.players[leftSeat], name: seatName(leftSeat) }}
             active={game.turn === leftSeat}
             dealer={game.dealer === leftSeat}
+            ready={game.declaredReady?.includes(leftSeat) ?? false}
             reveal={game.winner === leftSeat}
             position="left"
+            onInspect={() => setInspectedSeat(leftSeat)}
           />
           <div className="center-table">
-            <TableDiscardGrid players={game.players} selfIndex={SELF} />
+            <TableDiscardGrid players={game.players} selfIndex={SELF} onInspect={setInspectedSeat} />
             <div className="table-center-core">
-              <div className="center-activity">
-                <span>
-                  Round {game.round} · {dealerStatus}
-                </span>
-                <strong>{activityText}</strong>
-              </div>
-              <div className="last-discard">
-                <span>{centerStatusLabel}</span>
-                {activity.tile ? (
+              {activity.tile ? (
+                <div className="last-discard">
+                  <span>{centerStatusLabel}</span>
                   <TileView tile={activity.tile} large disabled />
-                ) : (
-                  <strong>{centerStatusValue}</strong>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="empty-center-marker" aria-hidden="true">
+                  <span>Round</span>
+                  <strong>{game.round}</strong>
+                </div>
+              )}
             </div>
           </div>
           <Opponent
             player={{ ...game.players[rightSeat], name: seatName(rightSeat) }}
             active={game.turn === rightSeat}
             dealer={game.dealer === rightSeat}
+            ready={game.declaredReady?.includes(rightSeat) ?? false}
             reveal={game.winner === rightSeat}
             position="right"
+            onInspect={() => setInspectedSeat(rightSeat)}
           />
         </section>
       </section>
+
+      {inspectedSeat !== undefined ? (
+        <PlayerInspector
+          player={{ ...game.players[inspectedSeat], name: seatName(inspectedSeat) }}
+          isSelf={inspectedSeat === SELF}
+          dealer={game.dealer === inspectedSeat}
+          ready={game.declaredReady?.includes(inspectedSeat) ?? false}
+          reveal={game.winner === inspectedSeat}
+          onClose={() => setInspectedSeat(undefined)}
+        />
+      ) : null}
 
       {settingsOpen ? (
         <div className="modal-backdrop" role="presentation">
@@ -1167,9 +1359,9 @@ function MahjongApp() {
                 </div>
                 <h3>Taiwanese scoring table</h3>
                 <p className="settings-note">
-                  Standard tai are detected from the winning hand and added to
-                  the 5-point base. Every standard rule starts on; switch off
-                  any item your table does not use.
+                  Bonus conditions from the 2026 table are detected from the
+                  winning hand and added to the 4-point base. Every condition
+                  starts on; switch off any item your table does not use.
                 </p>
                 <div className="house-rule-list">
                   {houseRules.map((rule) => (
@@ -1308,22 +1500,61 @@ function MahjongApp() {
             <p className="eyebrow">Hand complete</p>
             <h2 id="win-title">{game.winSummary.title}</h2>
             <p>{game.winSummary.detail}</p>
-            {game.winSummary.winner !== SELF ? (
+            {game.players[game.winSummary.winner] ? (
               <div
                 className="winning-hand-review"
                 aria-label={`${game.players[game.winSummary.winner].name} revealed winning hand`}
               >
                 <span>{seatName(game.winSummary.winner)}'s hand</span>
-                <div>
-                  {game.players[game.winSummary.winner].hand.map((tile) => (
-                    <TileView key={tile.id} tile={tile} disabled />
-                  ))}
+                <div className="winning-review-section">
+                  <strong>Concealed tiles</strong>
+                  <div className="winning-tile-row">
+                    {game.players[game.winSummary.winner].hand.map((tile) => (
+                      <TileView key={tile.id} tile={tile} disabled />
+                    ))}
+                  </div>
                 </div>
+                {game.players[game.winSummary.winner].melds.length > 0 ? (
+                  <div className="winning-review-section">
+                    <strong>Revealed sets</strong>
+                    <div className="winning-meld-row">
+                      {game.players[game.winSummary.winner].melds.map((meld, index) => (
+                        <MeldView key={`${meld.type}-${index}`} meld={meld} />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {game.players[game.winSummary.winner].flowers.length > 0 ? (
+                  <div className="winning-review-section">
+                    <strong>Flowers</strong>
+                    <div className="winning-tile-row">
+                      {game.players[game.winSummary.winner].flowers.map((tile) => (
+                        <TileView key={tile.id} tile={tile} disabled />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
             <div className="score-breakdown">
-              {game.winSummary.lineItems.map((item) => (
-                <span key={item}>{item}</span>
+              <span
+                className="score-item"
+                tabIndex={0}
+                title="Points awarded for every completed Hu."
+              >
+                Base win: {rules.baseWin}
+                <small role="tooltip">Points awarded for every completed Hu.</small>
+              </span>
+              {game.winSummary.scoreItems.map((item) => (
+                <span
+                  className="score-item"
+                  key={`${item.name}-${item.points}`}
+                  tabIndex={0}
+                  title={item.description}
+                >
+                  {item.name}{item.multiplier > 1 ? ` x${item.multiplier}` : ""}: +{item.points}
+                  <small role="tooltip">{item.description}</small>
+                </span>
               ))}
             </div>
             <div className="win-total">

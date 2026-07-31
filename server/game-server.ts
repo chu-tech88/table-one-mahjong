@@ -10,11 +10,15 @@ import {
   applyClaim,
   applyKong,
   startTurn,
+  canDeclareReady,
+  declareReadyAndDiscard,
+  passClaim,
 } from "../src/game-logic/flow";
 import { chooseDiscard } from "../src/game-logic/ai";
 import { scoreRound } from "../src/game-logic/scoring";
 import {
   concealedKongOptions,
+  addedKongOptions,
   isWinningHand,
 } from "../src/game-logic/validation";
 import { structuredCloneGame } from "../src/game-logic/helpers";
@@ -288,12 +292,26 @@ wss.on("connection", (socket) => {
             );
             return;
           }
+          const player = room.game.players[playerIndex];
+          if (
+            room.game.declaredReady?.includes(playerIndex) &&
+            player.discards.length > 0 &&
+            msg.action.tileId !== room.game.drawnTileId
+          ) {
+            socket.send(JSON.stringify({
+              type: "action-rejected",
+              reason: "After declaring ready, you must discard the tile just drawn",
+            } as ServerMessage));
+            return;
+          }
         }
 
         if (msg.action.type === "kong") {
-          const availableKongs = concealedKongOptions(
-            room.game.players[playerIndex].hand,
-          );
+          const player = room.game.players[playerIndex];
+          const availableKongs = [
+            ...concealedKongOptions(player.hand),
+            ...addedKongOptions(player),
+          ];
           if (
             room.game.phase !== "discard" ||
             room.game.turn !== playerIndex ||
@@ -305,6 +323,16 @@ wss.on("connection", (socket) => {
                 reason: "That Gong is not available right now",
               } as ServerMessage),
             );
+            return;
+          }
+        }
+
+        if (msg.action.type === "declare-ready") {
+          if (!canDeclareReady(room.game, playerIndex, msg.action.tileId)) {
+            socket.send(JSON.stringify({
+              type: "action-rejected",
+              reason: "A ready declaration is not available for that discard",
+            } as ServerMessage));
             return;
           }
         }
@@ -427,9 +455,9 @@ wss.on("connection", (socket) => {
             }
 
             console.log(`[Action] Player ${playerIndex} passes`);
-            nextGame = startTurn(
+            nextGame = passClaim(
               room.game,
-              (room.game.lastDiscard!.by + 1) % 4,
+              playerIndex,
               room.game.rules,
               room.game.houseRules,
               (index) => isHumanSeat(room, index),
@@ -449,6 +477,17 @@ wss.on("connection", (socket) => {
             );
           }
 
+          if (action.type === "declare-ready") {
+            nextGame = declareReadyAndDiscard(
+              room.game,
+              playerIndex,
+              action.tileId,
+              room.game.rules,
+              room.game.houseRules,
+              (index) => isHumanSeat(room, index),
+            );
+          }
+
           if (action.type === "kong") {
             nextGame = applyKong(
               room.game,
@@ -457,6 +496,7 @@ wss.on("connection", (socket) => {
               action.concealed,
               room.game.rules,
               room.game.houseRules,
+              (index) => isHumanSeat(room, index),
             );
           }
 
@@ -494,7 +534,7 @@ wss.on("connection", (socket) => {
                 Math.min(100, Number(action.rules.baseWin) || 0),
               ),
             };
-            nextGame.houseRules = action.houseRules.slice(0, 60).map((rule) => ({
+            nextGame.houseRules = action.houseRules.slice(0, 100).map((rule) => ({
               ...rule,
               id: String(rule.id).slice(0, 64),
               name: String(rule.name).slice(0, 80),
@@ -514,6 +554,7 @@ wss.on("connection", (socket) => {
                 room.game.tableId,
                 room.game.rules,
                 room.game.houseRules,
+                0,
               );
             } else {
               const dealer =
@@ -522,8 +563,7 @@ wss.on("connection", (socket) => {
                   ? room.game.dealer
                   : (room.game.dealer + 1) % 4);
               const round =
-                action.dealer !== undefined &&
-                action.dealer !== room.game.dealer
+                dealer !== room.game.dealer
                   ? room.game.round + 1
                   : room.game.round;
               nextGame = dealRound(
@@ -534,6 +574,9 @@ wss.on("connection", (socket) => {
                 room.game.tableId,
                 room.game.rules,
                 room.game.houseRules,
+                dealer === room.game.dealer && room.game.winner === room.game.dealer
+                  ? room.game.dealerStreak + 1
+                  : 0,
               );
             }
           }

@@ -15,6 +15,8 @@ export type GameActionType =
   | "discard"
   | "claim"
   | "kong"
+  | "declare-ready"
+  | "score-bonus"
   | "score-round";
 
 export type Tile = {
@@ -62,35 +64,86 @@ export type PendingClaim = {
   canChi: boolean;
 };
 
+export type PendingAddedGong = {
+  player: number;
+  tile: Tile;
+  meldIndex: number;
+  candidates: number[];
+};
+
 export type Rules = {
   baseWin: number;
 };
 
 export type StandardRuleKey =
-  | "matching-flower"
-  | "dragon-pung"
-  | "seat-wind"
-  | "round-wind"
-  | "self-draw"
   | "dealer"
+  | "flower"
+  | "no-flowers"
+  | "wind-or-dragon"
+  | "no-wind-or-dragon"
+  | "waiting-one-with-option"
+  | "self-draw"
+  | "dual-wait"
+  | "revealed-gong"
+  | "flower-replacement-win"
+  | "pair-win"
   | "concealed-hand"
-  | "concealed-self-draw"
-  | "last-tile"
-  | "win-after-kong"
-  | "all-chows"
-  | "three-concealed-pungs"
-  | "all-pungs"
+  | "pure-single-wait"
+  | "concealed-gong"
+  | "two-concealed-pongs"
+  | "pure-double-chi"
+  | "big-small-chi"
+  | "terminal-pongs"
+  | "four-in-one"
+  | "missing-two-suits"
+  | "all-simple"
+  | "small-chi"
+  | "robbing-gong"
+  | "last-tile-draw"
+  | "gong-replacement-win"
+  | "two-four-in-ones"
+  | "two-gongs-two-concealed-triplets"
+  | "single-wait-last-tile"
+  | "three-consecutive-pairs"
+  | "five-families"
+  | "three-sister-chi"
+  | "three-concealed-triplets"
+  | "mixed-terminals-honors"
+  | "eight-exhausted-tiles"
+  | "big-chi"
+  | "same-number-pongs"
+  | "three-shifted-pongs"
+  | "pure-triple-chi"
+  | "little-win"
+  | "one-long-dragon"
+  | "little-three-winds"
+  | "all-pongs"
+  | "one-mixed-suit"
+  | "pure-terminals"
+  | "double-terminal-sequence"
+  | "double-terminal-triplets"
+  | "five-consecutive-pongs"
+  | "three-gongs-three-triplets"
+  | "big-three-winds"
   | "little-three-dragons"
-  | "half-flush"
-  | "four-concealed-pungs"
-  | "big-three-dragons"
-  | "full-flush"
-  | "all-honors"
-  | "five-concealed-pungs"
+  | "four-concealed-triplets"
+  | "four-shifted-triplets"
+  | "declaration-win"
+  | "twin-dragons"
   | "little-four-winds"
+  | "big-three-dragons"
+  | "four-in-four"
+  | "three-digits"
+  | "terminals-or-honors-every-set"
+  | "four-gongs-four-triplets"
   | "big-four-winds"
-  | "seven-flowers"
-  | "all-flowers";
+  | "pure-one-suit"
+  | "all-eight-flowers"
+  | "heavenly-win"
+  | "five-concealed-triplets"
+  | "five-shifted-triplets"
+  | "all-winds-dragons"
+  | "pure-quadruple-chi";
 
 export type HouseRule = {
   id: string;
@@ -115,6 +168,12 @@ export type WinSummary = {
   points: number;
   total: number;
   lineItems: string[];
+  scoreItems: Array<{
+    name: string;
+    description: string;
+    points: number;
+    multiplier: number;
+  }>;
 };
 
 export type Activity = {
@@ -132,13 +191,19 @@ export type Game = {
   wall: Tile[];
   turn: number;
   dealer: number;
+  dealerStreak: number;
   round: number;
   phase: Phase;
   lastDiscard?: LastDiscard;
   pendingClaim?: PendingClaim;
+  pendingAddedGong?: PendingAddedGong;
   message: string;
   selectedId?: string;
   drawnTileId?: string;
+  drawContext?: "wall" | "flower-replacement" | "gong-replacement";
+  robbingGong?: boolean;
+  declaredReady?: number[];
+  settledBonuses?: string[];
   activity?: Activity;
   winner?: number;
   winSummary?: WinSummary;

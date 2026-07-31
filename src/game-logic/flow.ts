@@ -12,9 +12,11 @@ import {
   canPong,
   canExposedKong,
   concealedKongOptions,
+  addedKongOptions,
+  waitCodesForHand,
 } from "./validation";
 import { chooseDiscard, shouldCall } from "./ai";
-import { scoreRound } from "./scoring";
+import { scoreRound, settleAllEightFlowers } from "./scoring";
 import { drawNonFlower } from "./deck";
 
 const HUMAN = 0;
@@ -65,6 +67,7 @@ export function advanceAfterDiscard(
   }
 
   for (const playerIndex of order) {
+    if (next.declaredReady?.includes(playerIndex)) continue;
     const playerCanKong = canExposedKong(
       next.players[playerIndex].hand,
       discard.tile,
@@ -116,6 +119,7 @@ export function advanceAfterDiscard(
   const chiSeat = (discardedBy + 1) % 4;
   if (
     isHumanSeat(chiSeat) &&
+    !next.declaredReady?.includes(chiSeat) &&
     possibleChiOptions(next.players[chiSeat].hand, discard.tile).length > 0
   ) {
     next.pendingClaim = {
@@ -140,6 +144,7 @@ export function advanceAfterDiscard(
   const chiPlayer = (discardedBy + 1) % 4;
   if (
     !isHumanSeat(chiPlayer) &&
+    !next.declaredReady?.includes(chiPlayer) &&
     possibleChiOptions(next.players[chiPlayer].hand, discard.tile).length > 0 &&
     shouldCall(next.players[chiPlayer], "chi")
   ) {
@@ -212,7 +217,7 @@ export function applyClaim(
   next.message = tableNarration(
     "claim",
     player.name,
-    type === "kong" ? "Kong" : type.charAt(0).toUpperCase() + type.slice(1),
+    type === "kong" ? "Gong" : type.charAt(0).toUpperCase() + type.slice(1),
   );
   next.activity = { player: playerIndex, text: next.message };
   appendAction(next, "claim", playerIndex, next.message);
@@ -225,14 +230,19 @@ export function applyClaim(
         message: tableNarration("draw", ""),
       };
     }
-    const afterDraw = drawNonFlower(next, playerIndex);
+    let afterDraw = drawNonFlower(next, playerIndex);
+    afterDraw.drawContext = "gong-replacement";
+    const settledBefore = afterDraw.settledBonuses?.length ?? 0;
+    afterDraw = settleAllEightFlowers(afterDraw, playerIndex, houseRules ?? afterDraw.houseRules);
     afterDraw.turn = playerIndex;
     afterDraw.phase = "discard";
     afterDraw.pendingClaim = undefined;
     afterDraw.lastDiscard = undefined;
-    afterDraw.message = tableNarration("kong", player.name, "Kong");
-    afterDraw.activity = { player: playerIndex, text: afterDraw.message };
-    appendAction(afterDraw, "kong", playerIndex, afterDraw.message);
+    if ((afterDraw.settledBonuses?.length ?? 0) === settledBefore) {
+      afterDraw.message = tableNarration("kong", player.name, "Gong");
+      afterDraw.activity = { player: playerIndex, text: afterDraw.message };
+      appendAction(afterDraw, "kong", playerIndex, afterDraw.message);
+    }
     if (
       rules &&
       houseRules &&
@@ -265,6 +275,8 @@ export function startTurn(
   }
 
   let next = drawNonFlower(game, playerIndex);
+  const settledBefore = next.settledBonuses?.length ?? 0;
+  next = settleAllEightFlowers(next, playerIndex, houseRules);
   next.turn = playerIndex;
   next.lastDiscard = undefined;
   next.pendingClaim = undefined;
@@ -275,18 +287,27 @@ export function startTurn(
   }
 
   const kongCode = concealedKongOptions(player.hand)[0];
+  const addedKongCode = addedKongOptions(player)[0];
   if (
     kongCode &&
     !isHumanSeat(playerIndex) &&
     Math.random() < (player.difficulty === "sharp" ? 0.75 : 0.35)
   ) {
-    next = applyConcealedKong(next, playerIndex, kongCode, rules, houseRules);
+    return applyConcealedKong(next, playerIndex, kongCode, rules, houseRules);
+  } else if (
+    addedKongCode &&
+    !isHumanSeat(playerIndex) &&
+    Math.random() < (player.difficulty === "sharp" ? 0.75 : 0.35)
+  ) {
+    return applyKong(next, playerIndex, addedKongCode, false, rules, houseRules, isHumanSeat);
   }
 
   next.phase = "discard";
-  next.message = tableNarration("turn", player.name);
-  next.activity = { player: playerIndex, text: next.message };
-  appendAction(next, "draw", playerIndex, next.message);
+  if ((next.settledBonuses?.length ?? 0) === settledBefore) {
+    next.message = tableNarration("turn", player.name);
+    next.activity = { player: playerIndex, text: next.message };
+    appendAction(next, "draw", playerIndex, next.message);
+  }
   return next;
 }
 
@@ -297,7 +318,11 @@ export function applyKong(
   concealed: boolean,
   rules: Rules,
   houseRules: HouseRule[],
+  isHumanSeat: HumanSeatCheck = defaultIsHumanSeat,
 ) {
+  if (!concealed && addedKongOptions(game.players[playerIndex]).includes(code)) {
+    return beginAddedGong(game, playerIndex, code, rules, houseRules, isHumanSeat);
+  }
   let next = structuredCloneGame(game);
   const player = next.players[playerIndex];
   const kongTiles = player.hand
@@ -309,11 +334,13 @@ export function applyKong(
   next.message = tableNarration(
     "kong",
     player.name,
-    concealed ? "Silent Kong" : "Reveal Kong",
+    concealed ? "Silent Gong" : "Reveal Gong",
   );
   next.activity = { player: playerIndex, text: next.message };
   appendAction(next, "kong", playerIndex, next.message);
   next = drawNonFlower(next, playerIndex);
+  next.drawContext = "gong-replacement";
+  next = settleAllEightFlowers(next, playerIndex, houseRules);
   if (
     isWinningHand(
       next.players[playerIndex].hand,
@@ -345,6 +372,13 @@ export function discardTile(
 ) {
   const next = structuredCloneGame(game);
   const player = next.players[playerIndex];
+  if (
+    next.declaredReady?.includes(playerIndex) &&
+    player.discards.length > 0 &&
+    tileId !== next.drawnTileId
+  ) {
+    return next;
+  }
   const tile = player.hand.find((candidate) => candidate.id === tileId);
   if (!tile) return next;
   player.hand = player.hand.filter((candidate) => candidate.id !== tileId);
@@ -352,10 +386,157 @@ export function discardTile(
   next.lastDiscard = { tile, by: playerIndex };
   next.selectedId = undefined;
   next.drawnTileId = undefined;
+  next.drawContext = undefined;
   next.message = tableNarration("discard", player.name, tile.label);
   next.activity = { player: playerIndex, text: next.message, tile };
   appendAction(next, "discard", playerIndex, next.message);
   return advanceAfterDiscard(next, playerIndex, rules, houseRules, isHumanSeat);
+}
+
+export function canDeclareReady(game: Game, playerIndex: number, tileId: string) {
+  const player = game.players[playerIndex];
+  if (
+    game.phase !== "discard" ||
+    game.turn !== playerIndex ||
+    game.declaredReady?.includes(playerIndex) ||
+    player.melds.length > 0 ||
+    player.discards.length > 0 ||
+    game.actionLog.some((action) => action.type === "discard" && action.actor === playerIndex)
+  ) {
+    return false;
+  }
+  const remaining = player.hand.filter((tile) => tile.id !== tileId);
+  return remaining.length !== player.hand.length && waitCodesForHand(remaining, 0).length > 0;
+}
+
+export function declareReadyAndDiscard(
+  game: Game,
+  playerIndex: number,
+  tileId: string,
+  rules: Rules,
+  houseRules: HouseRule[],
+  isHumanSeat: HumanSeatCheck = defaultIsHumanSeat,
+) {
+  if (!canDeclareReady(game, playerIndex, tileId)) return game;
+  const next = structuredCloneGame(game);
+  next.declaredReady = [...(next.declaredReady ?? []), playerIndex];
+  const message = `${next.players[playerIndex].name} declared a ready hand.`;
+  next.message = message;
+  next.activity = { player: playerIndex, text: message };
+  appendAction(next, "declare-ready", playerIndex, message);
+  return discardTile(next, playerIndex, tileId, rules, houseRules, isHumanSeat);
+}
+
+function finishAddedGong(
+  game: Game,
+  rules: Rules,
+  houseRules: HouseRule[],
+) {
+  const pending = game.pendingAddedGong;
+  if (!pending) return game;
+  let next = structuredCloneGame(game);
+  const player = next.players[pending.player];
+  const tile = player.hand.find((candidate) => candidate.id === pending.tile.id);
+  const meld = player.melds[pending.meldIndex];
+  if (!tile || meld?.type !== "pong") return next;
+  player.hand = player.hand.filter((candidate) => candidate.id !== tile.id);
+  player.melds[pending.meldIndex] = {
+    ...meld,
+    type: "kong",
+    tiles: [...meld.tiles, tile],
+    concealed: false,
+  };
+  next.pendingAddedGong = undefined;
+  next.pendingClaim = undefined;
+  next.lastDiscard = undefined;
+  next.robbingGong = undefined;
+  next.phase = "discard";
+  next.turn = pending.player;
+  next.message = tableNarration("kong", player.name, "Added Gong");
+  next.activity = { player: pending.player, text: next.message };
+  appendAction(next, "kong", pending.player, next.message);
+  next = drawNonFlower(next, pending.player);
+  next.drawContext = "gong-replacement";
+  next = settleAllEightFlowers(next, pending.player, houseRules);
+  if (isWinningHand(next.players[pending.player].hand, next.players[pending.player].melds.length)) {
+    return scoreRound(next, pending.player, "self-draw", rules, houseRules);
+  }
+  return next;
+}
+
+function resolveAddedGong(
+  game: Game,
+  rules: Rules,
+  houseRules: HouseRule[],
+  isHumanSeat: HumanSeatCheck,
+) {
+  const pending = game.pendingAddedGong;
+  if (!pending || pending.candidates.length === 0) {
+    return finishAddedGong(game, rules, houseRules);
+  }
+  const claimer = pending.candidates[0];
+  if (!isHumanSeat(claimer)) {
+    return scoreRound(game, claimer, "discard", rules, houseRules);
+  }
+  const next = structuredCloneGame(game);
+  next.pendingClaim = {
+    tile: pending.tile,
+    by: pending.player,
+    claimer,
+    canHu: true,
+    canPong: false,
+    canKong: false,
+    canChi: false,
+  };
+  next.phase = "claim";
+  next.message = `${next.players[claimer].name} can rob the Gong and Hu.`;
+  next.activity = { player: pending.player, text: next.message, tile: pending.tile };
+  return next;
+}
+
+export function beginAddedGong(
+  game: Game,
+  playerIndex: number,
+  code: string,
+  rules: Rules,
+  houseRules: HouseRule[],
+  isHumanSeat: HumanSeatCheck = defaultIsHumanSeat,
+) {
+  const next = structuredCloneGame(game);
+  const player = next.players[playerIndex];
+  const tile = player.hand.find((candidate) => candidate.code === code);
+  const meldIndex = player.melds.findIndex(
+    (meld) => meld.type === "pong" && meld.tiles[0]?.code === code,
+  );
+  if (!tile || meldIndex < 0 || next.phase !== "discard" || next.turn !== playerIndex) return next;
+  const candidates = [1, 2, 3]
+    .map((offset) => (playerIndex + offset) % 4)
+    .filter((index) =>
+      isWinningHand([...next.players[index].hand, tile], next.players[index].melds.length),
+    );
+  next.pendingAddedGong = { player: playerIndex, tile, meldIndex, candidates };
+  next.lastDiscard = { tile, by: playerIndex };
+  next.robbingGong = true;
+  return resolveAddedGong(next, rules, houseRules, isHumanSeat);
+}
+
+export function passClaim(
+  game: Game,
+  playerIndex: number,
+  rules: Rules,
+  houseRules: HouseRule[],
+  isHumanSeat: HumanSeatCheck = defaultIsHumanSeat,
+) {
+  if (game.pendingAddedGong) {
+    const next = structuredCloneGame(game);
+    next.pendingAddedGong!.candidates = next.pendingAddedGong!.candidates.filter(
+      (candidate) => candidate !== playerIndex,
+    );
+    next.pendingClaim = undefined;
+    return resolveAddedGong(next, rules, houseRules, isHumanSeat);
+  }
+  if (game.phase !== "claim" || !game.lastDiscard) return game;
+  return startTurn(game, (game.lastDiscard.by + 1) % 4, rules, houseRules, isHumanSeat);
 }
 
 export { HUMAN };

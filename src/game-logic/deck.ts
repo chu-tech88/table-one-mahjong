@@ -15,7 +15,7 @@ import {
   concealedKongOptions,
 } from "./validation";
 import { chooseDiscard, shouldCall } from "./ai";
-import { scoreRound } from "./scoring";
+import { scoreRound, settleAllEightFlowers } from "./scoring";
 
 export function makeDeck() {
   const deck: Tile[] = [];
@@ -114,15 +114,19 @@ export function drawNonFlower(game: Game, playerIndex: number) {
   const next = structuredCloneGame(game);
   const player = next.players[playerIndex];
   next.drawnTileId = undefined;
+  next.drawContext = undefined;
+  let replacedFlower = false;
   while (next.wall.length > 0) {
     const tile = next.wall.shift();
     if (!tile) break;
     if (tile.flower) {
       player.flowers.push(tile);
+      replacedFlower = true;
     } else {
       player.hand.push(tile);
       player.hand = sortTiles(player.hand);
       next.drawnTileId = tile.id;
+      next.drawContext = replacedFlower ? "flower-replacement" : "wall";
       break;
     }
   }
@@ -137,6 +141,7 @@ export function dealRound(
   tableId = "local-table-one",
   rules: Rules = DEFAULT_RULES,
   houseRules: HouseRule[] = createDefaultHouseRules(),
+  dealerStreak = 0,
 ): Game {
   let wall = makeDeck();
   const defaultNames = ["You", "Mina", "Theo", "Grace"];
@@ -181,7 +186,7 @@ export function dealRound(
   const dealerMessage =
     dealer === 0 ? "You are Dealer" : `${dealerName} is dealer`;
 
-  const game: Game = {
+  let game: Game = {
     tableId,
     mode: "online-ready",
     actionSeq: 0,
@@ -190,12 +195,15 @@ export function dealRound(
     wall,
     turn: dealer,
     dealer,
+    dealerStreak,
     round,
     phase: "discard",
     message: tableNarration("deal", dealerMessage),
     activity: { player: dealer, text: tableNarration("deal", dealerMessage) },
     rules: { ...rules },
     houseRules: houseRules.map((rule) => ({ ...rule })),
+    declaredReady: [],
+    settledBonuses: [],
   };
   appendAction(
     game,
@@ -203,5 +211,8 @@ export function dealRound(
     dealer,
     `${dealerMessage}. Hand ${round} begins.`,
   );
+  players.forEach((_, index) => {
+    game = settleAllEightFlowers(game, index, houseRules);
+  });
   return game;
 }

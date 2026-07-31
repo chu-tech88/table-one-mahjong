@@ -16,7 +16,7 @@ export function appendAction(
 
 export function actionName(type: MeldType) {
   return type === "kong"
-    ? "Kong"
+    ? "Gong"
     : type.charAt(0).toUpperCase() + type.slice(1);
 }
 
@@ -79,12 +79,24 @@ export function structuredCloneGame(game: Game): Game {
     wall: [...game.wall],
     lastDiscard: game.lastDiscard ? { ...game.lastDiscard } : undefined,
     pendingClaim: game.pendingClaim ? { ...game.pendingClaim } : undefined,
+    pendingAddedGong: game.pendingAddedGong
+      ? {
+          ...game.pendingAddedGong,
+          candidates: [...game.pendingAddedGong.candidates],
+        }
+      : undefined,
     activity: game.activity ? { ...game.activity } : undefined,
+    declaredReady: game.declaredReady ? [...game.declaredReady] : undefined,
+    settledBonuses: game.settledBonuses ? [...game.settledBonuses] : undefined,
     actionLog: [...game.actionLog],
     rules: { ...game.rules },
     houseRules: game.houseRules.map((rule) => ({ ...rule })),
     winSummary: game.winSummary
-      ? { ...game.winSummary, lineItems: [...game.winSummary.lineItems] }
+      ? {
+          ...game.winSummary,
+          lineItems: [...game.winSummary.lineItems],
+          scoreItems: game.winSummary.scoreItems.map((item) => ({ ...item })),
+        }
       : undefined,
   };
 }

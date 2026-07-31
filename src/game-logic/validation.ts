@@ -1,4 +1,4 @@
-import { Tile } from "./types";
+import { Player, Tile } from "./types";
 import { countCodes, tileSortFromCode, tilePrototypeFromCode } from "./helpers";
 
 export function canFormSets(codes: string[]) {
@@ -170,6 +170,14 @@ export function canExposedKong(hand: Tile[], tile: Tile) {
 export function concealedKongOptions(hand: Tile[]) {
   const counts = countCodes(hand);
   return Object.keys(counts).filter((code) => counts[code] === 4);
+}
+
+export function addedKongOptions(player: Player) {
+  return player.melds.flatMap((meld) => {
+    if (meld.type !== "pong") return [];
+    const code = meld.tiles[0]?.code;
+    return code && player.hand.some((tile) => tile.code === code) ? [code] : [];
+  });
 }
 
 // Import sortTiles from helpers to avoid circular dependency

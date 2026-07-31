@@ -20,6 +20,7 @@ type UseNetworkedGameReturn = {
   pass: () => void;
   hu: (winBy: "discard" | "self-draw") => void;
   kong: (code: string, concealed: boolean) => void;
+  declareReady: (tileId: string) => void;
   addHouseRule: (name: string, description: string, points: number) => void;
   removeHouseRule: (id: string) => void;
   updateHouseRule: (id: string, points: number, enabled: boolean) => void;
@@ -171,6 +172,10 @@ export function useNetworkedGame(
   const kong = useCallback((code: string, concealed: boolean) => {
     clientRef.current?.kong(code, concealed);
   }, []);
+  const declareReady = useCallback((tileId: string) => {
+    clientRef.current?.declareReady(tileId);
+    setSelectedTileId(undefined);
+  }, []);
   const addHouseRule = useCallback(
     (name: string, description: string, points: number) => {
       setHouseRules([
@@ -253,6 +258,7 @@ export function useNetworkedGame(
     pass,
     hu,
     kong,
+    declareReady,
     addHouseRule,
     removeHouseRule,
     updateHouseRule,
