@@ -72,7 +72,7 @@ assert.ok(silent.drawnTileId);
 
 const scoring = createDefaultHouseRules();
 assert.equal(DEFAULT_RULES.baseWin, 4);
-assert.equal(scoring.length, 69);
+assert.equal(scoring.length, 68);
 assert.ok(scoring.every((rule) => rule.enabled));
 assert.equal(
   scoring.find((rule) => rule.detector === "big-four-winds")?.points,
@@ -81,6 +81,7 @@ assert.equal(
 assert.equal(scoring.find((rule) => rule.detector === "two-gongs-two-concealed-triplets")?.points, 1);
 assert.equal(scoring.some((rule) => rule.name === "Four Consecutive Sets"), false);
 assert.equal(scoring.some((rule) => rule.name === "Thirteen Orphans"), false);
+assert.equal(scoring.some((rule) => rule.name === "Four in Two"), false);
 
 const allChiHand = [
   "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
@@ -176,6 +177,10 @@ assert.equal(robbedWin.phase, "round-over");
 assert.equal(robbedWin.players[0].hand.some((tile) => tile.id === fourthD5.id), false);
 assert.equal(robbedWin.players[1].hand.some((tile) => tile.id === fourthD5.id), true);
 assert.ok(robbedWin.winSummary?.lineItems.some((line) => line.includes("Robbing the Gong")));
+assert.equal(
+  robbedWin.winSummary?.scoreItems.find((item) => item.name === "Robbing the Gong")?.description,
+  robRule.description,
+);
 const completedAddedGong = passClaim(
   robOpportunity,
   1,

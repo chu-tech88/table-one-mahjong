@@ -1950,7 +1950,7 @@ textarea {
 .win-modal {
   display: grid;
   gap: 14px;
-  max-width: 460px;
+  max-width: 760px;
   padding: 22px;
   text-align: center;
 }
@@ -1968,13 +1968,42 @@ textarea {
   gap: 6px;
 }
 
-.score-breakdown span {
+.score-breakdown > .score-item {
+  position: relative;
   padding: 5px 8px;
   border-radius: 999px;
   background: #eef5ef;
   color: #33443a;
   font-size: 0.78rem;
   font-weight: 800;
+}
+
+.score-item small {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: min(280px, 70vw);
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #203b2b;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.score-item:hover small,
+.score-item:focus-visible small {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .win-total {
@@ -2002,11 +2031,27 @@ textarea {
   text-transform: uppercase;
 }
 
-.winning-hand-review > div {
+.winning-review-section {
+  display: grid;
+  gap: 6px;
+}
+
+.winning-review-section > strong {
+  color: #546158;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.winning-tile-row,
+.winning-meld-row {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 5px;
+}
+
+.winning-meld-row {
+  align-items: end;
 }
 
 .full-width-button {

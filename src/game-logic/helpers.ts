@@ -16,7 +16,7 @@ export function appendAction(
 
 export function actionName(type: MeldType) {
   return type === "kong"
-    ? "Kong"
+    ? "Gong"
     : type.charAt(0).toUpperCase() + type.slice(1);
 }
 
@@ -92,7 +92,11 @@ export function structuredCloneGame(game: Game): Game {
     rules: { ...game.rules },
     houseRules: game.houseRules.map((rule) => ({ ...rule })),
     winSummary: game.winSummary
-      ? { ...game.winSummary, lineItems: [...game.winSummary.lineItems] }
+      ? {
+          ...game.winSummary,
+          lineItems: [...game.winSummary.lineItems],
+          scoreItems: game.winSummary.scoreItems.map((item) => ({ ...item })),
+        }
       : undefined,
   };
 }

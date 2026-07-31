@@ -269,7 +269,6 @@ function evaluateDecomposition(
     "three-concealed-triplets": Number(concealedTriplets === 3),
     "mixed-terminals-honors": Number(allTerminalOrHonor && hasHonors),
     "eight-exhausted-tiles": Number(waits.length === 2 && waits.every((code) => copiesBeforeWin(code) === 3)),
-    "four-in-two": Number(fourCopyCodes.some((code) => groupLocations(code) === 2)),
     "big-chi": Number(allChi && !hasHonors),
     "same-number-pongs": Number(sameRankPongs),
     "three-shifted-pongs": Number(pongRun === 3),
@@ -352,7 +351,12 @@ export function scoreStandardRules(
       if (!rule.enabled || !rule.detector || rule.detector === "little-win") return [];
       const multiplier = values[rule.detector] ?? 0;
       return multiplier > 0
-        ? [{ name: rule.name, points: rule.points * multiplier, multiplier }]
+        ? [{
+            name: rule.name,
+            description: rule.description,
+            points: rule.points * multiplier,
+            multiplier,
+          }]
         : [];
     });
     return { scored, total: scored.reduce((sum, item) => sum + item.points, 0) };
@@ -360,7 +364,12 @@ export function scoreStandardRules(
   const best = scoredCandidates.sort((a, b) => b.total - a.total)[0] ?? { scored: [], total: 0 };
   const littleWin = rules.find((rule) => rule.detector === "little-win" && rule.enabled);
   if (best.total === 1 && littleWin) {
-    return [{ name: littleWin.name, points: littleWin.points, multiplier: 1 }];
+    return [{
+      name: littleWin.name,
+      description: littleWin.description,
+      points: littleWin.points,
+      multiplier: 1,
+    }];
   }
   return best.scored;
 }
@@ -434,6 +443,7 @@ export function scoreRound(
     points,
     total,
     lineItems,
+    scoreItems: scoredRules,
   };
   next.message = `${player.name} wins by ${source === "self-draw" ? "self draw" : "discard"} for ${points} points${
     source === "self-draw" ? " from each player" : ""

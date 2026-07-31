@@ -110,7 +110,6 @@ export type StandardRuleKey =
   | "three-concealed-triplets"
   | "mixed-terminals-honors"
   | "eight-exhausted-tiles"
-  | "four-in-two"
   | "big-chi"
   | "same-number-pongs"
   | "three-shifted-pongs"
@@ -169,6 +168,12 @@ export type WinSummary = {
   points: number;
   total: number;
   lineItems: string[];
+  scoreItems: Array<{
+    name: string;
+    description: string;
+    points: number;
+    multiplier: number;
+  }>;
 };
 
 export type Activity = {

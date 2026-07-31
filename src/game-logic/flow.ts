@@ -217,7 +217,7 @@ export function applyClaim(
   next.message = tableNarration(
     "claim",
     player.name,
-    type === "kong" ? "Kong" : type.charAt(0).toUpperCase() + type.slice(1),
+    type === "kong" ? "Gong" : type.charAt(0).toUpperCase() + type.slice(1),
   );
   next.activity = { player: playerIndex, text: next.message };
   appendAction(next, "claim", playerIndex, next.message);
@@ -239,7 +239,7 @@ export function applyClaim(
     afterDraw.pendingClaim = undefined;
     afterDraw.lastDiscard = undefined;
     if ((afterDraw.settledBonuses?.length ?? 0) === settledBefore) {
-      afterDraw.message = tableNarration("kong", player.name, "Kong");
+      afterDraw.message = tableNarration("kong", player.name, "Gong");
       afterDraw.activity = { player: playerIndex, text: afterDraw.message };
       appendAction(afterDraw, "kong", playerIndex, afterDraw.message);
     }
@@ -334,7 +334,7 @@ export function applyKong(
   next.message = tableNarration(
     "kong",
     player.name,
-    concealed ? "Silent Kong" : "Reveal Kong",
+    concealed ? "Silent Gong" : "Reveal Gong",
   );
   next.activity = { player: playerIndex, text: next.message };
   appendAction(next, "kong", playerIndex, next.message);

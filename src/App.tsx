@@ -217,12 +217,13 @@ function formatChiOption(tiles: Tile[]) {
 }
 
 function MeldView({ meld }: { meld: Meld }) {
+  const meldName = meld.type === "kong" ? "Gong" : meld.type.charAt(0).toUpperCase() + meld.type.slice(1);
   return (
     <div
       className="meld"
-      title={`${meld.concealed ? "Concealed " : ""}${meld.type}`}
+      title={`${meld.concealed ? "Concealed " : ""}${meldName}`}
     >
-      <span>{meld.concealed ? "Silent Kong" : meld.type.toUpperCase()}</span>
+      <span>{meld.concealed ? "Silent Gong" : meldName.toUpperCase()}</span>
       <div>
         {meld.tiles.map((tile) => (
           <TileView
@@ -877,7 +878,7 @@ function MahjongApp() {
     game.phase === "discard" &&
     game.turn === SELF &&
     activeHumanKong ? (
-      <div className="kong-choice-panel" aria-label="Choose Kong type">
+      <div className="kong-choice-panel" aria-label="Choose Gong type">
         {humanKongs.length > 1 ? (
           <select
             aria-label="Tile to use for Gong"
@@ -912,7 +913,7 @@ function MahjongApp() {
                 setChoosingKong(false);
               }}
             >
-              Silent Kong
+              Silent Gong
             </button>
             <button
               type="button"
@@ -921,7 +922,7 @@ function MahjongApp() {
                 setChoosingKong(false);
               }}
             >
-              Reveal Kong
+              Reveal Gong
             </button>
           </>
         )}
@@ -1358,22 +1359,61 @@ function MahjongApp() {
             <p className="eyebrow">Hand complete</p>
             <h2 id="win-title">{game.winSummary.title}</h2>
             <p>{game.winSummary.detail}</p>
-            {game.winSummary.winner !== SELF ? (
+            {game.players[game.winSummary.winner] ? (
               <div
                 className="winning-hand-review"
                 aria-label={`${game.players[game.winSummary.winner].name} revealed winning hand`}
               >
                 <span>{seatName(game.winSummary.winner)}'s hand</span>
-                <div>
-                  {game.players[game.winSummary.winner].hand.map((tile) => (
-                    <TileView key={tile.id} tile={tile} disabled />
-                  ))}
+                <div className="winning-review-section">
+                  <strong>Concealed tiles</strong>
+                  <div className="winning-tile-row">
+                    {game.players[game.winSummary.winner].hand.map((tile) => (
+                      <TileView key={tile.id} tile={tile} disabled />
+                    ))}
+                  </div>
                 </div>
+                {game.players[game.winSummary.winner].melds.length > 0 ? (
+                  <div className="winning-review-section">
+                    <strong>Revealed sets</strong>
+                    <div className="winning-meld-row">
+                      {game.players[game.winSummary.winner].melds.map((meld, index) => (
+                        <MeldView key={`${meld.type}-${index}`} meld={meld} />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {game.players[game.winSummary.winner].flowers.length > 0 ? (
+                  <div className="winning-review-section">
+                    <strong>Flowers</strong>
+                    <div className="winning-tile-row">
+                      {game.players[game.winSummary.winner].flowers.map((tile) => (
+                        <TileView key={tile.id} tile={tile} disabled />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
             <div className="score-breakdown">
-              {game.winSummary.lineItems.map((item) => (
-                <span key={item}>{item}</span>
+              <span
+                className="score-item"
+                tabIndex={0}
+                title="Points awarded for every completed Hu."
+              >
+                Base win: {rules.baseWin}
+                <small role="tooltip">Points awarded for every completed Hu.</small>
+              </span>
+              {game.winSummary.scoreItems.map((item) => (
+                <span
+                  className="score-item"
+                  key={`${item.name}-${item.points}`}
+                  tabIndex={0}
+                  title={item.description}
+                >
+                  {item.name}{item.multiplier > 1 ? ` x${item.multiplier}` : ""}: +{item.points}
+                  <small role="tooltip">{item.description}</small>
+                </span>
               ))}
             </div>
             <div className="win-total">

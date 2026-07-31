@@ -49,7 +49,6 @@ export const STANDARD_SCORING_RULE_DEFINITIONS: RuleDefinition[] = [
   { detector: "three-concealed-triplets", name: "Three Concealed Triplets", description: "Three concealed Pongs or Gongs", points: 8, category: patterns },
   { detector: "mixed-terminals-honors", name: "Mixed Terminals & Honors", description: "Only 1, 9, Wind, and Dragon tiles", points: 8, category: patterns },
   { detector: "eight-exhausted-tiles", name: "8 Exhausted Tiles", description: "Two winning waits with only one unseen copy of each remaining", points: 8, category: patterns },
-  { detector: "four-in-two", name: "Four in Two", description: "All four copies of a tile appear across two different sets", points: 8, category: patterns },
   { detector: "big-chi", name: "Da Ping Hu (Big Chi)", description: "Five Chi with a numbered pair and no honors", points: 10, category: patterns },
   { detector: "same-number-pongs", name: "Same Number Pong (3x)", description: "Pongs of the same rank in all three numbered suits", points: 10, category: patterns },
   { detector: "three-shifted-pongs", name: "Three Shifted Pongs", description: "Three sequential Pongs in one suit", points: 10, category: patterns },

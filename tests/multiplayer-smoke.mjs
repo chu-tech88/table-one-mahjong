@@ -167,7 +167,7 @@ async function main() {
     assert.equal(state1.game.players[1].name, "Partner");
     assert.equal(state1.game.players[0].controller, "human");
     assert.equal(state1.game.players[2].controller, "ai");
-    assert.equal(state0.game.houseRules.length, 69);
+    assert.equal(state0.game.houseRules.length, 68);
 
     send(ws0, {
       type: "player-action",
