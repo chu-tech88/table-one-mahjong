@@ -252,21 +252,29 @@ function DiscardRiver({ player }: { player: Player }) {
 function TableDiscardGrid({
   players,
   selfIndex,
+  onInspect,
 }: {
   players: Player[];
   selfIndex: number;
+  onInspect: (index: number) => void;
 }) {
   return (
     <div className="table-discard-grid" aria-label="Center discard area">
-      {players.map((player, index) => (
-        <section
-          className={`table-discard-lane discard-lane-${index}`}
-          key={`${player.name}-${index}`}
-        >
-          <span>{index === selfIndex ? "You" : player.wind}</span>
-          <DiscardRiver player={player} />
-        </section>
-      ))}
+      {players.map((player, index) => {
+        const relativeSeat = (index - selfIndex + 4) % 4;
+        return (
+          <section
+            className={`table-discard-lane discard-lane-${relativeSeat}`}
+            key={`${player.name}-${index}`}
+          >
+            <button type="button" onClick={() => onInspect(index)}>
+              <span>{index === selfIndex ? "You" : player.wind}</span>
+              <small>{player.discards.length}</small>
+            </button>
+            <DiscardRiver player={player} />
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -306,6 +314,7 @@ function Opponent({
   ready,
   reveal,
   position,
+  onInspect,
 }: {
   player: Player;
   active: boolean;
@@ -313,12 +322,13 @@ function Opponent({
   ready: boolean;
   reveal: boolean;
   position: "left" | "top" | "right";
+  onInspect: () => void;
 }) {
   return (
     <section
       className={`opponent opponent-${position} ${active ? "active" : ""} ${dealer ? "dealer-seat" : ""}`}
     >
-      <div className="seat-heading">
+      <button className="seat-heading" type="button" onClick={onInspect}>
         <strong>{player.name}</strong>
         <div className="seat-badges">
           {dealer ? <span className="dealer-badge">Dealer</span> : null}
@@ -328,7 +338,7 @@ function Opponent({
           </span>
           <span>{player.wind}</span>
         </div>
-      </div>
+      </button>
       <div className="seat-meta">
         <span>{difficulties[player.difficulty]}</span>
         <span>{player.score} pts</span>
@@ -347,6 +357,81 @@ function Opponent({
         </div>
       ) : null}
     </section>
+  );
+}
+
+function PlayerInspector({
+  player,
+  isSelf,
+  dealer,
+  ready,
+  reveal,
+  onClose,
+}: {
+  player: Player;
+  isSelf: boolean;
+  dealer: boolean;
+  ready: boolean;
+  reveal: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="player-inspector"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="player-inspector-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="modal-header">
+          <div>
+            <p className="eyebrow">{player.wind} seat</p>
+            <h2 id="player-inspector-title">
+              {player.name}{isSelf ? " (You)" : ""}
+            </h2>
+          </div>
+          <button className="inspector-close" type="button" aria-label="Close player details" onClick={onClose}>
+            ×
+          </button>
+        </div>
+        <div className="inspector-summary">
+          <strong>{player.score} pts</strong>
+          <span>{player.controller === "human" ? "Human" : `AI · ${difficulties[player.difficulty]}`}</span>
+          {dealer ? <span className="dealer-badge">Dealer</span> : null}
+          {ready ? <span className="ready-badge">Ready</span> : null}
+        </div>
+        <section className="inspector-section">
+          <div className="inspector-section-heading">
+            <h3>Discards</h3>
+            <span>{player.discards.length}</span>
+          </div>
+          <div className="inspector-tile-row">
+            {player.discards.length > 0 ? player.discards.map((tile) => (
+              <TileView key={tile.id} tile={tile} disabled />
+            )) : <p>None yet</p>}
+          </div>
+        </section>
+        <section className="inspector-section">
+          <div className="inspector-section-heading">
+            <h3>Flowers and declared sets</h3>
+            <span>{player.flowers.length} flowers · {player.melds.length} sets</span>
+          </div>
+          <SeatSets flowers={player.flowers} melds={player.melds} />
+        </section>
+        <section className="inspector-section">
+          <div className="inspector-section-heading">
+            <h3>{isSelf || reveal ? "Hand" : "Concealed hand"}</h3>
+            <span>{player.hand.length} tiles</span>
+          </div>
+          <div className="inspector-tile-row inspector-hand-row">
+            {player.hand.map((tile) => (
+              <TileView key={tile.id} tile={tile} hidden={!isSelf && !reveal} disabled />
+            ))}
+          </div>
+        </section>
+      </section>
+    </div>
   );
 }
 
@@ -403,6 +488,7 @@ function MahjongApp() {
   };
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inspectedSeat, setInspectedSeat] = useState<number | undefined>();
   const [choosingChi, setChoosingChi] = useState(false);
   const [choosingKong, setChoosingKong] = useState(false);
   const [selectedKongCode, setSelectedKongCode] = useState<string | undefined>();
@@ -533,9 +619,6 @@ function MahjongApp() {
       : activity.tile
         ? `${seatName(activity.player)}'s discard`
         : "Table activity";
-  const centerStatusValue =
-    !activity.tile && showYourTurnInCenter ? "Your turn" : "Waiting";
-
   const ruleRows = useMemo(() => [["Base win", "baseWin"]] as const, []);
 
   const [houseDraft, setHouseDraft] = useState({
@@ -629,12 +712,10 @@ function MahjongApp() {
             <strong>Choose room and seat</strong>
           </div>
         </header>
-        <section className="game-layout">
-          <div
-            className="panel-block settings-section"
-            style={{ maxWidth: 480, margin: "0 auto" }}
-          >
+        <section className="game-layout lobby-layout">
+          <div className="panel-block settings-section join-panel">
             <h2>Join table</h2>
+            <div className="join-fields">
             <label>
               <span>Your name</span>
               <input
@@ -684,6 +765,7 @@ function MahjongApp() {
                 ))}
               </select>
             </label>
+            </div>
             {lobbySeatError ? (
               <p style={{ fontSize: "0.9rem", color: "#a33" }}>
                 {lobbySeatError}
@@ -948,14 +1030,18 @@ function MahjongApp() {
 
       <section className="game-layout">
         <section className="table" aria-label="Mahjong table">
-          <div className="table-hand-label" aria-hidden="true">
-            <span>East Wind</span>
-            <strong>East Hand</strong>
-          </div>
           <div className="board-toolbar">
+            <div className="table-brand">
+              <strong>Table One Mahjong</strong>
+              <span>Round {game.round} · {dealerStatus}</span>
+            </div>
             <div className="tiles-remaining">
-              <span>Tiles remaining</span>
+              <span>Tiles</span>
               <strong>{game.wall.length}</strong>
+            </div>
+            <div className="table-activity-strip" aria-live="polite">
+              {centerStatusLabel !== activityText ? <span>{centerStatusLabel}</span> : null}
+              <strong>{activityText}</strong>
             </div>
             <div className="online-status" aria-label="Online readiness">
               <span>
@@ -994,12 +1080,15 @@ function MahjongApp() {
             ready={game.declaredReady?.includes(topSeat) ?? false}
             reveal={game.winner === topSeat}
             position="top"
+            onInspect={() => setInspectedSeat(topSeat)}
           />
           <section
             className={`human-seat ${game.turn === SELF ? "active" : ""} ${game.dealer === SELF ? "dealer-seat" : ""}`}
           >
-            <div className="seat-heading">
-              <strong>{human.name} (You)</strong>
+            <div className="human-profile">
+              <button className="human-name" type="button" onClick={() => setInspectedSeat(SELF)}>
+                <strong>{human.name} (You)</strong>
+              </button>
               <div className="seat-badges">
                 {game.dealer === SELF ? (
                   <span className="dealer-badge">Dealer</span>
@@ -1008,11 +1097,11 @@ function MahjongApp() {
                 <span className="identity-badge">Human</span>
                 <span>{human.wind}</span>
               </div>
-            </div>
-            <div className="seat-meta">
-              <span>{human.score} pts</span>
-              <span>{human.flowers.length} flowers</span>
-              <span>{human.hand.length} in hand</span>
+              <div className="seat-meta">
+                <span>{human.score} pts</span>
+                <span>{human.flowers.length} flowers</span>
+                <span>{human.hand.length} in hand</span>
+              </div>
             </div>
             <SeatSets flowers={human.flowers} melds={human.melds} />
             {choosingChi && humanChiOptions.length > 1 ? (
@@ -1097,24 +1186,22 @@ function MahjongApp() {
             ready={game.declaredReady?.includes(leftSeat) ?? false}
             reveal={game.winner === leftSeat}
             position="left"
+            onInspect={() => setInspectedSeat(leftSeat)}
           />
           <div className="center-table">
-            <TableDiscardGrid players={game.players} selfIndex={SELF} />
+            <TableDiscardGrid players={game.players} selfIndex={SELF} onInspect={setInspectedSeat} />
             <div className="table-center-core">
-              <div className="center-activity">
-                <span>
-                  Round {game.round} · {dealerStatus}
-                </span>
-                <strong>{activityText}</strong>
-              </div>
-              <div className="last-discard">
-                <span>{centerStatusLabel}</span>
-                {activity.tile ? (
+              {activity.tile ? (
+                <div className="last-discard">
+                  <span>{centerStatusLabel}</span>
                   <TileView tile={activity.tile} large disabled />
-                ) : (
-                  <strong>{centerStatusValue}</strong>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="empty-center-marker" aria-hidden="true">
+                  <span>Round</span>
+                  <strong>{game.round}</strong>
+                </div>
+              )}
             </div>
           </div>
           <Opponent
@@ -1124,9 +1211,21 @@ function MahjongApp() {
             ready={game.declaredReady?.includes(rightSeat) ?? false}
             reveal={game.winner === rightSeat}
             position="right"
+            onInspect={() => setInspectedSeat(rightSeat)}
           />
         </section>
       </section>
+
+      {inspectedSeat !== undefined ? (
+        <PlayerInspector
+          player={{ ...game.players[inspectedSeat], name: seatName(inspectedSeat) }}
+          isSelf={inspectedSeat === SELF}
+          dealer={game.dealer === inspectedSeat}
+          ready={game.declaredReady?.includes(inspectedSeat) ?? false}
+          reveal={game.winner === inspectedSeat}
+          onClose={() => setInspectedSeat(undefined)}
+        />
+      ) : null}
 
       {settingsOpen ? (
         <div className="modal-backdrop" role="presentation">
