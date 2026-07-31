@@ -15,6 +15,7 @@
     "start:server": "tsx server/game-server.ts",
     "build": "tsc --noEmit && vite build",
     "test:singleplayer": "node tests/simulate-100-games.mjs",
+    "test:50-games": "node tests/simulate-100-games.mjs --games=50",
     "test:logic": "tsx tests/game-logic-smoke.ts",
     "test:multiplayer": "node tests/multiplayer-smoke.mjs",
     "test": "tsc --noEmit && vite build && npm run test:logic && npm run test:singleplayer && npm run test:multiplayer",

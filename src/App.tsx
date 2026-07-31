@@ -18,11 +18,13 @@ import {
 import {
   isWinningHand,
   concealedKongOptions,
+  addedKongOptions,
   waitingSupportTileIds,
   possibleChiOptions,
   canExposedKong,
   waitCodesForHand,
 } from "./game-logic/validation";
+import { canDeclareReady } from "./game-logic/flow";
 import { useGame } from "./hooks/useGame";
 
 // Component rendering stays exactly the same
@@ -300,12 +302,14 @@ function Opponent({
   player,
   active,
   dealer,
+  ready,
   reveal,
   position,
 }: {
   player: Player;
   active: boolean;
   dealer: boolean;
+  ready: boolean;
   reveal: boolean;
   position: "left" | "top" | "right";
 }) {
@@ -317,6 +321,7 @@ function Opponent({
         <strong>{player.name}</strong>
         <div className="seat-badges">
           {dealer ? <span className="dealer-badge">Dealer</span> : null}
+          {ready ? <span className="ready-badge">Ready</span> : null}
           <span className="identity-badge">
             {player.controller === "human" ? "Human" : "AI"}
           </span>
@@ -375,6 +380,7 @@ function MahjongApp() {
     pass,
     hu,
     kong,
+    declareReady,
     addHouseRule,
     removeHouseRule,
     updateHouseRule,
@@ -405,9 +411,19 @@ function MahjongApp() {
   const human = game?.players[SELF];
   const effectiveSelectedTileId =
     uiSelectedTileId ?? selectedTileId ?? game?.selectedId;
-  const humanKongs = human ? concealedKongOptions(human.hand) : [];
+  const concealedHumanKongs = human ? concealedKongOptions(human.hand) : [];
+  const addedHumanKongs = human ? addedKongOptions(human) : [];
+  const humanKongs = [...new Set([...concealedHumanKongs, ...addedHumanKongs])];
   const activeHumanKong =
     humanKongs.find((code) => code === selectedKongCode) ?? humanKongs[0];
+  const activeKongIsAdded = !!activeHumanKong && addedHumanKongs.includes(activeHumanKong);
+  const humanDeclaredReady = game?.declaredReady?.includes(SELF) ?? false;
+  const canDeclareSelected =
+    !!game && !!effectiveSelectedTileId &&
+    canDeclareReady(game, SELF, effectiveSelectedTileId);
+  const canDiscardSelected =
+    !!effectiveSelectedTileId &&
+    (!humanDeclaredReady || human?.discards.length === 0 || effectiveSelectedTileId === game?.drawnTileId);
   const canSelfHu =
     !!game &&
     !!human &&
@@ -804,7 +820,7 @@ function MahjongApp() {
           disabled={
             game.turn !== SELF ||
             game.phase !== "discard" ||
-            !effectiveSelectedTileId
+            !canDiscardSelected
           }
           onClick={() => {
             if (!effectiveSelectedTileId) return;
@@ -839,6 +855,18 @@ function MahjongApp() {
             Gong
           </button>
         ) : null}
+        {canDeclareSelected ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (!effectiveSelectedTileId) return;
+              declareReady(effectiveSelectedTileId);
+              setUiSelectedTileId(undefined);
+            }}
+          >
+            Declare Ready
+          </button>
+        ) : null}
       </>
     ) : null;
 
@@ -865,24 +893,38 @@ function MahjongApp() {
         ) : (
           <span>{kongLabel(activeHumanKong)}</span>
         )}
-        <button
-          type="button"
-          onClick={() => {
-            kong(activeHumanKong, true);
-            setChoosingKong(false);
-          }}
-        >
-          Silent Kong
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            kong(activeHumanKong, false);
-            setChoosingKong(false);
-          }}
-        >
-          Reveal Kong
-        </button>
+        {activeKongIsAdded ? (
+          <button
+            type="button"
+            onClick={() => {
+              kong(activeHumanKong, false);
+              setChoosingKong(false);
+            }}
+          >
+            Add to Pong
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                kong(activeHumanKong, true);
+                setChoosingKong(false);
+              }}
+            >
+              Silent Kong
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                kong(activeHumanKong, false);
+                setChoosingKong(false);
+              }}
+            >
+              Reveal Kong
+            </button>
+          </>
+        )}
         <button
           className="secondary-action"
           type="button"
@@ -948,6 +990,7 @@ function MahjongApp() {
             player={{ ...game.players[topSeat], name: seatName(topSeat) }}
             active={game.turn === topSeat}
             dealer={game.dealer === topSeat}
+            ready={game.declaredReady?.includes(topSeat) ?? false}
             reveal={game.winner === topSeat}
             position="top"
           />
@@ -960,6 +1003,7 @@ function MahjongApp() {
                 {game.dealer === SELF ? (
                   <span className="dealer-badge">Dealer</span>
                 ) : null}
+                {humanDeclaredReady ? <span className="ready-badge">Ready</span> : null}
                 <span className="identity-badge">Human</span>
                 <span>{human.wind}</span>
               </div>
@@ -1016,7 +1060,11 @@ function MahjongApp() {
                     game.phase === "discard"
                   }
                   waiting={humanIsWaiting && waitingTileIds.has(tile.id)}
-                  disabled={game.phase !== "discard" || game.turn !== SELF}
+                  disabled={
+                    game.phase !== "discard" ||
+                    game.turn !== SELF ||
+                    (humanDeclaredReady && human.discards.length > 0 && tile.id !== game.drawnTileId)
+                  }
                   onMouseDown={() => {
                     setUiSelectedTileId(tile.id);
                     selectTile(tile.id);
@@ -1045,6 +1093,7 @@ function MahjongApp() {
             player={{ ...game.players[leftSeat], name: seatName(leftSeat) }}
             active={game.turn === leftSeat}
             dealer={game.dealer === leftSeat}
+            ready={game.declaredReady?.includes(leftSeat) ?? false}
             reveal={game.winner === leftSeat}
             position="left"
           />
@@ -1071,6 +1120,7 @@ function MahjongApp() {
             player={{ ...game.players[rightSeat], name: seatName(rightSeat) }}
             active={game.turn === rightSeat}
             dealer={game.dealer === rightSeat}
+            ready={game.declaredReady?.includes(rightSeat) ?? false}
             reveal={game.winner === rightSeat}
             position="right"
           />
@@ -1167,9 +1217,9 @@ function MahjongApp() {
                 </div>
                 <h3>Taiwanese scoring table</h3>
                 <p className="settings-note">
-                  Standard tai are detected from the winning hand and added to
-                  the 5-point base. Every standard rule starts on; switch off
-                  any item your table does not use.
+                  Bonus conditions from the 2026 table are detected from the
+                  winning hand and added to the 4-point base. Every condition
+                  starts on; switch off any item your table does not use.
                 </p>
                 <div className="house-rule-list">
                   {houseRules.map((rule) => (

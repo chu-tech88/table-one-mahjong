@@ -246,7 +246,9 @@ function playGame(gameIndex) {
   return { winner: undefined, source: "wall-draw", ...state };
 }
 
-const results = Array.from({ length: 100 }, (_, index) => playGame(index));
+const requestedGames = Number(process.argv.find((arg) => arg.startsWith("--games="))?.split("=")[1] ?? 100);
+const gameCount = Number.isFinite(requestedGames) && requestedGames > 0 ? Math.floor(requestedGames) : 100;
+const results = Array.from({ length: gameCount }, (_, index) => playGame(index));
 const summary = {
   games: results.length,
   wins: results.filter((game) => game.winner !== undefined).length,
@@ -261,8 +263,8 @@ const summary = {
 
 console.log(JSON.stringify(summary, null, 2));
 
-assert.equal(summary.games, 100);
-assert.ok(summary.wins >= 55, "Bots should finish a healthy majority of hands");
-assert.ok(Math.max(...summary.winsBySeat) - Math.min(...summary.winsBySeat) <= 18, "No seat should dominate the sample");
+assert.equal(summary.games, gameCount);
+assert.ok(summary.wins >= Math.floor(gameCount * 0.55), "Bots should finish a healthy majority of hands");
+assert.ok(Math.max(...summary.winsBySeat) - Math.min(...summary.winsBySeat) <= Math.ceil(gameCount * 0.18), "No seat should dominate the sample");
 assert.ok(summary.maxMelds >= 3, "The simulation should exercise crowded meld layouts");
 assert.ok(summary.maxDiscards >= 40, "The simulation should exercise long discard histories");

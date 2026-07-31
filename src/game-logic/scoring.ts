@@ -1,11 +1,13 @@
-import { Game, HouseRule, Rules, StandardRuleKey } from "./types";
+import { Game, HouseRule, Rules, StandardRuleKey, Tile } from "./types";
 import {
-  countCodes,
-  structuredCloneGame,
-  sortTiles,
   appendAction,
+  countCodes,
+  sortTiles,
+  structuredCloneGame,
   tableNarration,
+  tileSortFromCode,
 } from "./helpers";
+import { waitCodesForHand } from "./validation";
 
 export type ScoringGroup = {
   type: "chi" | "pong";
@@ -13,29 +15,42 @@ export type ScoringGroup = {
   concealed: boolean;
 };
 
-export function decomposeWinningTiles(tiles: Tile[]) {
-  const counts = countCodes(tiles);
+export type WinningDecomposition = {
+  pair: string;
+  groups: ScoringGroup[];
+};
+
+function groupCodes(group: ScoringGroup) {
+  if (group.type === "pong") return [group.code, group.code, group.code];
+  const prefix = group.code[0];
+  const rank = Number(group.code.slice(1));
+  return [group.code, `${prefix}${rank + 1}`, `${prefix}${rank + 2}`];
+}
+
+export function decomposeAllWinningTiles(tiles: Tile[]) {
+  const counts = countCodes(tiles.filter((tile) => !tile.flower));
   const codes = Object.keys(counts).sort(
     (a, b) => tileSortFromCode(a) - tileSortFromCode(b),
   );
+  const results: WinningDecomposition[] = [];
 
   const takeSets = (
     remaining: Record<string, number>,
     groups: ScoringGroup[],
-  ): ScoringGroup[] | undefined => {
+    pair: string,
+  ) => {
     const code = Object.keys(remaining)
       .filter((key) => remaining[key] > 0)
       .sort((a, b) => tileSortFromCode(a) - tileSortFromCode(b))[0];
-    if (!code) return groups;
+    if (!code) {
+      results.push({ pair, groups });
+      return;
+    }
 
     if (remaining[code] >= 3) {
       remaining[code] -= 3;
-      const result = takeSets(remaining, [
-        ...groups,
-        { type: "pong", code, concealed: true },
-      ]);
+      takeSets(remaining, [...groups, { type: "pong", code, concealed: true }], pair);
       remaining[code] += 3;
-      if (result) return result;
     }
 
     const suit = code[0];
@@ -47,26 +62,280 @@ export function decomposeWinningTiles(tiles: Tile[]) {
         remaining[code] -= 1;
         remaining[second] -= 1;
         remaining[third] -= 1;
-        const result = takeSets(remaining, [
-          ...groups,
-          { type: "chi", code, concealed: true },
-        ]);
+        takeSets(remaining, [...groups, { type: "chi", code, concealed: true }], pair);
         remaining[code] += 1;
         remaining[second] += 1;
         remaining[third] += 1;
-        if (result) return result;
       }
     }
-    return undefined;
   };
 
   for (const pair of codes) {
     if (counts[pair] < 2) continue;
-    const remaining = { ...counts, [pair]: counts[pair] - 2 };
-    const groups = takeSets(remaining, []);
-    if (groups) return { pair, groups };
+    takeSets({ ...counts, [pair]: counts[pair] - 2 }, [], pair);
   }
-  return undefined;
+
+  const seen = new Set<string>();
+  return results.filter((result) => {
+    const signature = `${result.pair}|${result.groups
+      .map((group) => `${group.type}:${group.code}`)
+      .sort()
+      .join("|")}`;
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  });
+}
+
+export function decomposeWinningTiles(tiles: Tile[]) {
+  return decomposeAllWinningTiles(tiles)[0];
+}
+
+function maxSequentialRun(codes: string[]) {
+  let longest = 0;
+  for (const prefix of ["D", "B", "C"]) {
+    const ranks = new Set(
+      codes.filter((code) => code.startsWith(prefix)).map((code) => Number(code.slice(1))),
+    );
+    for (const rank of ranks) {
+      let length = 0;
+      while (ranks.has(rank + length)) length += 1;
+      longest = Math.max(longest, length);
+    }
+  }
+  return longest;
+}
+
+function includesEveryFamily(tiles: Tile[]) {
+  return ["dots", "bamboo", "characters", "winds", "dragons"].every((suit) =>
+    tiles.some((tile) => tile.suit === suit),
+  );
+}
+
+function evaluateDecomposition(
+  game: Game,
+  winner: number,
+  source: "self-draw" | "discard",
+  decomposition: WinningDecomposition | undefined,
+) {
+  const player = game.players[winner];
+  const winningTile =
+    source === "discard"
+      ? game.lastDiscard?.tile
+      : player.hand.find((tile) => tile.id === game.drawnTileId);
+  const winningCode = winningTile?.code;
+  const concealedGroups = (decomposition?.groups ?? []).map((group) => ({ ...group }));
+  if (source === "discard" && winningCode && decomposition?.pair !== winningCode) {
+    const completedPong = concealedGroups.find(
+      (group) => group.type === "pong" && group.code === winningCode,
+    );
+    if (completedPong) completedPong.concealed = false;
+  }
+  const exposedGroups: ScoringGroup[] = player.melds.map((meld) => ({
+    type: meld.type === "chi" ? "chi" : "pong",
+    code: meld.tiles[0]?.code ?? "",
+    concealed: meld.concealed === true,
+  }));
+  const groups = [...concealedGroups, ...exposedGroups];
+  const pair = decomposition?.pair;
+  const allTiles = [...player.hand, ...player.melds.flatMap((meld) => meld.tiles)];
+  const pongCodes = groups.filter((group) => group.type === "pong").map((group) => group.code);
+  const chiCodes = groups.filter((group) => group.type === "chi").map((group) => group.code);
+  const concealedTriplets = groups.filter((group) => group.type === "pong" && group.concealed).length;
+  const revealedGongs = player.melds.filter((meld) => meld.type === "kong" && !meld.concealed).length;
+  const concealedGongs = player.melds.filter((meld) => meld.type === "kong" && meld.concealed).length;
+  const gongCount = revealedGongs + concealedGongs;
+  const windSets = pongCodes.filter((code) => code.startsWith("W")).length;
+  const dragonSets = pongCodes.filter((code) => code.startsWith("G")).length;
+  const numberedSuits = new Set(
+    allTiles.filter((tile) => ["dots", "bamboo", "characters"].includes(tile.suit)).map((tile) => tile.suit),
+  );
+  const hasHonors = allTiles.some((tile) => tile.suit === "winds" || tile.suit === "dragons");
+  const hasOpenMeld = player.melds.some((meld) => meld.concealed !== true);
+
+  const beforeWin = winningTile
+    ? player.hand.filter((tile) => tile.id !== winningTile.id)
+    : player.hand;
+  const waits = winningCode ? waitCodesForHand(beforeWin, player.melds.length) : [];
+  const winningDecompositions = decomposeAllWinningTiles(player.hand);
+  const pairWaits = waits.filter(
+    (code) => beforeWin.filter((tile) => tile.code === code).length === 1,
+  );
+  const allGameTiles = game.players.flatMap((candidate) => [
+    ...candidate.hand,
+    ...candidate.melds.flatMap((meld) => meld.tiles),
+    ...candidate.discards,
+  ]);
+  const copiesBeforeWin = (code: string) =>
+    allGameTiles.filter((tile) => tile.code === code && tile.id !== winningTile?.id).length;
+
+  const chiFrequency = new Map<string, number>();
+  chiCodes.forEach((code) => chiFrequency.set(code, (chiFrequency.get(code) ?? 0) + 1));
+  const maximumMatchingChi = Math.max(0, ...chiFrequency.values());
+  const hasSisterChi = Array.from({ length: 7 }, (_, index) => index + 1).some((rank) =>
+    ["D", "B", "C"].every((prefix) => chiCodes.includes(`${prefix}${rank}`)),
+  );
+  const pongRun = maxSequentialRun(pongCodes);
+  const sameRankPongs = Array.from({ length: 9 }, (_, index) => index + 1).some((rank) =>
+    ["D", "B", "C"].every((prefix) => pongCodes.includes(`${prefix}${rank}`)),
+  );
+  const hasLongDragon = ["D", "B", "C"].some((prefix) =>
+    [`${prefix}1`, `${prefix}4`, `${prefix}7`].every((code) => chiCodes.includes(code)),
+  );
+  const hasBigSmallChi = ["D", "B", "C"].some(
+    (prefix) => chiCodes.includes(`${prefix}1`) && chiCodes.includes(`${prefix}7`),
+  );
+  const hasTerminalPongs = ["D", "B", "C"].some(
+    (prefix) => pongCodes.includes(`${prefix}1`) && pongCodes.includes(`${prefix}9`),
+  );
+  const hasThreeConsecutivePairs = ["D", "B", "C"].some((prefix) =>
+    Array.from({ length: 7 }, (_, index) => index + 1).some((rank) => {
+      const run = [rank, rank + 1, rank + 2].map((value) => `${prefix}${value}`);
+      return Boolean(pair && run.includes(pair) && run.filter((code) => pongCodes.includes(code)).length === 2);
+    }),
+  );
+  const hasLittleThreeWinds = windSets === 2 && Boolean(pair?.startsWith("W"));
+  const hasLittleThreeDragons = dragonSets === 2 && Boolean(pair?.startsWith("G"));
+  const allChi = groups.length === 5 && groups.every((group) => group.type === "chi");
+  const allPongs = groups.length === 5 && groups.every((group) => group.type === "pong");
+  const tileCounts = countCodes(allTiles);
+  const groupLocations = (code: string) =>
+    groups.filter((group) => groupCodes(group).includes(code)).length + Number(pair === code);
+  const fourCopyCodes = Object.keys(tileCounts).filter(
+    (code) => tileCounts[code] === 4 && !player.melds.some((meld) => meld.type === "kong" && meld.tiles[0]?.code === code),
+  );
+  const ranks = new Set(
+    allTiles.filter((tile) => ["dots", "bamboo", "characters"].includes(tile.suit)).map((tile) => tile.rank),
+  );
+  const allTerminalOrHonor = allTiles.every(
+    (tile) => tile.suit === "winds" || tile.suit === "dragons" || tile.rank === 1 || tile.rank === 9,
+  );
+  const allSimple = allTiles.every(
+    (tile) => ["dots", "bamboo", "characters"].includes(tile.suit) && tile.rank >= 2 && tile.rank <= 8,
+  );
+  const terminalOrHonorSet = (group: ScoringGroup) =>
+    group.code.startsWith("W") || group.code.startsWith("G") ||
+    (group.type === "pong" && /[19]$/.test(group.code)) ||
+    (group.type === "chi" && /[17]$/.test(group.code));
+  const everySetHasTerminalOrHonor =
+    groups.length === 5 && groups.every(terminalOrHonorSet) && Boolean(pair && (/^[WG]/.test(pair) || /[19]$/.test(pair)));
+  const firstDiscardWin =
+    source === "discard" &&
+    game.lastDiscard?.by === game.dealer &&
+    game.actionLog.filter((action) => action.type === "discard").length === 1;
+  const dealerInitialWin =
+    source === "self-draw" && winner === game.dealer &&
+    game.actionLog.every((action) => action.type === "deal-hand");
+  const doubleTerminalChi =
+    ["D", "B", "C"].some((prefix) => (chiFrequency.get(`${prefix}1`) ?? 0) >= 2) &&
+    ["D", "B", "C"].some((prefix) => (chiFrequency.get(`${prefix}7`) ?? 0) >= 2);
+  const doubleTerminalPongs =
+    pongCodes.filter((code) => /^[DBC]1$/.test(code)).length >= 2 &&
+    pongCodes.filter((code) => /^[DBC]9$/.test(code)).length >= 2;
+  const twinDragons = [...chiFrequency.values()].filter((count) => count >= 2).length >= 2;
+
+  const values: Partial<Record<StandardRuleKey, number>> = {
+    dealer: winner === game.dealer ? 1 + Math.max(0, game.dealerStreak ?? 0) * 2 : 0,
+    flower: player.flowers.length,
+    "no-flowers": Number(player.flowers.length === 0),
+    "wind-or-dragon": windSets + dragonSets,
+    "no-wind-or-dragon": Number(windSets + dragonSets === 0 && !pair?.startsWith("W") && !pair?.startsWith("G")),
+    "waiting-one-with-option": Number(waits.length === 1 && winningDecompositions.length > 1),
+    "self-draw": Number(source === "self-draw"),
+    "dual-wait": Number(waits.length === 2 && pairWaits.length === 2),
+    "revealed-gong": revealedGongs,
+    "flower-replacement-win": Number(game.drawContext === "flower-replacement"),
+    "pair-win": Number(Boolean(winningCode && pair === winningCode)),
+    "concealed-hand": Number(!hasOpenMeld),
+    "pure-single-wait": Number(waits.length === 1 && winningDecompositions.length === 1),
+    "concealed-gong": concealedGongs,
+    "two-concealed-pongs": Number(concealedTriplets === 2),
+    "pure-double-chi": Number(maximumMatchingChi === 2),
+    "big-small-chi": Number(hasBigSmallChi),
+    "terminal-pongs": Number(hasTerminalPongs),
+    "four-in-one": fourCopyCodes.length,
+    "missing-two-suits": Number(numberedSuits.size === 1),
+    "all-simple": Number(allSimple),
+    "small-chi": Number(allChi && hasHonors),
+    "robbing-gong": Number(game.robbingGong === true),
+    "last-tile-draw": Number(source === "self-draw" && game.wall.length === 0),
+    "gong-replacement-win": Number(game.drawContext === "gong-replacement"),
+    "two-four-in-ones": Number(fourCopyCodes.length >= 2),
+    "two-gongs-two-concealed-triplets": Number(gongCount === 2 && concealedTriplets >= 2),
+    "single-wait-last-tile": Number(waits.length === 1 && waits.every((code) => copiesBeforeWin(code) === 3)),
+    "three-consecutive-pairs": Number(hasThreeConsecutivePairs),
+    "five-families": Number(includesEveryFamily(allTiles)),
+    "three-sister-chi": Number(hasSisterChi),
+    "three-concealed-triplets": Number(concealedTriplets === 3),
+    "mixed-terminals-honors": Number(allTerminalOrHonor && hasHonors),
+    "eight-exhausted-tiles": Number(waits.length === 2 && waits.every((code) => copiesBeforeWin(code) === 3)),
+    "four-in-two": Number(fourCopyCodes.some((code) => groupLocations(code) === 2)),
+    "big-chi": Number(allChi && !hasHonors),
+    "same-number-pongs": Number(sameRankPongs),
+    "three-shifted-pongs": Number(pongRun === 3),
+    "pure-triple-chi": Number(maximumMatchingChi === 3),
+    "one-long-dragon": Number(hasLongDragon),
+    "little-three-winds": Number(hasLittleThreeWinds),
+    "all-pongs": Number(allPongs),
+    "one-mixed-suit": Number(numberedSuits.size === 1 && hasHonors),
+    "pure-terminals": Number(allTerminalOrHonor && !hasHonors),
+    "double-terminal-sequence": Number(doubleTerminalChi),
+    "double-terminal-triplets": Number(doubleTerminalPongs),
+    "five-consecutive-pongs": Number(pongRun === 5),
+    "three-gongs-three-triplets": Number(gongCount === 3 && pongCodes.length >= 3),
+    "big-three-winds": Number(windSets === 3),
+    "little-three-dragons": Number(hasLittleThreeDragons),
+    "four-concealed-triplets": Number(concealedTriplets === 4),
+    "four-shifted-triplets": Number(pongRun === 4),
+    "declaration-win": Number(game.declaredReady?.includes(winner)),
+    "twin-dragons": Number(twinDragons),
+    "little-four-winds": Number(windSets === 3 && pair?.startsWith("W")),
+    "big-three-dragons": Number(dragonSets === 3),
+    "four-in-four": Number(fourCopyCodes.some((code) => groupLocations(code) === 4)),
+    "three-digits": Number(!hasHonors && ranks.size === 3),
+    "terminals-or-honors-every-set": Number(everySetHasTerminalOrHonor),
+    "four-gongs-four-triplets": Number(gongCount === 4 && pongCodes.length >= 4),
+    "big-four-winds": Number(windSets === 4),
+    "pure-one-suit": Number(numberedSuits.size === 1 && !hasHonors),
+    "all-eight-flowers": 0,
+    "heavenly-win": Number(dealerInitialWin || firstDiscardWin),
+    "five-concealed-triplets": Number(concealedTriplets === 5),
+    "five-shifted-triplets": Number(pongRun === 5),
+    "all-winds-dragons": Number(numberedSuits.size === 0 && hasHonors),
+    "pure-quadruple-chi": Number(maximumMatchingChi === 4),
+  };
+  return values;
+}
+
+export function settleAllEightFlowers(
+  game: Game,
+  playerIndex: number,
+  houseRules: HouseRule[] = game.houseRules,
+) {
+  const rule = houseRules.find(
+    (candidate) => candidate.detector === "all-eight-flowers" && candidate.enabled,
+  );
+  const settlementId = `all-eight-flowers:${playerIndex}`;
+  if (
+    !rule ||
+    game.players[playerIndex].flowers.length < 8 ||
+    game.settledBonuses?.includes(settlementId)
+  ) {
+    return game;
+  }
+
+  const next = structuredCloneGame(game);
+  const winner = next.players[playerIndex];
+  next.players.forEach((player, index) => {
+    if (index === playerIndex) return;
+    player.score -= rule.points;
+    winner.score += rule.points;
+  });
+  next.settledBonuses = [...(next.settledBonuses ?? []), settlementId];
+  next.message = `${winner.name} collected all eight flowers. Each opponent pays ${rule.points} points; play continues.`;
+  next.activity = { player: playerIndex, text: next.message };
+  appendAction(next, "score-bonus", playerIndex, next.message);
+  return next;
 }
 
 export function scoreStandardRules(
@@ -75,115 +344,25 @@ export function scoreStandardRules(
   source: "self-draw" | "discard",
   rules: HouseRule[],
 ) {
-  const player = game.players[winner];
-  const concealed = decomposeWinningTiles(player.hand);
-  const concealedGroups = (concealed?.groups ?? []).map((group) => ({
-    ...group,
-  }));
-  const winningCode =
-    source === "discard" ? game.lastDiscard?.tile.code : undefined;
-  if (winningCode && concealed?.pair !== winningCode) {
-    const completedPung = concealedGroups.find(
-      (group) => group.type === "pong" && group.code === winningCode,
-    );
-    if (completedPung) completedPung.concealed = false;
-  }
-  const exposedGroups: ScoringGroup[] = player.melds.map((meld) => ({
-    type: meld.type === "chi" ? "chi" : "pong",
-    code: meld.tiles[0]?.code ?? "",
-    concealed: meld.concealed === true,
-  }));
-  const groups = [...concealedGroups, ...exposedGroups];
-  const pair = concealed?.pair;
-  const pongCodes = groups
-    .filter((group) => group.type === "pong")
-    .map((group) => group.code);
-  const allTiles = [
-    ...player.hand,
-    ...player.melds.flatMap((meld) => meld.tiles),
-  ];
-  const numberedSuits = new Set(
-    allTiles
-      .filter((tile) => ["dots", "bamboo", "characters"].includes(tile.suit))
-      .map((tile) => tile.suit),
-  );
-  const hasHonors = allTiles.some(
-    (tile) => tile.suit === "winds" || tile.suit === "dragons",
-  );
-  const hasOpenMeld = player.melds.some((meld) => meld.concealed !== true);
-  const dragonSets = pongCodes.filter((code) => code.startsWith("G")).length;
-  const windSets = pongCodes.filter((code) => code.startsWith("W")).length;
-  const concealedPungs = groups.filter(
-    (group) => group.type === "pong" && group.concealed,
-  ).length;
-  const seatWindRank =
-    ["East", "South", "West", "North"].indexOf(player.wind) + 1;
-  const roundWindRank = (Math.floor((game.round - 1) / 4) % 4) + 1;
-  const matchingFlowers = player.flowers.filter(
-    (tile) => ((tile.rank - 1) % 4) + 1 === seatWindRank,
-  ).length;
-  const isConcealedSelfDraw = source === "self-draw" && !hasOpenMeld;
-  const isBigThreeDragons = dragonSets === 3;
-  const isBigFourWinds = windSets === 4;
-  const isAllFlowers = player.flowers.length === 8;
-  const values: Partial<Record<StandardRuleKey, number>> = {
-    "matching-flower": isAllFlowers ? 0 : matchingFlowers,
-    "dragon-pung": isBigThreeDragons ? 0 : dragonSets,
-    "seat-wind": isBigFourWinds
-      ? 0
-      : Number(pongCodes.includes(`W${seatWindRank}`)),
-    "round-wind": isBigFourWinds
-      ? 0
-      : Number(pongCodes.includes(`W${roundWindRank}`)),
-    "self-draw": isConcealedSelfDraw ? 0 : Number(source === "self-draw"),
-    dealer: Number(winner === game.dealer),
-    "concealed-hand": Number(source === "discard" && !hasOpenMeld),
-    "concealed-self-draw": Number(isConcealedSelfDraw),
-    "last-tile": Number(game.wall.length === 0),
-    "win-after-kong": Number(game.actionLog.at(-1)?.type === "kong"),
-    "all-chows": Number(
-      groups.length === 5 &&
-        groups.every((group) => group.type === "chi") &&
-        Boolean(pair && /^[DBC]/.test(pair)) &&
-        source === "discard" &&
-        player.flowers.length === 0 &&
-        !hasHonors,
-    ),
-    "three-concealed-pungs": Number(concealedPungs === 3),
-    "all-pungs": Number(
-      groups.length === 5 && groups.every((group) => group.type === "pong"),
-    ),
-    "little-three-dragons": Number(
-      !isBigThreeDragons && dragonSets === 2 && Boolean(pair?.startsWith("G")),
-    ),
-    "half-flush": Number(numberedSuits.size === 1 && hasHonors),
-    "four-concealed-pungs": Number(concealedPungs === 4),
-    "big-three-dragons": Number(isBigThreeDragons),
-    "full-flush": Number(numberedSuits.size === 1 && !hasHonors),
-    "all-honors": Number(numberedSuits.size === 0 && hasHonors),
-    "five-concealed-pungs": Number(concealedPungs === 5),
-    "little-four-winds": Number(
-      !isBigFourWinds && windSets === 3 && Boolean(pair?.startsWith("W")),
-    ),
-    "big-four-winds": Number(isBigFourWinds),
-    "seven-flowers": Number(player.flowers.length === 7),
-    "all-flowers": Number(isAllFlowers),
-  };
-
-  if (concealedPungs === 5) {
-    values["four-concealed-pungs"] = 0;
-    values["three-concealed-pungs"] = 0;
-  } else if (concealedPungs === 4) {
-    values["three-concealed-pungs"] = 0;
-  }
-
-  return rules.flatMap((rule) => {
-    if (!rule.enabled || !rule.detector) return [];
-    const multiplier = values[rule.detector] ?? 0;
-    return multiplier > 0
-      ? [{ name: rule.name, points: rule.points * multiplier, multiplier }]
-      : [];
+  const decompositions = decomposeAllWinningTiles(game.players[winner].hand);
+  const candidates = decompositions.length > 0 ? decompositions : [undefined];
+  const scoredCandidates = candidates.map((decomposition) => {
+    const values = evaluateDecomposition(game, winner, source, decomposition);
+    const scored = rules.flatMap((rule) => {
+      if (!rule.enabled || !rule.detector || rule.detector === "little-win") return [];
+      const multiplier = values[rule.detector] ?? 0;
+      return multiplier > 0
+        ? [{ name: rule.name, points: rule.points * multiplier, multiplier }]
+        : [];
+    });
+    return { scored, total: scored.reduce((sum, item) => sum + item.points, 0) };
   });
+  const best = scoredCandidates.sort((a, b) => b.total - a.total)[0] ?? { scored: [], total: 0 };
+  const littleWin = rules.find((rule) => rule.detector === "little-win" && rule.enabled);
+  if (best.total === 1 && littleWin) {
+    return [{ name: littleWin.name, points: littleWin.points, multiplier: 1 }];
+  }
+  return best.scored;
 }
 
 export function scoreRound(
@@ -195,29 +374,29 @@ export function scoreRound(
 ) {
   const next = structuredCloneGame(game);
   const player = next.players[winner];
-  if (
-    source === "discard" &&
-    next.lastDiscard &&
-    winner !== next.lastDiscard.by
-  ) {
+  if (source === "discard" && next.robbingGong && next.pendingAddedGong) {
+    const robbed = next.pendingAddedGong;
+    next.players[robbed.player].hand = next.players[robbed.player].hand.filter(
+      (tile) => tile.id !== robbed.tile.id,
+    );
+  }
+  if (source === "discard" && next.lastDiscard && winner !== next.lastDiscard.by) {
     const winningTile = next.lastDiscard.tile;
     if (!player.hand.some((tile) => tile.id === winningTile.id)) {
       player.hand = sortTiles([...player.hand, winningTile]);
     }
-    next.players[next.lastDiscard.by].discards = next.players[
-      next.lastDiscard.by
-    ].discards.filter((tile) => tile.id !== winningTile.id);
+    next.players[next.lastDiscard.by].discards = next.players[next.lastDiscard.by].discards.filter(
+      (tile) => tile.id !== winningTile.id,
+    );
   }
   const scoredRules = scoreStandardRules(next, winner, source, houseRules);
-  const tai = scoredRules.reduce((sum, item) => sum + item.points, 0);
-  const points = rules.baseWin + tai;
-
+  const bonusPoints = scoredRules.reduce((sum, item) => sum + item.points, 0);
+  const points = rules.baseWin + bonusPoints;
   let total = 0;
   const lineItems = [
     `Base win: ${rules.baseWin}`,
-    ...scoredRules.map(
-      (item) =>
-        `${item.name}${item.multiplier > 1 ? ` ×${item.multiplier}` : ""}: +${item.points}`,
+    ...scoredRules.map((item) =>
+      `${item.name}${item.multiplier > 1 ? ` x${item.multiplier}` : ""}: +${item.points}`,
     ),
   ];
 
@@ -236,15 +415,13 @@ export function scoreRound(
   }
 
   next.phase = "round-over";
+  next.pendingAddedGong = undefined;
+  next.robbingGong = undefined;
   next.winner = winner;
   next.drawnTileId = undefined;
   next.activity = {
     player: winner,
-    text: tableNarration(
-      "win",
-      player.name,
-      source === "self-draw" ? "self draw" : "discard",
-    ),
+    text: tableNarration("win", player.name, source === "self-draw" ? "self draw" : "discard"),
     tile: source === "discard" ? next.lastDiscard?.tile : undefined,
   };
   next.winSummary = {
@@ -264,7 +441,3 @@ export function scoreRound(
   appendAction(next, "score-round", winner, next.message);
   return next;
 }
-
-// Import needed helpers
-import { Tile } from "./types";
-import { tileSortFromCode } from "./helpers";

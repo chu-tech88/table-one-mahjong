@@ -312,6 +312,10 @@ export class GameClient {
     this.sendAction({ type: "kong", code, concealed });
   }
 
+  declareReady(tileId: string) {
+    this.sendAction({ type: "declare-ready", tileId });
+  }
+
   updatePlayerName(playerIndex: number, name: string) {
     if (playerIndex === this.playerIndex) this.playerName = name;
     this.sendAction({ type: "update-player-name", playerIndex, name });

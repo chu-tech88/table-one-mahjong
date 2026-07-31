@@ -6,17 +6,18 @@ import {
   Difficulty,
 } from "../game-logic/types";
 import { createDefaultHouseRules, DEFAULT_RULES } from "../game-logic/rules";
-import { dealRound, drawNonFlower } from "../game-logic/deck";
+import { dealRound } from "../game-logic/deck";
 import {
   discardTile,
   applyClaim,
   applyKong,
-  startTurn,
+  declareReadyAndDiscard,
+  passClaim,
   HUMAN,
 } from "../game-logic/flow";
 import { scoreRound } from "../game-logic/scoring";
 import { chooseDiscard } from "../game-logic/ai";
-import { isWinningHand, concealedKongOptions } from "../game-logic/validation";
+import { isWinningHand } from "../game-logic/validation";
 
 type UseLocalGameReturn = {
   game: Game;
@@ -31,6 +32,7 @@ type UseLocalGameReturn = {
   pass: () => void;
   hu: (source: "discard" | "self-draw") => void;
   kong: (code: string, concealed: boolean) => void;
+  declareReady: (tileId: string) => void;
   addHouseRule: (name: string, description: string, points: number) => void;
   removeHouseRule: (id: string) => void;
   updateHouseRule: (id: string, points: number, enabled: boolean) => void;
@@ -109,9 +111,9 @@ export function useLocalGame(): UseLocalGameReturn {
   const pass = useCallback(() => {
     setGame((current) => {
       if (current.phase !== "claim" || !current.lastDiscard) return current;
-      return startTurn(
+      return passClaim(
         current,
-        (current.lastDiscard.by + 1) % 4,
+        HUMAN,
         rules,
         houseRules,
       );
@@ -150,6 +152,15 @@ export function useLocalGame(): UseLocalGameReturn {
     (code: string, concealed: boolean) => {
       setGame((current) =>
         applyKong(current, HUMAN, code, concealed, rules, houseRules),
+      );
+    },
+    [rules, houseRules],
+  );
+
+  const declareReady = useCallback(
+    (tileId: string) => {
+      setGame((current) =>
+        declareReadyAndDiscard(current, HUMAN, tileId, rules, houseRules),
       );
     },
     [rules, houseRules],
@@ -222,21 +233,27 @@ export function useLocalGame(): UseLocalGameReturn {
           current.tableId,
           rules,
           houseRules,
+          0,
         );
       }
-      return dealRound(
+      const nextDealer =
         dealer ??
-          (current.winner === current.dealer
-            ? current.dealer
-            : (current.dealer + 1) % 4),
+        (current.winner === current.dealer
+          ? current.dealer
+          : (current.dealer + 1) % 4);
+      return dealRound(
+        nextDealer,
         current.players.map((p) => p.score),
-        dealer !== undefined && dealer !== current.dealer
+        nextDealer !== current.dealer
           ? current.round + 1
           : current.round,
         current.players,
         current.tableId,
         rules,
         houseRules,
+        nextDealer === current.dealer && current.winner === current.dealer
+          ? current.dealerStreak + 1
+          : 0,
       );
     });
   }, [rules, houseRules]);
@@ -254,6 +271,7 @@ export function useLocalGame(): UseLocalGameReturn {
     pass,
     hu,
     kong,
+    declareReady,
     addHouseRule,
     removeHouseRule,
     updateHouseRule,

@@ -482,6 +482,11 @@ textarea {
     0 2px 8px rgba(0, 0, 0, 0.26);
 }
 
+.seat-badges .ready-badge {
+  background: #a52d32;
+  color: #ffffff;
+}
+
 .compact-hand,
 .discard-river,
 .human-hand,
