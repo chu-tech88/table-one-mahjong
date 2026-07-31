@@ -435,13 +435,18 @@ function PlayerInspector({
   );
 }
 
+function createSoloRoomId() {
+  return `solo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 function MahjongApp() {
-  const [connection, setConnection] = useState({
-    roomId: "test-game",
+  const [playMode, setPlayMode] = useState<"solo" | "online">("solo");
+  const [connection, setConnection] = useState(() => ({
+    roomId: createSoloRoomId(),
     playerIndex: 0,
     playerName: "",
     joined: false,
-  });
+  }));
   const [occupiedSeats, setOccupiedSeats] = useState<number[]>([]);
   const [lobbySeatError, setLobbySeatError] = useState<string | null>(null);
 
@@ -715,6 +720,35 @@ function MahjongApp() {
         <section className="game-layout lobby-layout">
           <div className="panel-block settings-section join-panel">
             <h2>Join table</h2>
+            <div className="play-mode-control" aria-label="Game mode">
+              <button
+                className={playMode === "solo" ? "active" : ""}
+                type="button"
+                onClick={() => {
+                  setPlayMode("solo");
+                  setConnection((current) => ({
+                    ...current,
+                    roomId: createSoloRoomId(),
+                    playerIndex: 0,
+                  }));
+                }}
+              >
+                Solo vs AI
+              </button>
+              <button
+                className={playMode === "online" ? "active" : ""}
+                type="button"
+                onClick={() => {
+                  setPlayMode("online");
+                  setConnection((current) => ({
+                    ...current,
+                    roomId: "table-one",
+                  }));
+                }}
+              >
+                Shared room
+              </button>
+            </div>
             <div className="join-fields">
             <label>
               <span>Your name</span>
@@ -732,39 +766,48 @@ function MahjongApp() {
                 }
               />
             </label>
-            <label>
-              <span>Room ID</span>
-              <input
-                type="text"
-                value={connection.roomId}
-                onChange={(event) =>
-                  setConnection((current) => ({
-                    ...current,
-                    roomId:
-                      event.target.value.replace(/\s+/g, "-") || "test-game",
-                  }))
-                }
-              />
-            </label>
-            <label>
-              <span>Seat</span>
-              <select
-                value={connection.playerIndex}
-                onChange={(event) =>
-                  setConnection((current) => ({
-                    ...current,
-                    playerIndex: Number(event.target.value),
-                  }))
-                }
-                disabled={seatOptions.length === 0}
-              >
-                {seatOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {playMode === "online" ? (
+              <>
+                <label>
+                  <span>Room ID</span>
+                  <input
+                    type="text"
+                    value={connection.roomId}
+                    onChange={(event) =>
+                      setConnection((current) => ({
+                        ...current,
+                        roomId:
+                          event.target.value.replace(/\s+/g, "-") || "table-one",
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Seat</span>
+                  <select
+                    value={connection.playerIndex}
+                    onChange={(event) =>
+                      setConnection((current) => ({
+                        ...current,
+                        playerIndex: Number(event.target.value),
+                      }))
+                    }
+                    disabled={seatOptions.length === 0}
+                  >
+                    {seatOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : (
+              <div className="solo-table-summary">
+                <span>Your seat</span>
+                <strong>East · 3 AI opponents</strong>
+              </div>
+            )}
             </div>
             {lobbySeatError ? (
               <p style={{ fontSize: "0.9rem", color: "#a33" }}>
@@ -780,13 +823,14 @@ function MahjongApp() {
               className="full-width-button"
               type="button"
               disabled={
-                seatOptions.length === 0 || !connection.playerName.trim()
+                (playMode === "online" && seatOptions.length === 0) ||
+                !connection.playerName.trim()
               }
               onClick={() =>
                 setConnection((current) => ({ ...current, joined: true }))
               }
             >
-              Join room
+              {playMode === "solo" ? "Start game" : "Join room"}
             </button>
           </div>
         </section>
@@ -1044,10 +1088,8 @@ function MahjongApp() {
               <strong>{activityText}</strong>
             </div>
             <div className="online-status" aria-label="Online readiness">
-              <span>
-                {game.mode === "online-ready" ? "Online ready" : "Solo"}
-              </span>
-              <strong>{game.tableId}</strong>
+              <span>{playMode === "solo" ? "Solo" : "Shared room"}</span>
+              <strong>{playMode === "solo" ? "3 AI" : connection.roomId}</strong>
             </div>
             <button
               className="gear-button"
