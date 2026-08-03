@@ -235,7 +235,7 @@ function evaluateDecomposition(
   const twinDragons = [...chiFrequency.values()].filter((count) => count >= 2).length >= 2;
 
   const values: Partial<Record<StandardRuleKey, number>> = {
-    dealer: winner === game.dealer ? 1 + Math.max(0, game.dealerStreak ?? 0) * 2 : 0,
+    dealer: Number(winner === game.dealer),
     flower: player.flowers.length,
     "no-flowers": Number(player.flowers.length === 0),
     "wind-or-dragon": windSets + dragonSets,
@@ -258,7 +258,7 @@ function evaluateDecomposition(
     "all-simple": Number(allSimple),
     "small-chi": Number(allChi && hasHonors),
     "robbing-gong": Number(game.robbingGong === true),
-    "last-tile-draw": Number(source === "self-draw" && game.wall.length === 0),
+    "last-tile-draw": Number(source === "self-draw" && game.wall.length <= 8),
     "gong-replacement-win": Number(game.drawContext === "gong-replacement"),
     "two-four-in-ones": Number(fourCopyCodes.length >= 2),
     "two-gongs-two-concealed-triplets": Number(gongCount === 2 && concealedTriplets >= 2),
@@ -354,7 +354,10 @@ export function scoreStandardRules(
         ? [{
             name: rule.name,
             description: rule.description,
-            points: rule.points * multiplier,
+            points:
+              rule.detector === "dealer"
+                ? rule.points + Math.max(0, game.dealerStreak) * 2
+                : rule.points * multiplier,
             multiplier,
           }]
         : [];
@@ -401,7 +404,15 @@ export function scoreRound(
   const scoredRules = scoreStandardRules(next, winner, source, houseRules);
   const bonusPoints = scoredRules.reduce((sum, item) => sum + item.points, 0);
   const points = rules.baseWin + bonusPoints;
+  const dealerRule = houseRules.find(
+    (rule) => rule.detector === "dealer" && rule.enabled,
+  );
+  const dealerLossBonus =
+    winner !== next.dealer && dealerRule
+      ? dealerRule.points + Math.max(0, next.dealerStreak) * 2
+      : 0;
   let total = 0;
+  let dealerBonusPaid = 0;
   const lineItems = [
     `Base win: ${rules.baseWin}`,
     ...scoredRules.map((item) =>
@@ -412,21 +423,39 @@ export function scoreRound(
   if (source === "self-draw") {
     next.players.forEach((opponent, index) => {
       if (index !== winner) {
-        opponent.score -= points;
-        player.score += points;
-        total += points;
+        const payment = points + (index === next.dealer ? dealerLossBonus : 0);
+        opponent.score -= payment;
+        player.score += payment;
+        total += payment;
+        if (index === next.dealer) dealerBonusPaid = dealerLossBonus;
       }
     });
   } else if (next.lastDiscard) {
-    next.players[next.lastDiscard.by].score -= points;
-    player.score += points;
-    total = points;
+    dealerBonusPaid =
+      next.lastDiscard.by === next.dealer ? dealerLossBonus : 0;
+    const payment = points + dealerBonusPaid;
+    next.players[next.lastDiscard.by].score -= payment;
+    player.score += payment;
+    total = payment;
+  }
+
+  const scoreItems = [...scoredRules];
+  if (dealerBonusPaid > 0) {
+    const item = {
+      name: "Dealer loss",
+      description: `The dealer pays 1 point plus 2 for each consecutive deal (${next.dealerStreak} consecutive).`,
+      points: dealerBonusPaid,
+      multiplier: 1,
+    };
+    scoreItems.push(item);
+    lineItems.push(`${item.name}: +${item.points}`);
   }
 
   next.phase = "round-over";
   next.pendingAddedGong = undefined;
   next.robbingGong = undefined;
   next.winner = winner;
+  next.handResult = "win";
   next.drawnTileId = undefined;
   next.activity = {
     player: winner,
@@ -443,11 +472,36 @@ export function scoreRound(
     points,
     total,
     lineItems,
-    scoreItems: scoredRules,
+    scoreItems,
   };
   next.message = `${player.name} wins by ${source === "self-draw" ? "self draw" : "discard"} for ${points} points${
     source === "self-draw" ? " from each player" : ""
   }.`;
   appendAction(next, "score-round", winner, next.message);
+  return next;
+}
+
+export function finishExhaustedHand(game: Game) {
+  const next = structuredCloneGame(game);
+  const nextStreak = next.dealerStreak + 1;
+  next.phase = "round-over";
+  next.handResult = "draw";
+  next.winner = undefined;
+  next.pendingClaim = undefined;
+  next.pendingAddedGong = undefined;
+  next.lastDiscard = undefined;
+  next.drawnTileId = undefined;
+  next.robbingGong = undefined;
+  next.message = "No tiles remaining. The dealer continues for the next hand.";
+  next.activity = { player: next.dealer, text: next.message };
+  next.winSummary = {
+    title: "No tiles remaining",
+    detail: `Eight dead-wall tiles remain. ${next.players[next.dealer].name} continues as dealer with a +${nextStreak * 2} consecutive-dealer bonus next hand.`,
+    points: 0,
+    total: 0,
+    lineItems: ["Wall exhausted: no score payment"],
+    scoreItems: [],
+  };
+  appendAction(next, "hand-draw", next.dealer, next.message);
   return next;
 }

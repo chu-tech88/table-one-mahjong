@@ -110,13 +110,19 @@ export function makeDeck() {
   return shuffle(deck);
 }
 
-export function drawNonFlower(game: Game, playerIndex: number) {
+export const DEAD_WALL_TILES = 8;
+
+export function drawNonFlower(
+  game: Game,
+  playerIndex: number,
+  minimumWallTiles = DEAD_WALL_TILES,
+) {
   const next = structuredCloneGame(game);
   const player = next.players[playerIndex];
   next.drawnTileId = undefined;
   next.drawContext = undefined;
   let replacedFlower = false;
-  while (next.wall.length > 0) {
+  while (next.wall.length > minimumWallTiles) {
     const tile = next.wall.shift();
     if (!tile) break;
     if (tile.flower) {

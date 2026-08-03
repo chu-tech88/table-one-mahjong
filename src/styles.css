@@ -1126,6 +1126,14 @@ textarea {
   overflow: hidden;
 }
 
+.tile > .tile-face {
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
 .human-hand .tile {
   flex: 0 1 auto;
   width: clamp(42px, 4.65vw, 82px);
@@ -2050,6 +2058,20 @@ textarea {
   gap: 5px;
 }
 
+.winning-review-section,
+.winning-tile-row,
+.winning-meld-row,
+.inspector-tile-row,
+.player-inspector .seat-sets-row {
+  justify-items: center;
+  justify-content: center;
+}
+
+.winning-tile-row .tile,
+.inspector-tile-row .tile {
+  flex: 0 0 auto;
+}
+
 .winning-meld-row {
   align-items: end;
 }
@@ -2267,7 +2289,7 @@ textarea {
 .board-toolbar {
   grid-area: toolbar;
   display: grid;
-  grid-template-columns: minmax(180px, auto) auto minmax(180px, 1fr) auto auto;
+  grid-template-columns: minmax(180px, auto) auto minmax(0, 1fr) auto;
   align-self: stretch;
   justify-self: stretch;
   align-items: center;
@@ -2338,6 +2360,7 @@ textarea {
 }
 
 .online-status {
+  justify-self: end;
   min-width: 102px;
   padding: 6px 8px;
 }
@@ -2481,7 +2504,8 @@ textarea {
 }
 
 .table-center-core {
-  width: auto;
+  width: clamp(150px, 22vw, 240px);
+  max-width: 46%;
   min-width: clamp(102px, 9vw, 142px);
   min-height: 0;
   padding: 8px;
@@ -2884,14 +2908,14 @@ textarea {
       "center center center"
       "human human human";
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: 76px 58px minmax(0, 1fr) clamp(202px, 27svh, 228px);
+    grid-template-rows: 44px 58px minmax(0, 1fr) clamp(202px, 27svh, 228px);
     gap: 3px;
     padding: 5px 5px 8px;
   }
 
   .board-toolbar {
     grid-template-columns: minmax(126px, 1fr) auto 38px;
-    grid-template-rows: 36px 34px;
+    grid-template-rows: 36px;
     gap: 3px 6px;
   }
 
@@ -2930,19 +2954,6 @@ textarea {
     width: 34px;
     height: 34px;
     font-size: 1.05rem;
-  }
-
-  .table-activity-strip {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    height: 32px;
-    justify-content: flex-start;
-    padding: 0 4px;
-    text-align: left;
-  }
-
-  .table-activity-strip strong {
-    font-size: 0.7rem;
   }
 
   .online-status {
@@ -3004,8 +3015,22 @@ textarea {
   }
 
   .table-center-core {
-    min-width: 78px;
+    width: min(150px, 42%);
+    min-width: 104px;
     padding: 5px;
+  }
+
+  .center-activity {
+    gap: 3px;
+  }
+
+  .center-activity span {
+    font-size: 0.5rem;
+  }
+
+  .center-activity strong {
+    font-size: 0.62rem;
+    line-height: 1.15;
   }
 
   .last-discard span {
@@ -3072,6 +3097,104 @@ textarea {
 
   .human-hand .tile + .tile {
     margin-left: -2px;
+  }
+
+  .table .tile:not(.large) .dot-pip {
+    width: 4px;
+    height: 4px;
+  }
+
+  .table .tile:not(.large) .dot-1 .dot-pip {
+    width: 9px;
+    height: 10px;
+  }
+
+  .table .tile:not(.large) .bamboo-stick,
+  .table .tile:not(.large) .bamboo-stick b {
+    min-width: 3px;
+    width: 3px;
+    height: 7px;
+  }
+
+  .table .tile:not(.large) .character-face {
+    padding: 3px 2px;
+  }
+
+  .table .tile:not(.large) .character-face b,
+  .table .tile:not(.large) .flower-face b {
+    font-size: 0.68rem;
+  }
+
+  .table .tile:not(.large) .character-face em,
+  .table .tile:not(.large) .flower-face em {
+    font-size: 0.5rem;
+  }
+
+  .table .tile:not(.large) .honor-face {
+    font-size: 0.92rem;
+  }
+
+  .table .tile:not(.large) .dragon-3 {
+    font-size: 0.78rem;
+    border-width: 1px;
+  }
+
+  .table .tile:not(.large) .bamboo-bird-face i {
+    border-width: 1px;
+  }
+
+  .table .tile.large .dot-pip {
+    width: 7px;
+    height: 7px;
+  }
+
+  .table .tile.large .character-face b {
+    font-size: 1.15rem;
+  }
+
+  .table .tile.large .character-face em {
+    font-size: 0.82rem;
+  }
+
+  .table .tile.large .honor-face {
+    font-size: 1.55rem;
+  }
+
+  .modal-backdrop .tile:not(.large) {
+    width: 28px;
+    height: 38px;
+    border-bottom-width: 3px;
+  }
+
+  .modal-backdrop .tile:not(.large) .dot-pip {
+    width: 5px;
+    height: 5px;
+  }
+
+  .modal-backdrop .tile:not(.large) .dot-1 .dot-pip {
+    width: 10px;
+    height: 11px;
+  }
+
+  .modal-backdrop .tile:not(.large) .bamboo-stick,
+  .modal-backdrop .tile:not(.large) .bamboo-stick b {
+    min-width: 3px;
+    width: 3px;
+    height: 8px;
+  }
+
+  .modal-backdrop .tile:not(.large) .character-face b,
+  .modal-backdrop .tile:not(.large) .flower-face b {
+    font-size: 0.78rem;
+  }
+
+  .modal-backdrop .tile:not(.large) .character-face em,
+  .modal-backdrop .tile:not(.large) .flower-face em {
+    font-size: 0.56rem;
+  }
+
+  .modal-backdrop .tile:not(.large) .honor-face {
+    font-size: 1.05rem;
   }
 
   .hand-actions {

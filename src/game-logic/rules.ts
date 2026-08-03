@@ -15,7 +15,7 @@ const patterns = "Hand patterns" as const;
 const limits = "Limit hands" as const;
 
 export const STANDARD_SCORING_RULE_DEFINITIONS: RuleDefinition[] = [
-  { detector: "dealer", name: "Dealer", description: "Dealer wins; add one more for each consecutive dealer win", points: 1, category: everyday },
+  { detector: "dealer", name: "Dealer", description: "Dealer wins or pays 1 point, plus 2 for each consecutive deal", points: 1, category: everyday },
   { detector: "flower", name: "Flower", description: "Each flower collected", points: 1, category: everyday },
   { detector: "no-flowers", name: "No Flowers", description: "Win without any flowers", points: 1, category: everyday },
   { detector: "wind-or-dragon", name: "Wind and/or Dragon", description: "Each Wind or Dragon Pong or Gong", points: 1, category: everyday },

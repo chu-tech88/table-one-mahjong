@@ -151,9 +151,17 @@ export function kongLabel(code: string) {
 }
 
 export function nextDealerForRound(game: Game) {
-  return game.winner === game.dealer ? game.dealer : (game.dealer + 1) % 4;
+  return dealerContinues(game) ? game.dealer : (game.dealer + 1) % 4;
 }
 
 export function nextRoundNumber(game: Game) {
-  return game.winner === game.dealer ? game.round : game.round + 1;
+  return dealerContinues(game) ? game.round : game.round + 1;
+}
+
+export function dealerContinues(game: Game) {
+  return game.handResult === "draw" || game.winner === game.dealer;
+}
+
+export function nextDealerStreak(game: Game) {
+  return dealerContinues(game) ? game.dealerStreak + 1 : 0;
 }

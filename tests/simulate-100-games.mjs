@@ -136,7 +136,7 @@ function removeCodes(hand, codes) {
 }
 
 function drawReplacement(state, playerIndex) {
-  while (state.wall.length > 0) {
+  while (state.wall.length > 8) {
     const tile = state.wall.shift();
     if (tile.startsWith("F")) state.players[playerIndex].flowers.push(tile);
     else {
@@ -188,7 +188,7 @@ function playGame(gameIndex) {
     while (player.hand.length < target && drawReplacement(state, index)) {}
   });
 
-  while (state.wall.length > 0 && state.turns < 400) {
+  while (state.wall.length > 8 && state.turns < 400) {
     state.turns += 1;
     const player = state.players[state.turn];
     if (isWin(player.hand, player.melds.length)) {

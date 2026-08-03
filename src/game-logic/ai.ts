@@ -52,6 +52,33 @@ export function handProgressScore(hand: Tile[], meldCount: number) {
   return pairs * 3 + triplets * 6 + sequencePieces + waits * 8;
 }
 
+export function highValueHandPotential(hand: Tile[]) {
+  const counts = countCodes(hand);
+  const pairs = Object.values(counts).filter((count) => count >= 2).length;
+  const triplets = Object.values(counts).filter((count) => count >= 3).length;
+  const suitCounts = ["dots", "bamboo", "characters"].map(
+    (suit) => hand.filter((tile) => tile.suit === suit).length,
+  );
+  const dominantSuit = Math.max(0, ...suitCounts);
+  const offSuit = suitCounts.reduce((sum, count) => sum + count, 0) - dominantSuit;
+  const honors = hand.filter(
+    (tile) => tile.suit === "winds" || tile.suit === "dragons",
+  ).length;
+  const simples = hand.filter(
+    (tile) =>
+      ["dots", "bamboo", "characters"].includes(tile.suit) &&
+      tile.rank >= 2 &&
+      tile.rank <= 8,
+  ).length;
+  const terminalsAndHonors = hand.length - simples;
+
+  const oneSuitPotential =
+    dominantSuit >= 8 ? dominantSuit * 2.2 + honors * 0.45 - offSuit * 3.2 : 0;
+  const allPongsPotential = pairs * 4.5 + triplets * 8;
+  const allSimplePotential = simples * 1.25 - terminalsAndHonors * 1.4;
+  return Math.max(oneSuitPotential, allPongsPotential, allSimplePotential);
+}
+
 export function chooseDiscard(
   hand: Tile[],
   difficulty: Difficulty,
@@ -64,17 +91,25 @@ export function chooseDiscard(
     const baseB = evaluateDiscard(hand, b, difficulty);
     const progressA = handProgressScore(remainingA, meldCount);
     const progressB = handProgressScore(remainingB, meldCount);
+    const patternA = highValueHandPotential(remainingA);
+    const patternB = highValueHandPotential(remainingB);
     const difficultyWeight =
       difficulty === "sharp" ? 1.35 : difficulty === "balanced" ? 0.88 : 0.45;
+    const patternWeight =
+      difficulty === "sharp" ? 1.2 : difficulty === "balanced" ? 0.45 : 0.08;
     return (
       baseA -
       progressA * difficultyWeight -
-      (baseB - progressB * difficultyWeight)
+      patternA * patternWeight -
+      (baseB - progressB * difficultyWeight - patternB * patternWeight)
     );
   })[0];
 }
 
 export function shouldCall(player: Player, type: "chi" | "pong" | "kong") {
+  const counts = countCodes(player.hand);
+  const pairCount = Object.values(counts).filter((count) => count >= 2).length;
+  const pursuingPongs = pairCount >= 4;
   if (type === "kong") {
     if (player.difficulty === "calm") return Math.random() < 0.48;
     if (player.difficulty === "balanced") return Math.random() < 0.66;
@@ -84,5 +119,6 @@ export function shouldCall(player: Player, type: "chi" | "pong" | "kong") {
     return Math.random() < (type === "pong" ? 0.32 : 0.18);
   if (player.difficulty === "balanced")
     return Math.random() < (type === "pong" ? 0.46 : 0.28);
-  return Math.random() < (type === "pong" ? 0.62 : 0.34);
+  if (pursuingPongs && type === "chi") return Math.random() < 0.08;
+  return Math.random() < (type === "pong" ? (pursuingPongs ? 0.82 : 0.62) : 0.34);
 }

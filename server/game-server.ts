@@ -21,7 +21,12 @@ import {
   addedKongOptions,
   isWinningHand,
 } from "../src/game-logic/validation";
-import { structuredCloneGame } from "../src/game-logic/helpers";
+import {
+  nextDealerForRound,
+  nextDealerStreak,
+  nextRoundNumber,
+  structuredCloneGame,
+} from "../src/game-logic/helpers";
 import { ClientMessage, ServerMessage } from "../src/network/messages";
 
 // Types
@@ -29,11 +34,13 @@ interface GameRoom {
   game: Game;
   players: (WebSocket | null)[];
   created: number;
+  lastActivity: number;
   autoPlayAI: Map<number, NodeJS.Timeout>; // Track AI turn timers
 }
 
 // Storage
 const rooms = new Map<string, GameRoom>();
+const ROOM_RETENTION_MS = 24 * 60 * 60 * 1000;
 const PORT = Number(process.env.PORT ?? process.env.WS_PORT ?? "8080");
 const DIST_DIR = resolve(process.cwd(), "dist");
 
@@ -191,12 +198,14 @@ wss.on("connection", (socket) => {
             game: dealRound(),
             players: [null, null, null, null],
             created: Date.now(),
+            lastActivity: Date.now(),
             autoPlayAI: new Map(),
           });
           console.log(`[Room] Created room ${requestedRoomId}`);
         }
 
         const room = rooms.get(requestedRoomId)!;
+        room.lastActivity = Date.now();
         const existing = room.players[requestedPlayerIndex];
         if (isOpenSocket(existing ?? null) && existing !== socket) {
           socket.send(
@@ -268,6 +277,7 @@ wss.on("connection", (socket) => {
           );
           return;
         }
+        room.lastActivity = Date.now();
 
         if (room.players[playerIndex] !== socket) {
           socket.send(
@@ -352,6 +362,18 @@ wss.on("connection", (socket) => {
               JSON.stringify({
                 type: "action-rejected",
                 reason: "You are not the active claimant",
+              } as ServerMessage),
+            );
+            return;
+          }
+          if (
+            msg.action.type === "claim" &&
+            room.game.pendingClaim.canHu
+          ) {
+            socket.send(
+              JSON.stringify({
+                type: "action-rejected",
+                reason: "Hu has priority over Pong, Chi, and Gong",
               } as ServerMessage),
             );
             return;
@@ -557,15 +579,8 @@ wss.on("connection", (socket) => {
                 0,
               );
             } else {
-              const dealer =
-                action.dealer ??
-                (room.game.winner === room.game.dealer
-                  ? room.game.dealer
-                  : (room.game.dealer + 1) % 4);
-              const round =
-                dealer !== room.game.dealer
-                  ? room.game.round + 1
-                  : room.game.round;
+              const dealer = action.dealer ?? nextDealerForRound(room.game);
+              const round = nextRoundNumber(room.game);
               nextGame = dealRound(
                 dealer,
                 room.game.players.map((p) => p.score),
@@ -574,9 +589,7 @@ wss.on("connection", (socket) => {
                 room.game.tableId,
                 room.game.rules,
                 room.game.houseRules,
-                dealer === room.game.dealer && room.game.winner === room.game.dealer
-                  ? room.game.dealerStreak + 1
-                  : 0,
+                nextDealerStreak(room.game),
               );
             }
           }
@@ -650,6 +663,7 @@ wss.on("connection", (socket) => {
 
       const room = rooms.get(roomId);
       if (room) {
+        room.lastActivity = Date.now();
         room.players[playerIndex] = null;
         syncControllers(room);
 
@@ -678,10 +692,11 @@ wss.on("connection", (socket) => {
           room.autoPlayAI.delete(playerIndex);
         }
 
-        // Clean up room if empty
+        // Keep empty rooms so a suspended browser can resume the same hand.
         if (room.players.every((p) => p === null)) {
-          rooms.delete(roomId);
-          console.log(`[Room] Cleaned up empty room ${roomId}`);
+          room.autoPlayAI.forEach((timer) => clearTimeout(timer));
+          room.autoPlayAI.clear();
+          console.log(`[Room] Paused empty room ${roomId}`);
         } else {
           // If a seat disconnects during its turn/claim, allow AI fallback progression.
           setTimeout(() => playAITurnIfNeeded(roomId), 50);
@@ -700,6 +715,7 @@ wss.on("connection", (socket) => {
 function playAITurnIfNeeded(roomId: string) {
   const room = rooms.get(roomId);
   if (!room) return;
+  if (room.players.every((player) => player === null)) return;
 
   const { game } = room;
 
@@ -782,6 +798,21 @@ function playAITurnIfNeeded(roomId: string) {
     console.error(`[AI] Error during AI turn:`, error);
   }
 }
+
+const roomCleanupTimer = setInterval(() => {
+  const cutoff = Date.now() - ROOM_RETENTION_MS;
+  rooms.forEach((room, id) => {
+    if (
+      room.lastActivity < cutoff &&
+      room.players.every((player) => player === null)
+    ) {
+      room.autoPlayAI.forEach((timer) => clearTimeout(timer));
+      rooms.delete(id);
+      console.log(`[Room] Expired inactive room ${id}`);
+    }
+  });
+}, 60 * 60 * 1000);
+roomCleanupTimer.unref();
 
 // ============ STATS ============
 

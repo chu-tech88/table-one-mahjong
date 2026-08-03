@@ -18,6 +18,11 @@ import {
 import { scoreRound } from "../game-logic/scoring";
 import { chooseDiscard } from "../game-logic/ai";
 import { isWinningHand } from "../game-logic/validation";
+import {
+  nextDealerForRound,
+  nextDealerStreak,
+  nextRoundNumber,
+} from "../game-logic/helpers";
 
 type UseLocalGameReturn = {
   game: Game;
@@ -237,23 +242,16 @@ export function useLocalGame(): UseLocalGameReturn {
         );
       }
       const nextDealer =
-        dealer ??
-        (current.winner === current.dealer
-          ? current.dealer
-          : (current.dealer + 1) % 4);
+        dealer ?? nextDealerForRound(current);
       return dealRound(
         nextDealer,
         current.players.map((p) => p.score),
-        nextDealer !== current.dealer
-          ? current.round + 1
-          : current.round,
+        nextRoundNumber(current),
         current.players,
         current.tableId,
         rules,
         houseRules,
-        nextDealer === current.dealer && current.winner === current.dealer
-          ? current.dealerStreak + 1
-          : 0,
+        nextDealerStreak(current),
       );
     });
   }, [rules, houseRules]);

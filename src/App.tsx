@@ -10,6 +10,7 @@ import {
   Activity,
 } from "./game-logic/types";
 import {
+  nextDealerForRound,
   structuredCloneGame,
   tableNarration,
   sortTiles,
@@ -311,6 +312,7 @@ function Opponent({
   player,
   active,
   dealer,
+  dealerStreak,
   ready,
   reveal,
   position,
@@ -319,6 +321,7 @@ function Opponent({
   player: Player;
   active: boolean;
   dealer: boolean;
+  dealerStreak: number;
   ready: boolean;
   reveal: boolean;
   position: "left" | "top" | "right";
@@ -331,7 +334,11 @@ function Opponent({
       <button className="seat-heading" type="button" onClick={onInspect}>
         <strong>{player.name}</strong>
         <div className="seat-badges">
-          {dealer ? <span className="dealer-badge">Dealer</span> : null}
+          {dealer ? (
+            <span className="dealer-badge">
+              Dealer{dealerStreak > 0 ? ` +${dealerStreak * 2}` : ""}
+            </span>
+          ) : null}
           {ready ? <span className="ready-badge">Ready</span> : null}
           <span className="identity-badge">
             {player.controller === "human" ? "Human" : "AI"}
@@ -439,16 +446,60 @@ function createSoloRoomId() {
   return `solo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+const SAVED_SESSION_KEY = "table-one-mahjong-session-v1";
+
+function loadSavedSession() {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(SAVED_SESSION_KEY) ?? "null") as {
+      playMode?: "solo" | "online";
+      roomId?: string;
+      playerIndex?: number;
+      playerName?: string;
+      savedAt?: number;
+    } | null;
+    if (
+      !saved?.roomId ||
+      !saved.playerName ||
+      !Number.isInteger(saved.playerIndex) ||
+      !saved.savedAt ||
+      Date.now() - saved.savedAt > 24 * 60 * 60 * 1000
+    ) {
+      return undefined;
+    }
+    return saved;
+  } catch {
+    return undefined;
+  }
+}
+
 function MahjongApp() {
-  const [playMode, setPlayMode] = useState<"solo" | "online">("solo");
+  const savedSession = useMemo(loadSavedSession, []);
+  const [playMode, setPlayMode] = useState<"solo" | "online">(
+    savedSession?.playMode ?? "solo",
+  );
   const [connection, setConnection] = useState(() => ({
-    roomId: createSoloRoomId(),
-    playerIndex: 0,
-    playerName: "",
-    joined: false,
+    roomId: savedSession?.roomId ?? createSoloRoomId(),
+    playerIndex: savedSession?.playerIndex ?? 0,
+    playerName: savedSession?.playerName ?? "",
+    joined: Boolean(savedSession),
   }));
   const [occupiedSeats, setOccupiedSeats] = useState<number[]>([]);
   const [lobbySeatError, setLobbySeatError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!connection.joined || typeof window === "undefined") return;
+    window.localStorage.setItem(
+      SAVED_SESSION_KEY,
+      JSON.stringify({
+        playMode,
+        roomId: connection.roomId,
+        playerIndex: connection.playerIndex,
+        playerName: connection.playerName,
+        savedAt: Date.now(),
+      }),
+    );
+  }, [connection, playMode]);
 
   const gameHook = useGame({
     mode: "networked",
@@ -575,21 +626,16 @@ function MahjongApp() {
     }
   }, [game?.turn, game?.phase, human, uiSelectedTileId]);
 
-  const nextDealer = game
-    ? game.winner === game.dealer
-      ? game.dealer
-      : (game.dealer + 1) % 4
-    : SELF;
-  const nextRound = game
-    ? game.winner === game.dealer
-      ? game.round
-      : game.round + 1
-    : 1;
+  const nextDealer = game ? nextDealerForRound(game) : SELF;
   const dealerStatus = game
     ? game.dealer === SELF
-      ? "You are Dealer"
-      : `${seatName(game.dealer)} deals`
+      ? `You are Dealer${game.dealerStreak > 0 ? ` · String +${game.dealerStreak * 2}` : ""}`
+      : `${seatName(game.dealer)} deals${game.dealerStreak > 0 ? ` · String +${game.dealerStreak * 2}` : ""}`
     : "Waiting for server";
+  const winningPlayer =
+    game?.winSummary?.winner === undefined
+      ? undefined
+      : game.players[game.winSummary.winner];
   const humanIsWaiting =
     !!game &&
     !!human &&
@@ -872,7 +918,7 @@ function MahjongApp() {
   const claimActions =
     game.phase === "claim" && game.pendingClaim?.claimer === SELF ? (
       <>
-        {game.pendingClaim?.canPong ? (
+        {!game.pendingClaim?.canHu && game.pendingClaim?.canPong ? (
           <button
             onClick={() => {
               setChoosingChi(false);
@@ -883,7 +929,7 @@ function MahjongApp() {
             Pong
           </button>
         ) : null}
-        {game.pendingClaim?.canChi ? (
+        {!game.pendingClaim?.canHu && game.pendingClaim?.canChi ? (
           <button
             onClick={() => {
               if (humanChiOptions.length > 1) {
@@ -909,7 +955,7 @@ function MahjongApp() {
             Hu
           </button>
         ) : null}
-        {game.pendingClaim?.canKong ? (
+        {!game.pendingClaim?.canHu && game.pendingClaim?.canKong ? (
           <button
             onClick={() => {
               setChoosingChi(false);
@@ -1083,10 +1129,6 @@ function MahjongApp() {
               <span>Tiles</span>
               <strong>{game.wall.length}</strong>
             </div>
-            <div className="table-activity-strip" aria-live="polite">
-              {centerStatusLabel !== activityText ? <span>{centerStatusLabel}</span> : null}
-              <strong>{activityText}</strong>
-            </div>
             <div className="online-status" aria-label="Online readiness">
               <span>{playMode === "solo" ? "Solo" : "Shared room"}</span>
               <strong>{playMode === "solo" ? "3 AI" : connection.roomId}</strong>
@@ -1119,6 +1161,7 @@ function MahjongApp() {
             player={{ ...game.players[topSeat], name: seatName(topSeat) }}
             active={game.turn === topSeat}
             dealer={game.dealer === topSeat}
+            dealerStreak={game.dealerStreak}
             ready={game.declaredReady?.includes(topSeat) ?? false}
             reveal={game.winner === topSeat}
             position="top"
@@ -1133,7 +1176,9 @@ function MahjongApp() {
               </button>
               <div className="seat-badges">
                 {game.dealer === SELF ? (
-                  <span className="dealer-badge">Dealer</span>
+                  <span className="dealer-badge">
+                    Dealer{game.dealerStreak > 0 ? ` +${game.dealerStreak * 2}` : ""}
+                  </span>
                 ) : null}
                 {humanDeclaredReady ? <span className="ready-badge">Ready</span> : null}
                 <span className="identity-badge">Human</span>
@@ -1225,6 +1270,7 @@ function MahjongApp() {
             player={{ ...game.players[leftSeat], name: seatName(leftSeat) }}
             active={game.turn === leftSeat}
             dealer={game.dealer === leftSeat}
+            dealerStreak={game.dealerStreak}
             ready={game.declaredReady?.includes(leftSeat) ?? false}
             reveal={game.winner === leftSeat}
             position="left"
@@ -1233,23 +1279,22 @@ function MahjongApp() {
           <div className="center-table">
             <TableDiscardGrid players={game.players} selfIndex={SELF} onInspect={setInspectedSeat} />
             <div className="table-center-core">
+              <div className="center-activity" aria-live="polite">
+                <span>Round {game.round} · {centerStatusLabel}</span>
+                <strong>{activityText}</strong>
+              </div>
               {activity.tile ? (
                 <div className="last-discard">
-                  <span>{centerStatusLabel}</span>
                   <TileView tile={activity.tile} large disabled />
                 </div>
-              ) : (
-                <div className="empty-center-marker" aria-hidden="true">
-                  <span>Round</span>
-                  <strong>{game.round}</strong>
-                </div>
-              )}
+              ) : null}
             </div>
           </div>
           <Opponent
             player={{ ...game.players[rightSeat], name: seatName(rightSeat) }}
             active={game.turn === rightSeat}
             dealer={game.dealer === rightSeat}
+            dealerStreak={game.dealerStreak}
             ready={game.declaredReady?.includes(rightSeat) ?? false}
             reveal={game.winner === rightSeat}
             position="right"
@@ -1500,35 +1545,35 @@ function MahjongApp() {
             <p className="eyebrow">Hand complete</p>
             <h2 id="win-title">{game.winSummary.title}</h2>
             <p>{game.winSummary.detail}</p>
-            {game.players[game.winSummary.winner] ? (
+            {winningPlayer && game.winSummary.winner !== undefined ? (
               <div
                 className="winning-hand-review"
-                aria-label={`${game.players[game.winSummary.winner].name} revealed winning hand`}
+                aria-label={`${winningPlayer.name} revealed winning hand`}
               >
                 <span>{seatName(game.winSummary.winner)}'s hand</span>
                 <div className="winning-review-section">
                   <strong>Concealed tiles</strong>
                   <div className="winning-tile-row">
-                    {game.players[game.winSummary.winner].hand.map((tile) => (
+                    {winningPlayer.hand.map((tile) => (
                       <TileView key={tile.id} tile={tile} disabled />
                     ))}
                   </div>
                 </div>
-                {game.players[game.winSummary.winner].melds.length > 0 ? (
+                {winningPlayer.melds.length > 0 ? (
                   <div className="winning-review-section">
                     <strong>Revealed sets</strong>
                     <div className="winning-meld-row">
-                      {game.players[game.winSummary.winner].melds.map((meld, index) => (
+                      {winningPlayer.melds.map((meld, index) => (
                         <MeldView key={`${meld.type}-${index}`} meld={meld} />
                       ))}
                     </div>
                   </div>
                 ) : null}
-                {game.players[game.winSummary.winner].flowers.length > 0 ? (
+                {winningPlayer.flowers.length > 0 ? (
                   <div className="winning-review-section">
                     <strong>Flowers</strong>
                     <div className="winning-tile-row">
-                      {game.players[game.winSummary.winner].flowers.map((tile) => (
+                      {winningPlayer.flowers.map((tile) => (
                         <TileView key={tile.id} tile={tile} disabled />
                       ))}
                     </div>
@@ -1536,7 +1581,7 @@ function MahjongApp() {
                 ) : null}
               </div>
             ) : null}
-            <div className="score-breakdown">
+            {winningPlayer ? <div className="score-breakdown">
               <span
                 className="score-item"
                 tabIndex={0}
@@ -1556,24 +1601,17 @@ function MahjongApp() {
                   <small role="tooltip">{item.description}</small>
                 </span>
               ))}
-            </div>
-            <div className="win-total">
+            </div> : null}
+            {winningPlayer ? <div className="win-total">
               <span>{game.winSummary.points} points</span>
               <strong>+{game.winSummary.total} total</strong>
-            </div>
+            </div> : null}
             <button
               className="full-width-button"
               type="button"
               onClick={() => newHand(nextDealer, false)}
             >
-              Next hand
-            </button>
-            <button
-              className="text-button full-width-button"
-              type="button"
-              onClick={() => newHand(0, true)}
-            >
-              New game
+              Next Hand
             </button>
           </section>
         </div>

@@ -17,7 +17,8 @@ export type GameActionType =
   | "kong"
   | "declare-ready"
   | "score-bonus"
-  | "score-round";
+  | "score-round"
+  | "hand-draw";
 
 export type Tile = {
   id: string;
@@ -162,7 +163,7 @@ export type HouseRuleDraft = {
 };
 
 export type WinSummary = {
-  winner: number;
+  winner?: number;
   title: string;
   detail: string;
   points: number;
@@ -205,6 +206,7 @@ export type Game = {
   declaredReady?: number[];
   settledBonuses?: string[];
   activity?: Activity;
+  handResult?: "win" | "draw";
   winner?: number;
   winSummary?: WinSummary;
   rules: Rules;

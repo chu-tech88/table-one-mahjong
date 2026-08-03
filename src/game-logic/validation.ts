@@ -74,11 +74,36 @@ export function waitCodesForHand(hand: Tile[], meldCount: number) {
 
 export function supportIdsForWait(hand: Tile[], waitCode: string) {
   const ids = new Set<string>();
+  const normalTiles = hand.filter((tile) => !tile.flower);
   const prefix = waitCode[0];
   const rank = Number(waitCode.slice(1));
-  hand
-    .filter((tile) => tile.code === waitCode)
-    .forEach((tile) => ids.add(tile.id));
+  const sameTiles = normalTiles.filter((tile) => tile.code === waitCode);
+  const canFormPairAndSets = (tiles: Tile[]) => {
+    const counts = countCodes(tiles);
+    return Object.keys(counts).some((code) => {
+      if (counts[code] < 2) return false;
+      return canFormSetsFromCounts({ ...counts, [code]: counts[code] - 2 });
+    });
+  };
+  const without = (removed: Tile[]) => {
+    const removedIds = new Set(removed.map((tile) => tile.id));
+    return normalTiles.filter((tile) => !removedIds.has(tile.id));
+  };
+
+  sameTiles.forEach((tile) => {
+    if (canFormSets(without([tile]).map((candidate) => candidate.code))) {
+      ids.add(tile.id);
+    }
+  });
+
+  for (let first = 0; first < sameTiles.length; first += 1) {
+    for (let second = first + 1; second < sameTiles.length; second += 1) {
+      const pair = [sameTiles[first], sameTiles[second]];
+      if (canFormPairAndSets(without(pair))) {
+        pair.forEach((tile) => ids.add(tile.id));
+      }
+    }
+  }
 
   if (!(prefix === "D" || prefix === "B" || prefix === "C")) return ids;
 
@@ -90,14 +115,21 @@ export function supportIdsForWait(hand: Tile[], waitCode: string) {
 
   sequencePairs.forEach(([firstRank, secondRank]) => {
     if (firstRank < 1 || secondRank > 9) return;
-    const first = hand.find((tile) => tile.code === `${prefix}${firstRank}`);
-    const second = hand.find(
-      (tile) => tile.code === `${prefix}${secondRank}` && tile.id !== first?.id,
+    const firstTiles = normalTiles.filter(
+      (tile) => tile.code === `${prefix}${firstRank}`,
     );
-    if (first && second) {
-      ids.add(first.id);
-      ids.add(second.id);
-    }
+    const secondTiles = normalTiles.filter(
+      (tile) => tile.code === `${prefix}${secondRank}`,
+    );
+    firstTiles.forEach((first) => {
+      secondTiles.forEach((second) => {
+        if (first.id === second.id) return;
+        if (canFormPairAndSets(without([first, second]))) {
+          ids.add(first.id);
+          ids.add(second.id);
+        }
+      });
+    });
   });
 
   return ids;
@@ -109,16 +141,6 @@ export function waitingSupportTileIds(hand: Tile[], meldCount: number) {
   currentWaits.forEach((code) =>
     supportIdsForWait(hand, code).forEach((id) => ids.add(id)),
   );
-
-  const winningTileCount = 2 + (5 - meldCount) * 3;
-  if (hand.filter((tile) => !tile.flower).length === winningTileCount) {
-    hand.forEach((discard) => {
-      const remaining = hand.filter((tile) => tile.id !== discard.id);
-      waitCodesForHand(remaining, meldCount).forEach((code) =>
-        supportIdsForWait(remaining, code).forEach((id) => ids.add(id)),
-      );
-    });
-  }
 
   return ids;
 }

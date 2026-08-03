@@ -16,8 +16,12 @@ import {
   waitCodesForHand,
 } from "./validation";
 import { chooseDiscard, shouldCall } from "./ai";
-import { scoreRound, settleAllEightFlowers } from "./scoring";
-import { drawNonFlower } from "./deck";
+import {
+  finishExhaustedHand,
+  scoreRound,
+  settleAllEightFlowers,
+} from "./scoring";
+import { DEAD_WALL_TILES, drawNonFlower } from "./deck";
 
 const HUMAN = 0;
 type HumanSeatCheck = (index: number) => boolean;
@@ -48,11 +52,9 @@ export function advanceAfterDiscard(
         by: discardedBy,
         claimer: hu,
         canHu: true,
-        canPong: canPong(next.players[hu].hand, discard.tile),
-        canKong: canExposedKong(next.players[hu].hand, discard.tile),
-        canChi:
-          (discardedBy + 1) % 4 === hu &&
-          possibleChiOptions(next.players[hu].hand, discard.tile).length > 0,
+        canPong: false,
+        canKong: false,
+        canChi: false,
       };
       next.phase = "claim";
       next.message = `${next.players[discardedBy].name} discarded ${discard.tile.label}. ${next.players[hu].name} can win on this discard.`;
@@ -165,6 +167,7 @@ export function applyClaim(
   const next = structuredCloneGame(game);
   const discard = next.lastDiscard;
   if (!discard) return next;
+  if (next.pendingClaim?.canHu) return next;
   const player = next.players[playerIndex];
 
   if (type === "pong") {
@@ -223,14 +226,9 @@ export function applyClaim(
   appendAction(next, "claim", playerIndex, next.message);
 
   if (type === "kong") {
-    if (next.wall.length === 0) {
-      return {
-        ...next,
-        phase: "round-over" as any,
-        message: tableNarration("draw", ""),
-      };
-    }
+    if (next.wall.length <= DEAD_WALL_TILES) return finishExhaustedHand(next);
     let afterDraw = drawNonFlower(next, playerIndex);
+    if (!afterDraw.drawnTileId) return finishExhaustedHand(afterDraw);
     afterDraw.drawContext = "gong-replacement";
     const settledBefore = afterDraw.settledBonuses?.length ?? 0;
     afterDraw = settleAllEightFlowers(afterDraw, playerIndex, houseRules ?? afterDraw.houseRules);
@@ -266,15 +264,10 @@ export function startTurn(
   houseRules: HouseRule[],
   isHumanSeat: HumanSeatCheck = defaultIsHumanSeat,
 ) {
-  if (game.wall.length === 0) {
-    return {
-      ...game,
-      phase: "round-over" as any,
-      message: tableNarration("draw", ""),
-    };
-  }
+  if (game.wall.length <= DEAD_WALL_TILES) return finishExhaustedHand(game);
 
   let next = drawNonFlower(game, playerIndex);
+  if (!next.drawnTileId) return finishExhaustedHand(next);
   const settledBefore = next.settledBonuses?.length ?? 0;
   next = settleAllEightFlowers(next, playerIndex, houseRules);
   next.turn = playerIndex;
@@ -339,6 +332,7 @@ export function applyKong(
   next.activity = { player: playerIndex, text: next.message };
   appendAction(next, "kong", playerIndex, next.message);
   next = drawNonFlower(next, playerIndex);
+  if (!next.drawnTileId) return finishExhaustedHand(next);
   next.drawContext = "gong-replacement";
   next = settleAllEightFlowers(next, playerIndex, houseRules);
   if (
@@ -456,6 +450,7 @@ function finishAddedGong(
   next.activity = { player: pending.player, text: next.message };
   appendAction(next, "kong", pending.player, next.message);
   next = drawNonFlower(next, pending.player);
+  if (!next.drawnTileId) return finishExhaustedHand(next);
   next.drawContext = "gong-replacement";
   next = settleAllEightFlowers(next, pending.player, houseRules);
   if (isWinningHand(next.players[pending.player].hand, next.players[pending.player].melds.length)) {

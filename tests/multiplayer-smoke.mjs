@@ -138,6 +138,7 @@ async function main() {
   let ws0;
   let ws1;
   let wsConflict;
+  let wsResume;
 
   try {
     server = await startServer(port);
@@ -237,6 +238,26 @@ async function main() {
       "Discard update should broadcast to all joined clients",
     );
 
+    ws0.close();
+    ws1.close();
+    await delay(120);
+    wsResume = await connectClient(url);
+    send(wsResume, {
+      type: "join-room",
+      roomId,
+      playerIndex: 0,
+      playerName: "Eric",
+    });
+    const resumed = await waitForMessage(
+      wsResume,
+      (msg) => msg.type === "game-state-update",
+    );
+    assert.ok(
+      resumed.game.actionSeq >= post0.game.actionSeq,
+      "An empty room should retain its hand for reconnecting players",
+    );
+    assert.equal(resumed.game.rules.baseWin, 7);
+
     console.log(
       JSON.stringify(
         {
@@ -254,6 +275,7 @@ async function main() {
     ws0?.close();
     ws1?.close();
     wsConflict?.close();
+    wsResume?.close();
 
     if (server) {
       server.kill("SIGTERM");

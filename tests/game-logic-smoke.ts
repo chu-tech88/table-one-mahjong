@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { dealRound, makeDeck } from "../src/game-logic/deck";
 import {
+  advanceAfterDiscard,
   applyKong,
   beginAddedGong,
   canDeclareReady,
   declareReadyAndDiscard,
   passClaim,
+  startTurn,
 } from "../src/game-logic/flow";
 import {
   createDefaultHouseRules,
@@ -16,8 +18,14 @@ import {
   scoreStandardRules,
   settleAllEightFlowers,
 } from "../src/game-logic/scoring";
-import { tilePrototypeFromCode } from "../src/game-logic/helpers";
+import {
+  nextDealerForRound,
+  nextDealerStreak,
+  tilePrototypeFromCode,
+} from "../src/game-logic/helpers";
 import { StandardRuleKey } from "../src/game-logic/types";
+import { chooseDiscard, highValueHandPotential } from "../src/game-logic/ai";
+import { waitingSupportTileIds } from "../src/game-logic/validation";
 
 let fixtureTileId = 0;
 function tiles(codes: string[]) {
@@ -126,6 +134,9 @@ const readyTiles = tiles([
   "B1", "B2", "B3", "C1", "C2", "C3", "D5", "W1",
 ]);
 readyGame.players[0].hand = readyTiles;
+readyGame.players.slice(1).forEach((player) => {
+  player.hand = [];
+});
 const readyDiscard = readyTiles.find((tile) => tile.code === "W1")!;
 assert.equal(canDeclareReady(readyGame, 0, readyDiscard.id), true);
 const declared = declareReadyAndDiscard(
@@ -192,5 +203,99 @@ assert.equal(completedAddedGong.players[0].melds[0].type, "kong");
 assert.equal(completedAddedGong.players[0].melds[0].tiles.length, 4);
 assert.equal(completedAddedGong.pendingAddedGong, undefined);
 assert.equal(completedAddedGong.turn, 0);
+
+const priorityGame = dealRound();
+priorityGame.players[0].hand = tiles([
+  "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
+  "B1", "B2", "B3", "C1", "C2", "C3", "W1",
+]);
+priorityGame.lastDiscard = { tile: tiles(["W1"])[0], by: 3 };
+const huPriority = advanceAfterDiscard(
+  priorityGame,
+  3,
+  priorityGame.rules,
+  priorityGame.houseRules,
+  (index) => index === 0,
+);
+assert.equal(huPriority.pendingClaim?.canHu, true);
+assert.equal(huPriority.pendingClaim?.canPong, false);
+assert.equal(huPriority.pendingClaim?.canChi, false);
+assert.equal(huPriority.pendingClaim?.canKong, false);
+
+const waitHand = tiles([
+  "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
+  "B1", "B2", "B3", "C1", "C2", "C3", "W1",
+]);
+const highlighted = waitingSupportTileIds(waitHand, 0);
+assert.deepEqual(
+  waitHand.filter((tile) => highlighted.has(tile.id)).map((tile) => tile.code),
+  ["W1"],
+  "Only tiles that participate in a valid wait should be highlighted",
+);
+
+const exhausted = dealRound();
+exhausted.wall = exhausted.wall.slice(0, 8);
+const drawnHand = startTurn(
+  exhausted,
+  1,
+  exhausted.rules,
+  exhausted.houseRules,
+);
+assert.equal(drawnHand.phase, "round-over");
+assert.equal(drawnHand.handResult, "draw");
+assert.equal(drawnHand.winSummary?.title, "No tiles remaining");
+assert.equal(nextDealerForRound(drawnHand), drawnHand.dealer);
+assert.equal(nextDealerStreak(drawnHand), drawnHand.dealerStreak + 1);
+
+const dealerWinResult = dealRound();
+dealerWinResult.winner = dealerWinResult.dealer;
+dealerWinResult.handResult = "win";
+assert.equal(nextDealerForRound(dealerWinResult), dealerWinResult.dealer);
+assert.equal(nextDealerStreak(dealerWinResult), 1);
+
+const dealerLossResult = dealRound();
+dealerLossResult.winner = (dealerLossResult.dealer + 1) % 4;
+dealerLossResult.handResult = "win";
+dealerLossResult.dealerStreak = 3;
+assert.equal(
+  nextDealerForRound(dealerLossResult),
+  (dealerLossResult.dealer + 1) % 4,
+);
+assert.equal(nextDealerStreak(dealerLossResult), 0);
+
+const dealerLoss = dealRound();
+dealerLoss.dealer = 0;
+dealerLoss.dealerStreak = 2;
+dealerLoss.players[1].hand = tiles(allChiHand);
+dealerLoss.drawnTileId = dealerLoss.players[1].hand.at(-1)?.id;
+const dealerRule = scoring.find((rule) => rule.detector === "dealer");
+assert.ok(dealerRule);
+const dealerPaid = scoreRound(
+  dealerLoss,
+  1,
+  "self-draw",
+  dealerLoss.rules,
+  [dealerRule],
+);
+assert.deepEqual(
+  dealerPaid.players.map((player) => player.score),
+  [241, 267, 246, 246],
+);
+assert.equal(
+  dealerPaid.winSummary?.scoreItems.find((item) => item.name === "Dealer loss")?.points,
+  5,
+);
+
+const patternHand = tiles([
+  "D1", "D1", "D2", "D2", "D3", "D3", "D4", "D5", "D6",
+  "D7", "D8", "D9", "W1", "W1", "W1", "B9", "D5",
+]);
+const offSuit = patternHand.find((tile) => tile.code === "B9")!;
+const keptSuit = patternHand.find((tile) => tile.code === "D5")!;
+assert.ok(
+  highValueHandPotential(patternHand.filter((tile) => tile.id !== offSuit.id)) >
+    highValueHandPotential(patternHand.filter((tile) => tile.id !== keptSuit.id)),
+);
+assert.equal(chooseDiscard(patternHand, "sharp").code, "B9");
 
 console.log("Game logic smoke test passed");

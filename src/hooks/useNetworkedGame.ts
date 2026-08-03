@@ -69,50 +69,69 @@ export function useNetworkedGame(
       return;
     }
 
-    const client = new GameClient({
-      onGameStateUpdate: (newGame) => {
-        setGame(newGame);
-        setError(null);
-        // Keep selection if the tile still exists and the player can still discard.
-        setSelectedTileId((current) => {
-          if (!current) return undefined;
-          const isDiscardTurn =
-            newGame.turn === playerIndex && newGame.phase === "discard";
-          if (!isDiscardTurn) return undefined;
-          const stillInHand = newGame.players[playerIndex].hand.some(
-            (tile) => tile.id === current,
-          );
-          return stillInHand ? current : undefined;
-        });
-      },
-      onActionRejected: (reason) => {
-        setError(reason);
-      },
-      onDisconnected: () => {
-        setIsConnected(false);
-        setError("Disconnected from server");
-      },
-    });
-
-    clientRef.current = client;
     let isMounted = true;
+    let reconnectTimer: number | undefined;
+    let activeClient: GameClient | null = null;
 
-    client
-      .connect(serverUrl, roomId, playerIndex, playerName)
-      .then(() => {
-        if (!isMounted) return;
-        setIsConnected(true);
-        setError(null);
-        client.requestState();
-      })
-      .catch((err) => {
-        if (!isMounted) return;
-        setError(`Failed to connect: ${err.message}`);
+    const scheduleReconnect = () => {
+      if (!isMounted) return;
+      window.clearTimeout(reconnectTimer);
+      reconnectTimer = window.setTimeout(connect, 1500);
+    };
+
+    const connect = () => {
+      if (!isMounted) return;
+      const client = new GameClient({
+        onGameStateUpdate: (newGame) => {
+          if (!isMounted || client !== activeClient) return;
+          setGame(newGame);
+          setError(null);
+          setSelectedTileId((current) => {
+            if (!current) return undefined;
+            const isDiscardTurn =
+              newGame.turn === playerIndex && newGame.phase === "discard";
+            if (!isDiscardTurn) return undefined;
+            const stillInHand = newGame.players[playerIndex].hand.some(
+              (tile) => tile.id === current,
+            );
+            return stillInHand ? current : undefined;
+          });
+        },
+        onActionRejected: (reason) => {
+          if (client === activeClient) setError(reason);
+        },
+        onDisconnected: () => {
+          if (!isMounted || client !== activeClient) return;
+          setIsConnected(false);
+          setError("Reconnecting to your table...");
+          scheduleReconnect();
+        },
       });
+
+      activeClient = client;
+      clientRef.current = client;
+      client
+        .connect(serverUrl, roomId, playerIndex, playerName)
+        .then(() => {
+          if (!isMounted || client !== activeClient) return;
+          setIsConnected(true);
+          setError(null);
+          client.requestState();
+        })
+        .catch(() => {
+          if (!isMounted || client !== activeClient) return;
+          setIsConnected(false);
+          setError("Reconnecting to your table...");
+          scheduleReconnect();
+        });
+    };
+
+    connect();
 
     return () => {
       isMounted = false;
-      client.disconnect();
+      window.clearTimeout(reconnectTimer);
+      activeClient?.disconnect();
     };
   }, [enabled, serverUrl, roomId, playerIndex, playerName]);
 
