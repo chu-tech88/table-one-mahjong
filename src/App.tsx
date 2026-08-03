@@ -990,18 +990,18 @@ function MahjongApp() {
                 <p style={{ fontSize: "0.9rem", color: "#666" }}>
                   Is the server running on {DEFAULT_SERVER_URL}?
                 </p>
+                <button
+                  className="secondary-button"
+                  style={{ marginTop: "1rem", maxWidth: "240px" }}
+                  type="button"
+                  onClick={leaveCurrentGame}
+                >
+                  Leave game
+                </button>
               </>
             ) : (
               <p>Loading game...</p>
             )}
-            <button
-              className="secondary-button"
-              style={{ marginTop: "1rem", maxWidth: "240px" }}
-              type="button"
-              onClick={leaveCurrentGame}
-            >
-              Leave game
-            </button>
           </div>
         </section>
       </main>
