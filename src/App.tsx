@@ -472,59 +472,75 @@ function createSoloRoomId() {
   return `solo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-const SAVED_SESSION_KEY = "table-one-mahjong-session-v1";
+type SavedSession = {
+  playMode: "solo" | "online";
+  roomId: string;
+  playerIndex: number;
+  playerName: string;
+  savedAt: number;
+};
 
-function loadSavedSession() {
+const ACTIVE_SESSION_KEY = "table-one-mahjong-active-session-v2";
+
+function parseSavedSession(raw: string | null) {
+  if (!raw) return undefined;
+  const saved = JSON.parse(raw) as Partial<SavedSession> | null;
+  if (
+    !saved?.roomId ||
+    !saved.playerName ||
+    !Number.isInteger(saved.playerIndex) ||
+    !saved.savedAt ||
+    Date.now() - saved.savedAt > 24 * 60 * 60 * 1000
+  ) {
+    return undefined;
+  }
+  return {
+    playMode: saved.playMode === "online" ? "online" : "solo",
+    roomId: saved.roomId,
+    playerIndex: saved.playerIndex,
+    playerName: saved.playerName,
+    savedAt: saved.savedAt,
+  } as SavedSession;
+}
+
+function loadActiveSession() {
   if (typeof window === "undefined") return undefined;
   try {
-    const saved = JSON.parse(window.localStorage.getItem(SAVED_SESSION_KEY) ?? "null") as {
-      playMode?: "solo" | "online";
-      roomId?: string;
-      playerIndex?: number;
-      playerName?: string;
-      savedAt?: number;
-    } | null;
-    if (
-      !saved?.roomId ||
-      !saved.playerName ||
-      !Number.isInteger(saved.playerIndex) ||
-      !saved.savedAt ||
-      Date.now() - saved.savedAt > 24 * 60 * 60 * 1000
-    ) {
-      return undefined;
-    }
-    return saved;
+    // sessionStorage is tab-scoped, so different tabs do not auto-join one another's lobbies.
+    return parseSavedSession(window.sessionStorage.getItem(ACTIVE_SESSION_KEY));
   } catch {
     return undefined;
   }
 }
 
 function MahjongApp() {
-  const savedSession = useMemo(loadSavedSession, []);
+  const restoredActiveSession = useMemo(loadActiveSession, []);
   const [playMode, setPlayMode] = useState<"solo" | "online">(
-    savedSession?.playMode ?? "solo",
+    restoredActiveSession?.playMode ?? "solo",
   );
   const [connection, setConnection] = useState(() => ({
-    roomId: savedSession?.roomId ?? createSoloRoomId(),
-    playerIndex: savedSession?.playerIndex ?? 0,
-    playerName: savedSession?.playerName ?? "",
-    joined: Boolean(savedSession),
+    roomId: restoredActiveSession?.roomId ?? createSoloRoomId(),
+    playerIndex: restoredActiveSession?.playerIndex ?? 0,
+    playerName: restoredActiveSession?.playerName ?? "",
+    joined: Boolean(restoredActiveSession),
   }));
   const [occupiedSeats, setOccupiedSeats] = useState<number[]>([]);
   const [lobbySeatError, setLobbySeatError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!connection.joined || typeof window === "undefined") return;
-    window.localStorage.setItem(
-      SAVED_SESSION_KEY,
-      JSON.stringify({
-        playMode,
-        roomId: connection.roomId,
-        playerIndex: connection.playerIndex,
-        playerName: connection.playerName,
-        savedAt: Date.now(),
-      }),
-    );
+    if (typeof window === "undefined") return;
+    if (!connection.joined) {
+      window.sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+      return;
+    }
+    const snapshot: SavedSession = {
+      playMode,
+      roomId: connection.roomId,
+      playerIndex: connection.playerIndex,
+      playerName: connection.playerName,
+      savedAt: Date.now(),
+    };
+    window.sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(snapshot));
   }, [connection, playMode]);
 
   const gameHook = useGame({
@@ -779,6 +795,16 @@ function MahjongApp() {
     { value: 3, label: "North (seat 3)" },
   ].filter((option) => !occupiedSeats.includes(option.value));
 
+  const leaveCurrentGame = () => {
+    setSettingsOpen(false);
+    setInspectedSeat(undefined);
+    setChoosingChi(false);
+    setChoosingKong(false);
+    setSelectedKongCode(undefined);
+    setUiSelectedTileId(undefined);
+    setConnection((current) => ({ ...current, joined: false }));
+  };
+
   if (!connection.joined) {
     return (
       <main className="app-shell">
@@ -935,6 +961,14 @@ function MahjongApp() {
             ) : (
               <p>Loading game...</p>
             )}
+            <button
+              className="secondary-button"
+              style={{ marginTop: "1rem", maxWidth: "240px" }}
+              type="button"
+              onClick={leaveCurrentGame}
+            >
+              Leave game
+            </button>
           </div>
         </section>
       </main>
@@ -1555,6 +1589,13 @@ function MahjongApp() {
               }}
             >
               New hand
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={leaveCurrentGame}
+            >
+              Leave game
             </button>
           </section>
         </div>
