@@ -218,7 +218,10 @@ function formatChiOption(tiles: Tile[]) {
 }
 
 function MeldView({ meld }: { meld: Meld }) {
-  const meldName = meld.type === "kong" ? "Gong" : meld.type.charAt(0).toUpperCase() + meld.type.slice(1);
+  const meldName =
+    meld.type === "kong"
+      ? "Gong"
+      : meld.type.charAt(0).toUpperCase() + meld.type.slice(1);
   return (
     <div
       className="meld"
@@ -275,7 +278,9 @@ function TableDiscardGrid({
                 type="button"
                 onClick={() => onInspect(index)}
               >
-                <span>{isSelf ? "Your discards" : `${player.wind} discards`}</span>
+                <span>
+                  {isSelf ? "Your discards" : `${player.wind} discards`}
+                </span>
                 <small>{player.discards.length}</small>
               </button>
               <DiscardRiver player={player} />
@@ -421,16 +426,26 @@ function PlayerInspector({
           <div>
             <p className="eyebrow">{player.wind} seat</p>
             <h2 id="player-inspector-title">
-              {player.name}{isSelf ? " (You)" : ""}
+              {player.name}
+              {isSelf ? " (You)" : ""}
             </h2>
           </div>
-          <button className="inspector-close" type="button" aria-label="Close player details" onClick={onClose}>
+          <button
+            className="inspector-close"
+            type="button"
+            aria-label="Close player details"
+            onClick={onClose}
+          >
             ×
           </button>
         </div>
         <div className="inspector-summary">
           <strong>{player.score} pts</strong>
-          <span>{player.controller === "human" ? "Human" : `AI · ${difficulties[player.difficulty]}`}</span>
+          <span>
+            {player.controller === "human"
+              ? "Human"
+              : `AI · ${difficulties[player.difficulty]}`}
+          </span>
           {dealer ? <span className="dealer-badge">Dealer</span> : null}
           {ready ? <span className="ready-badge">Ready</span> : null}
         </div>
@@ -440,15 +455,21 @@ function PlayerInspector({
             <span>{player.discards.length}</span>
           </div>
           <div className="inspector-tile-row">
-            {player.discards.length > 0 ? player.discards.map((tile) => (
-              <TileView key={tile.id} tile={tile} disabled />
-            )) : <p>None yet</p>}
+            {player.discards.length > 0 ? (
+              player.discards.map((tile) => (
+                <TileView key={tile.id} tile={tile} disabled />
+              ))
+            ) : (
+              <p>None yet</p>
+            )}
           </div>
         </section>
         <section className="inspector-section">
           <div className="inspector-section-heading">
             <h3>Flowers and declared sets</h3>
-            <span>{player.flowers.length} flowers · {player.melds.length} sets</span>
+            <span>
+              {player.flowers.length} flowers · {player.melds.length} sets
+            </span>
           </div>
           <SeatSets flowers={player.flowers} melds={player.melds} />
         </section>
@@ -459,7 +480,12 @@ function PlayerInspector({
           </div>
           <div className="inspector-tile-row inspector-hand-row">
             {player.hand.map((tile) => (
-              <TileView key={tile.id} tile={tile} hidden={!isSelf && !reveal} disabled />
+              <TileView
+                key={tile.id}
+                tile={tile}
+                hidden={!isSelf && !reveal}
+                disabled
+              />
             ))}
           </div>
         </section>
@@ -472,59 +498,75 @@ function createSoloRoomId() {
   return `solo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-const SAVED_SESSION_KEY = "table-one-mahjong-session-v1";
+type SavedSession = {
+  playMode: "solo" | "online";
+  roomId: string;
+  playerIndex: number;
+  playerName: string;
+  savedAt: number;
+};
 
-function loadSavedSession() {
+const ACTIVE_SESSION_KEY = "table-one-mahjong-active-session-v2";
+
+function parseSavedSession(raw: string | null) {
+  if (!raw) return undefined;
+  const saved = JSON.parse(raw) as Partial<SavedSession> | null;
+  if (
+    !saved?.roomId ||
+    !saved.playerName ||
+    !Number.isInteger(saved.playerIndex) ||
+    !saved.savedAt ||
+    Date.now() - saved.savedAt > 24 * 60 * 60 * 1000
+  ) {
+    return undefined;
+  }
+  return {
+    playMode: saved.playMode === "online" ? "online" : "solo",
+    roomId: saved.roomId,
+    playerIndex: saved.playerIndex,
+    playerName: saved.playerName,
+    savedAt: saved.savedAt,
+  } as SavedSession;
+}
+
+function loadActiveSession() {
   if (typeof window === "undefined") return undefined;
   try {
-    const saved = JSON.parse(window.localStorage.getItem(SAVED_SESSION_KEY) ?? "null") as {
-      playMode?: "solo" | "online";
-      roomId?: string;
-      playerIndex?: number;
-      playerName?: string;
-      savedAt?: number;
-    } | null;
-    if (
-      !saved?.roomId ||
-      !saved.playerName ||
-      !Number.isInteger(saved.playerIndex) ||
-      !saved.savedAt ||
-      Date.now() - saved.savedAt > 24 * 60 * 60 * 1000
-    ) {
-      return undefined;
-    }
-    return saved;
+    // sessionStorage is tab-scoped, so different tabs do not auto-join one another's lobbies.
+    return parseSavedSession(window.sessionStorage.getItem(ACTIVE_SESSION_KEY));
   } catch {
     return undefined;
   }
 }
 
 function MahjongApp() {
-  const savedSession = useMemo(loadSavedSession, []);
+  const restoredActiveSession = useMemo(loadActiveSession, []);
   const [playMode, setPlayMode] = useState<"solo" | "online">(
-    savedSession?.playMode ?? "solo",
+    restoredActiveSession?.playMode ?? "solo",
   );
   const [connection, setConnection] = useState(() => ({
-    roomId: savedSession?.roomId ?? createSoloRoomId(),
-    playerIndex: savedSession?.playerIndex ?? 0,
-    playerName: savedSession?.playerName ?? "",
-    joined: Boolean(savedSession),
+    roomId: restoredActiveSession?.roomId ?? createSoloRoomId(),
+    playerIndex: restoredActiveSession?.playerIndex ?? 0,
+    playerName: restoredActiveSession?.playerName ?? "",
+    joined: Boolean(restoredActiveSession),
   }));
   const [occupiedSeats, setOccupiedSeats] = useState<number[]>([]);
   const [lobbySeatError, setLobbySeatError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!connection.joined || typeof window === "undefined") return;
-    window.localStorage.setItem(
-      SAVED_SESSION_KEY,
-      JSON.stringify({
-        playMode,
-        roomId: connection.roomId,
-        playerIndex: connection.playerIndex,
-        playerName: connection.playerName,
-        savedAt: Date.now(),
-      }),
-    );
+    if (typeof window === "undefined") return;
+    if (!connection.joined) {
+      window.sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+      return;
+    }
+    const snapshot: SavedSession = {
+      playMode,
+      roomId: connection.roomId,
+      playerIndex: connection.playerIndex,
+      playerName: connection.playerName,
+      savedAt: Date.now(),
+    };
+    window.sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(snapshot));
   }, [connection, playMode]);
 
   const gameHook = useGame({
@@ -573,7 +615,9 @@ function MahjongApp() {
   const [inspectedSeat, setInspectedSeat] = useState<number | undefined>();
   const [choosingChi, setChoosingChi] = useState(false);
   const [choosingKong, setChoosingKong] = useState(false);
-  const [selectedKongCode, setSelectedKongCode] = useState<string | undefined>();
+  const [selectedKongCode, setSelectedKongCode] = useState<
+    string | undefined
+  >();
   const [uiSelectedTileId, setUiSelectedTileId] = useState<string | undefined>(
     undefined,
   );
@@ -585,14 +629,18 @@ function MahjongApp() {
   const humanKongs = [...new Set([...concealedHumanKongs, ...addedHumanKongs])];
   const activeHumanKong =
     humanKongs.find((code) => code === selectedKongCode) ?? humanKongs[0];
-  const activeKongIsAdded = !!activeHumanKong && addedHumanKongs.includes(activeHumanKong);
+  const activeKongIsAdded =
+    !!activeHumanKong && addedHumanKongs.includes(activeHumanKong);
   const humanDeclaredReady = game?.declaredReady?.includes(SELF) ?? false;
   const canDeclareSelected =
-    !!game && !!effectiveSelectedTileId &&
+    !!game &&
+    !!effectiveSelectedTileId &&
     canDeclareReady(game, SELF, effectiveSelectedTileId);
   const canDiscardSelected =
     !!effectiveSelectedTileId &&
-    (!humanDeclaredReady || human?.discards.length === 0 || effectiveSelectedTileId === game?.drawnTileId);
+    (!humanDeclaredReady ||
+      human?.discards.length === 0 ||
+      effectiveSelectedTileId === game?.drawnTileId);
   const canSelfHu =
     !!game &&
     !!human &&
@@ -779,6 +827,16 @@ function MahjongApp() {
     { value: 3, label: "North (seat 3)" },
   ].filter((option) => !occupiedSeats.includes(option.value));
 
+  const leaveCurrentGame = () => {
+    setSettingsOpen(false);
+    setInspectedSeat(undefined);
+    setChoosingChi(false);
+    setChoosingKong(false);
+    setSelectedKongCode(undefined);
+    setUiSelectedTileId(undefined);
+    setConnection((current) => ({ ...current, joined: false }));
+  };
+
   if (!connection.joined) {
     return (
       <main className="app-shell">
@@ -822,64 +880,65 @@ function MahjongApp() {
               </button>
             </div>
             <div className="join-fields">
-            <label>
-              <span>Your name</span>
-              <input
-                autoComplete="nickname"
-                maxLength={18}
-                placeholder="Enter your name"
-                type="text"
-                value={connection.playerName}
-                onChange={(event) =>
-                  setConnection((current) => ({
-                    ...current,
-                    playerName: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            {playMode === "online" ? (
-              <>
-                <label>
-                  <span>Room ID</span>
-                  <input
-                    type="text"
-                    value={connection.roomId}
-                    onChange={(event) =>
-                      setConnection((current) => ({
-                        ...current,
-                        roomId:
-                          event.target.value.replace(/\s+/g, "-") || "table-one",
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Seat</span>
-                  <select
-                    value={connection.playerIndex}
-                    onChange={(event) =>
-                      setConnection((current) => ({
-                        ...current,
-                        playerIndex: Number(event.target.value),
-                      }))
-                    }
-                    disabled={seatOptions.length === 0}
-                  >
-                    {seatOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            ) : (
-              <div className="solo-table-summary">
-                <span>Your seat</span>
-                <strong>East · 3 AI opponents</strong>
-              </div>
-            )}
+              <label>
+                <span>Your name</span>
+                <input
+                  autoComplete="nickname"
+                  maxLength={18}
+                  placeholder="Enter your name"
+                  type="text"
+                  value={connection.playerName}
+                  onChange={(event) =>
+                    setConnection((current) => ({
+                      ...current,
+                      playerName: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              {playMode === "online" ? (
+                <>
+                  <label>
+                    <span>Room ID</span>
+                    <input
+                      type="text"
+                      value={connection.roomId}
+                      onChange={(event) =>
+                        setConnection((current) => ({
+                          ...current,
+                          roomId:
+                            event.target.value.replace(/\s+/g, "-") ||
+                            "table-one",
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Seat</span>
+                    <select
+                      value={connection.playerIndex}
+                      onChange={(event) =>
+                        setConnection((current) => ({
+                          ...current,
+                          playerIndex: Number(event.target.value),
+                        }))
+                      }
+                      disabled={seatOptions.length === 0}
+                    >
+                      {seatOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              ) : (
+                <div className="solo-table-summary">
+                  <span>Your seat</span>
+                  <strong>East · 3 AI opponents</strong>
+                </div>
+              )}
             </div>
             {lobbySeatError ? (
               <p style={{ fontSize: "0.9rem", color: "#a33" }}>
@@ -931,6 +990,14 @@ function MahjongApp() {
                 <p style={{ fontSize: "0.9rem", color: "#666" }}>
                   Is the server running on {DEFAULT_SERVER_URL}?
                 </p>
+                <button
+                  className="secondary-button"
+                  style={{ marginTop: "1rem", maxWidth: "240px" }}
+                  type="button"
+                  onClick={leaveCurrentGame}
+                >
+                  Leave game
+                </button>
               </>
             ) : (
               <p>Loading game...</p>
@@ -1149,7 +1216,9 @@ function MahjongApp() {
           <div className="board-toolbar">
             <div className="table-brand">
               <strong>Table One Mahjong</strong>
-              <span>Round {game.round} · {dealerStatus}</span>
+              <span>
+                Round {game.round} · {dealerStatus}
+              </span>
             </div>
             <div className="tiles-remaining">
               <span>Tiles</span>
@@ -1157,7 +1226,9 @@ function MahjongApp() {
             </div>
             <div className="online-status" aria-label="Online readiness">
               <span>{playMode === "solo" ? "Solo" : "Shared room"}</span>
-              <strong>{playMode === "solo" ? "3 AI" : connection.roomId}</strong>
+              <strong>
+                {playMode === "solo" ? "3 AI" : connection.roomId}
+              </strong>
             </div>
             <button
               className="gear-button"
@@ -1197,16 +1268,23 @@ function MahjongApp() {
             className={`human-seat ${game.turn === SELF ? "active" : ""} ${game.dealer === SELF ? "dealer-seat" : ""}`}
           >
             <div className="human-profile">
-              <button className="human-name" type="button" onClick={() => setInspectedSeat(SELF)}>
+              <button
+                className="human-name"
+                type="button"
+                onClick={() => setInspectedSeat(SELF)}
+              >
                 <strong>{human.name} (You)</strong>
               </button>
               <div className="seat-badges">
                 {game.dealer === SELF ? (
                   <span className="dealer-badge">
-                    Dealer{game.dealerStreak > 0 ? ` +${game.dealerStreak * 2}` : ""}
+                    Dealer
+                    {game.dealerStreak > 0 ? ` +${game.dealerStreak * 2}` : ""}
                   </span>
                 ) : null}
-                {humanDeclaredReady ? <span className="ready-badge">Ready</span> : null}
+                {humanDeclaredReady ? (
+                  <span className="ready-badge">Ready</span>
+                ) : null}
                 <span className="identity-badge">Human</span>
                 <span>{human.wind}</span>
               </div>
@@ -1266,7 +1344,9 @@ function MahjongApp() {
                   disabled={
                     game.phase !== "discard" ||
                     game.turn !== SELF ||
-                    (humanDeclaredReady && human.discards.length > 0 && tile.id !== game.drawnTileId)
+                    (humanDeclaredReady &&
+                      human.discards.length > 0 &&
+                      tile.id !== game.drawnTileId)
                   }
                   onMouseDown={() => {
                     setUiSelectedTileId(tile.id);
@@ -1303,10 +1383,16 @@ function MahjongApp() {
             onInspect={() => setInspectedSeat(leftSeat)}
           />
           <div className="center-table">
-            <TableDiscardGrid players={game.players} selfIndex={SELF} onInspect={setInspectedSeat} />
+            <TableDiscardGrid
+              players={game.players}
+              selfIndex={SELF}
+              onInspect={setInspectedSeat}
+            />
             <div className="table-center-core">
               <div className="center-activity" aria-live="polite">
-                <span>Round {game.round} · {centerStatusLabel}</span>
+                <span>
+                  Round {game.round} · {centerStatusLabel}
+                </span>
                 <strong>{activityText}</strong>
               </div>
               {activity.tile ? (
@@ -1331,7 +1417,10 @@ function MahjongApp() {
 
       {inspectedSeat !== undefined ? (
         <PlayerInspector
-          player={{ ...game.players[inspectedSeat], name: seatName(inspectedSeat) }}
+          player={{
+            ...game.players[inspectedSeat],
+            name: seatName(inspectedSeat),
+          }}
           isSelf={inspectedSeat === SELF}
           dealer={game.dealer === inspectedSeat}
           ready={game.declaredReady?.includes(inspectedSeat) ?? false}
@@ -1556,6 +1645,13 @@ function MahjongApp() {
             >
               New hand
             </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={leaveCurrentGame}
+            >
+              Leave game
+            </button>
           </section>
         </div>
       ) : null}
@@ -1607,31 +1703,39 @@ function MahjongApp() {
                 ) : null}
               </div>
             ) : null}
-            {winningPlayer ? <div className="score-breakdown">
-              <span
-                className="score-item"
-                tabIndex={0}
-                title="Points awarded for every completed Hu."
-              >
-                Base win: {rules.baseWin}
-                <small role="tooltip">Points awarded for every completed Hu.</small>
-              </span>
-              {game.winSummary.scoreItems.map((item) => (
+            {winningPlayer ? (
+              <div className="score-breakdown">
                 <span
                   className="score-item"
-                  key={`${item.name}-${item.points}`}
                   tabIndex={0}
-                  title={item.description}
+                  title="Points awarded for every completed Hu."
                 >
-                  {item.name}{item.multiplier > 1 ? ` x${item.multiplier}` : ""}: +{item.points}
-                  <small role="tooltip">{item.description}</small>
+                  Base win: {rules.baseWin}
+                  <small role="tooltip">
+                    Points awarded for every completed Hu.
+                  </small>
                 </span>
-              ))}
-            </div> : null}
-            {winningPlayer ? <div className="win-total">
-              <span>{game.winSummary.points} points</span>
-              <strong>+{game.winSummary.total} total</strong>
-            </div> : null}
+                {game.winSummary.scoreItems.map((item) => (
+                  <span
+                    className="score-item"
+                    key={`${item.name}-${item.points}`}
+                    tabIndex={0}
+                    title={item.description}
+                  >
+                    {item.name}
+                    {item.multiplier > 1 ? ` x${item.multiplier}` : ""}: +
+                    {item.points}
+                    <small role="tooltip">{item.description}</small>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {winningPlayer ? (
+              <div className="win-total">
+                <span>{game.winSummary.points} points</span>
+                <strong>+{game.winSummary.total} total</strong>
+              </div>
+            ) : null}
             <button
               className="full-width-button"
               type="button"

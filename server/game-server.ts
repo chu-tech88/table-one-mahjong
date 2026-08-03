@@ -68,7 +68,10 @@ function isHumanSeat(room: GameRoom, index: number) {
 
 function cleanPlayerName(value: unknown) {
   return (
-    String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 18) || "Player"
+    String(value ?? "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .slice(0, 18) || "Player"
   );
 }
 
@@ -308,10 +311,13 @@ wss.on("connection", (socket) => {
             player.discards.length > 0 &&
             msg.action.tileId !== room.game.drawnTileId
           ) {
-            socket.send(JSON.stringify({
-              type: "action-rejected",
-              reason: "After declaring ready, you must discard the tile just drawn",
-            } as ServerMessage));
+            socket.send(
+              JSON.stringify({
+                type: "action-rejected",
+                reason:
+                  "After declaring ready, you must discard the tile just drawn",
+              } as ServerMessage),
+            );
             return;
           }
         }
@@ -339,10 +345,12 @@ wss.on("connection", (socket) => {
 
         if (msg.action.type === "declare-ready") {
           if (!canDeclareReady(room.game, playerIndex, msg.action.tileId)) {
-            socket.send(JSON.stringify({
-              type: "action-rejected",
-              reason: "A ready declaration is not available for that discard",
-            } as ServerMessage));
+            socket.send(
+              JSON.stringify({
+                type: "action-rejected",
+                reason: "A ready declaration is not available for that discard",
+              } as ServerMessage),
+            );
             return;
           }
         }
@@ -366,10 +374,7 @@ wss.on("connection", (socket) => {
             );
             return;
           }
-          if (
-            msg.action.type === "claim" &&
-            room.game.pendingClaim.canHu
-          ) {
+          if (msg.action.type === "claim" && room.game.pendingClaim.canHu) {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
@@ -556,14 +561,16 @@ wss.on("connection", (socket) => {
                 Math.min(100, Number(action.rules.baseWin) || 0),
               ),
             };
-            nextGame.houseRules = action.houseRules.slice(0, 100).map((rule) => ({
-              ...rule,
-              id: String(rule.id).slice(0, 64),
-              name: String(rule.name).slice(0, 80),
-              description: String(rule.description).slice(0, 240),
-              points: Math.max(0, Math.min(100, Number(rule.points) || 0)),
-              enabled: Boolean(rule.enabled),
-            }));
+            nextGame.houseRules = action.houseRules
+              .slice(0, 100)
+              .map((rule) => ({
+                ...rule,
+                id: String(rule.id).slice(0, 64),
+                name: String(rule.name).slice(0, 80),
+                description: String(rule.description).slice(0, 240),
+                points: Math.max(0, Math.min(100, Number(rule.points) || 0)),
+                enabled: Boolean(rule.enabled),
+              }));
           }
 
           if (action.type === "new-hand") {
@@ -799,19 +806,22 @@ function playAITurnIfNeeded(roomId: string) {
   }
 }
 
-const roomCleanupTimer = setInterval(() => {
-  const cutoff = Date.now() - ROOM_RETENTION_MS;
-  rooms.forEach((room, id) => {
-    if (
-      room.lastActivity < cutoff &&
-      room.players.every((player) => player === null)
-    ) {
-      room.autoPlayAI.forEach((timer) => clearTimeout(timer));
-      rooms.delete(id);
-      console.log(`[Room] Expired inactive room ${id}`);
-    }
-  });
-}, 60 * 60 * 1000);
+const roomCleanupTimer = setInterval(
+  () => {
+    const cutoff = Date.now() - ROOM_RETENTION_MS;
+    rooms.forEach((room, id) => {
+      if (
+        room.lastActivity < cutoff &&
+        room.players.every((player) => player === null)
+      ) {
+        room.autoPlayAI.forEach((timer) => clearTimeout(timer));
+        rooms.delete(id);
+        console.log(`[Room] Expired inactive room ${id}`);
+      }
+    });
+  },
+  60 * 60 * 1000,
+);
 roomCleanupTimer.unref();
 
 // ============ STATS ============
