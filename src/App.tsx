@@ -263,16 +263,43 @@ function TableDiscardGrid({
     <div className="table-discard-grid" aria-label="Center discard area">
       {players.map((player, index) => {
         const relativeSeat = (index - selfIndex + 4) % 4;
+        const isSelf = index === selfIndex;
         return (
           <section
             className={`table-discard-lane discard-lane-${relativeSeat}`}
             key={`${player.name}-${index}`}
           >
-            <button type="button" onClick={() => onInspect(index)}>
-              <span>{index === selfIndex ? "You" : player.wind}</span>
-              <small>{player.discards.length}</small>
-            </button>
-            <DiscardRiver player={player} />
+            <div className="opponent-table-zone opponent-discard-zone">
+              <button
+                className="opponent-zone-header"
+                type="button"
+                onClick={() => onInspect(index)}
+              >
+                <span>{isSelf ? "Your discards" : `${player.wind} discards`}</span>
+                <small>{player.discards.length}</small>
+              </button>
+              <DiscardRiver player={player} />
+            </div>
+            {!isSelf ? (
+              <div
+                className="opponent-table-zone opponent-revealed-zone"
+                aria-label={`${player.name} revealed tiles`}
+              >
+                <button
+                  className="opponent-zone-header"
+                  type="button"
+                  onClick={() => onInspect(index)}
+                >
+                  <span>Revealed</span>
+                  <small>{player.flowers.length + player.melds.length}</small>
+                </button>
+                {player.flowers.length > 0 || player.melds.length > 0 ? (
+                  <SeatSets flowers={player.flowers} melds={player.melds} />
+                ) : (
+                  <span className="opponent-zone-empty">No open tiles</span>
+                )}
+              </div>
+            ) : null}
           </section>
         );
       })}
@@ -350,7 +377,6 @@ function Opponent({
         <span>{difficulties[player.difficulty]}</span>
         <span>{player.score} pts</span>
       </div>
-      <SeatSets flowers={player.flowers} melds={player.melds} />
       {reveal ? (
         <div
           className="compact-hand revealed-hand"

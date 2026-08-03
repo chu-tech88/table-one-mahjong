@@ -2548,13 +2548,43 @@ textarea {
 }
 
 .table-discard-lane {
-  gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(5px, 0.65vw, 9px);
   min-height: 0;
-  padding: 2px;
+  padding: 0;
+  overflow: visible;
+}
+
+.discard-lane-0 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.discard-lane-2 {
+  justify-self: center;
+  width: min(480px, 66vw);
+}
+
+.opponent-table-zone {
+  display: grid;
+  grid-template-rows: 22px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 70px;
+  max-height: 96px;
+  padding: 4px;
+  border: 1px solid rgba(218, 239, 224, 0.16);
+  border-radius: 6px;
+  background: rgba(4, 42, 18, 0.58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 12px rgba(0, 0, 0, 0.12);
   overflow: hidden;
 }
 
-.table-discard-lane > button {
+.opponent-revealed-zone {
+  border-color: rgba(241, 205, 69, 0.2);
+  background: rgba(6, 48, 20, 0.66);
+}
+
+.opponent-zone-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2570,14 +2600,64 @@ textarea {
   text-transform: uppercase;
 }
 
-.table-discard-lane > button:hover,
-.table-discard-lane > button:focus-visible {
+.opponent-zone-header:hover,
+.opponent-zone-header:focus-visible {
   color: #ffdb49;
 }
 
-.table-discard-lane > button small {
+.opponent-zone-header small {
   color: #9fc5ad;
   font-size: 0.6rem;
+}
+
+.opponent-zone-empty {
+  place-self: center;
+  color: rgba(211, 233, 218, 0.54);
+  font-size: 0.58rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.opponent-revealed-zone .seat-sets-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  padding: 2px 0 0;
+  border: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.opponent-revealed-zone .flower-row,
+.opponent-revealed-zone .meld-row {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.opponent-revealed-zone .meld {
+  flex: 0 0 auto;
+  gap: 1px;
+}
+
+.opponent-revealed-zone .meld > span {
+  font-size: 0.48rem;
+  line-height: 1;
+}
+
+.opponent-revealed-zone .meld div {
+  flex-wrap: nowrap;
+  gap: 2px;
+}
+
+.opponent-revealed-zone .flower-row .tile,
+.opponent-revealed-zone .meld .tile {
+  flex: 0 0 auto;
+  width: 27px;
+  height: 36px;
 }
 
 .discard-river {
@@ -3006,8 +3086,8 @@ textarea {
     gap: 3px;
   }
 
-  .table-discard-lane > button {
-    font-size: 0.52rem;
+  .opponent-zone-header {
+    font-size: 0.5rem;
   }
 
   .discard-river {
