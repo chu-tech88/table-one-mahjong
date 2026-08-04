@@ -28,6 +28,11 @@ assert.match(
   /\.human-seat \.seat-sets-row\s*\{[^}]*justify-content:\s*center;/s,
   "The human player's revealed sets must remain centered",
 );
+assert.match(
+  css,
+  /\.table\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*minmax\(520px, 880px\)[^}]*minmax\(0, 1fr\)/s,
+  "Wide tables must keep the play area centered within flexible outer margins",
+);
 
 const obsoleteContextOverrides = [
   ".human-hand .dot-pip",
