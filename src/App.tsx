@@ -27,6 +27,7 @@ import {
 } from "./game-logic/validation";
 import { canDeclareReady } from "./game-logic/flow";
 import { useGame } from "./hooks/useGame";
+import oneBambooBird from "./assets/one-bamboo-bird.png";
 
 // Component rendering stays exactly the same
 const DEFAULT_SERVER_URL =
@@ -95,15 +96,7 @@ function TileFace({ tile }: { tile: Tile }) {
     if (tile.rank === 1) {
       return (
         <span className="tile-face bamboo-bird-face" aria-hidden="true">
-          <i className="bird-perch" />
-          <i className="bird-tail" />
-          <i className="bird-wing bird-wing-left" />
-          <i className="bird-body" />
-          <i className="bird-head" />
-          <i className="bird-eye" />
-          <i className="bird-beak" />
-          <i className="bird-crest" />
-          <i className="bird-wing bird-wing-right" />
+          <img src={oneBambooBird} alt="" />
         </span>
       );
     }

@@ -33,6 +33,16 @@ assert.match(
   /\.table\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*minmax\(520px, 560px\)[^}]*minmax\(0, 1fr\)/s,
   "Wide tables must keep the play area centered within flexible outer margins",
 );
+assert.match(
+  css,
+  /\.tile \.dot-1\s*\{[^}]*grid-template-columns:\s*1fr;[^}]*grid-template-rows:\s*1fr;[^}]*padding:\s*0;/s,
+  "One dot must use a dedicated full-face centering grid",
+);
+assert.match(
+  css,
+  /\.tile \.bamboo-bird-face img\s*\{[^}]*object-fit:\s*cover;/s,
+  "One bamboo must use the supplied bird image as a fitted tile asset",
+);
 
 const obsoleteContextOverrides = [
   ".human-hand .dot-pip",
