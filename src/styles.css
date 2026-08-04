@@ -3167,16 +3167,23 @@ textarea {
 }
 
 .tile .bamboo-stick {
-  width: 60%;
-  height: 78%;
+  display: block;
+  align-self: stretch;
+  justify-self: center;
+  width: 42%;
+  height: auto;
   min-width: 0;
+  min-height: 0;
+  margin: 12% 0;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, transparent 42%, rgba(255, 255, 255, 0.62) 45% 56%, transparent 59%),
+    linear-gradient(180deg, #147d5b 0 44%, #e0473d 45% 55%, #147d5b 56% 100%);
+  box-shadow: 0 0 0 1px rgba(8, 83, 58, 0.2);
 }
 
 .tile .bamboo-stick b {
-  width: 72%;
-  height: 100%;
-  min-width: 0;
-  box-shadow: 0 0 0 max(1px, 1.5cqw) rgba(8, 83, 58, 0.2);
+  display: none;
 }
 
 .tile .character-face,

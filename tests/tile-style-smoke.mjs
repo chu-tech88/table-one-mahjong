@@ -43,6 +43,16 @@ assert.match(
   /\.tile \.bamboo-bird-face img\s*\{[^}]*object-fit:\s*cover;/s,
   "One bamboo must use the supplied bird image as a fitted tile asset",
 );
+assert.match(
+  css,
+  /\.tile \.bamboo-stick\s*\{[^}]*align-self:\s*stretch;[^}]*height:\s*auto;[^}]*linear-gradient\(180deg,/s,
+  "Numbered bamboo segments must paint directly onto a stretched grid item",
+);
+assert.match(
+  css,
+  /\.tile \.bamboo-stick b\s*\{[^}]*display:\s*none;/s,
+  "Numbered bamboo must not depend on nested percentage height sizing",
+);
 
 const obsoleteContextOverrides = [
   ".human-hand .dot-pip",
