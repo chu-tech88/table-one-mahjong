@@ -78,6 +78,33 @@ const flowerCharacters: Record<string, string> = {
   F8: "冬",
 };
 
+const bambooLayouts: Record<number, Array<[number, number]>> = {
+  2: [[35, 28], [65, 72]],
+  3: [[28, 24], [50, 50], [72, 76]],
+  4: [[32, 27], [68, 27], [32, 73], [68, 73]],
+  5: [[30, 24], [70, 24], [50, 50], [30, 76], [70, 76]],
+  6: [[34, 20], [66, 20], [34, 50], [66, 50], [34, 80], [66, 80]],
+  7: [[24, 19], [50, 19], [76, 19], [34, 50], [66, 50], [34, 81], [66, 81]],
+  8: [[34, 14], [66, 14], [34, 38], [66, 38], [34, 62], [66, 62], [34, 86], [66, 86]],
+  9: [[23, 18], [50, 18], [77, 18], [23, 50], [50, 50], [77, 50], [23, 82], [50, 82], [77, 82]],
+};
+
+function BambooFace({ rank }: { rank: number }) {
+  return (
+    <span className="tile-face bamboo-svg-face" aria-hidden="true">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+        {bambooLayouts[rank].map(([x, y], index) => (
+          <g key={`${x}-${y}-${index}`} transform={`translate(${x} ${y})`}>
+            <rect x="-5" y="-12" width="10" height="24" rx="5" fill="#147d5b" />
+            <rect x="-5" y="-2" width="10" height="4" fill="#d7433f" />
+            <path d="M0 -10 V10" stroke="#eff8e9" strokeWidth="1.5" opacity="0.65" />
+          </g>
+        ))}
+      </svg>
+    </span>
+  );
+}
+
 function TileFace({ tile }: { tile: Tile }) {
   if (tile.suit === "dots") {
     return (
@@ -100,18 +127,7 @@ function TileFace({ tile }: { tile: Tile }) {
         </span>
       );
     }
-    return (
-      <span
-        className={`tile-face bamboo-face bamboo-${tile.rank}`}
-        aria-hidden="true"
-      >
-        {Array.from({ length: tile.rank }, (_, index) => (
-          <i className="bamboo-stick" key={index}>
-            <b />
-          </i>
-        ))}
-      </span>
-    );
+    return <BambooFace rank={tile.rank} />;
   }
 
   if (tile.suit === "characters") {

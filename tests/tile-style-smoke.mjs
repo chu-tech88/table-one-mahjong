@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const css = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
+const app = await readFile(new URL("../src/App.tsx", import.meta.url), "utf8");
 
 assert.match(
   css,
@@ -52,6 +53,21 @@ assert.match(
   css,
   /\.tile \.bamboo-stick b\s*\{[^}]*display:\s*none;/s,
   "Numbered bamboo must not depend on nested percentage height sizing",
+);
+assert.match(
+  app,
+  /function BambooFace[\s\S]*<svg viewBox="0 0 100 100"[\s\S]*<rect[^>]*fill="#147d5b"/,
+  "Numbered bamboo must render as Safari-safe inline SVG artwork",
+);
+assert.match(
+  css,
+  /\.discard-lane-0\s*\{[^}]*width:\s*var\(--info-zone-width\);/s,
+  "The human discard pile must share the opponent information width",
+);
+assert.match(
+  css,
+  /@media \(max-width: 760px\)[\s\S]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"center center center"\s*"left \. right"/,
+  "Mobile side opponents must appear below the top opponent information",
 );
 
 const obsoleteContextOverrides = [

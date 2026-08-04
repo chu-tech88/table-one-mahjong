@@ -2091,6 +2091,7 @@ textarea {
   --hand-tile-h: clamp(52px, 5.8vw, 100px);
   --river-tile-w: clamp(28px, 2.15vw, 38px);
   --river-tile-h: clamp(38px, 2.95vw, 52px);
+  --info-zone-width: clamp(210px, 18vw, 260px);
   grid-template-areas:
     "toolbar toolbar toolbar toolbar toolbar"
     ". . top . ."
@@ -2234,7 +2235,7 @@ textarea {
   display: grid;
   grid-template-rows: minmax(68px, 96px) minmax(68px, 96px);
   gap: 7px;
-  width: min(100%, 280px);
+  width: min(100%, var(--info-zone-width));
   min-height: 0;
 }
 
@@ -2412,11 +2413,14 @@ textarea {
 
 .discard-lane-0 {
   grid-template-columns: minmax(0, 1fr);
+  justify-self: center;
+  width: var(--info-zone-width);
 }
 
 .discard-lane-2 {
+  grid-template-columns: repeat(2, var(--info-zone-width));
   justify-self: center;
-  width: min(480px, 66vw);
+  width: max-content;
 }
 
 .opponent-table-zone {
@@ -2813,6 +2817,7 @@ textarea {
     --hand-tile-h: clamp(46px, 5.9vw, 72px);
     --river-tile-w: clamp(25px, 2.8vw, 32px);
     --river-tile-h: clamp(34px, 3.75vw, 44px);
+    --info-zone-width: clamp(142px, 20vw, 210px);
     grid-template-areas:
       "toolbar toolbar toolbar toolbar toolbar"
       ". . top . ."
@@ -2865,13 +2870,15 @@ textarea {
     --hand-tile-h: clamp(28px, 7.05vw, 42px);
     --river-tile-w: clamp(21px, 6vw, 28px);
     --river-tile-h: clamp(29px, 8.1vw, 38px);
+    --info-zone-width: calc((100vw - 15px) / 3);
     grid-template-areas:
       "toolbar toolbar toolbar"
-      "left top right"
+      "top top top"
       "center center center"
+      "left . right"
       "human human human";
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: 44px 176px minmax(0, 1fr) clamp(202px, 27svh, 228px);
+    grid-template-rows: 44px 54px minmax(0, 1fr) 176px clamp(202px, 27svh, 228px);
     gap: 3px;
     padding: 5px 5px 8px;
   }
@@ -3184,6 +3191,24 @@ textarea {
 
 .tile .bamboo-stick b {
   display: none;
+}
+
+.tile .bamboo-svg-face {
+  inset: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: calc(100% - var(--tile-base-depth));
+  padding: 7% 9% 5%;
+  box-sizing: border-box;
+  transform: none;
+}
+
+.tile .bamboo-svg-face svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
 .tile .character-face,
