@@ -30,7 +30,7 @@ assert.match(
 );
 assert.match(
   css,
-  /\.table\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*minmax\(520px, 880px\)[^}]*minmax\(0, 1fr\)/s,
+  /\.table\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*minmax\(520px, 560px\)[^}]*minmax\(0, 1fr\)/s,
   "Wide tables must keep the play area centered within flexible outer margins",
 );
 
