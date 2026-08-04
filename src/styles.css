@@ -1141,68 +1141,10 @@ textarea {
   border-bottom-width: 7px;
 }
 
-.human-hand .dot-pip {
-  width: 11px;
-  height: 11px;
-}
-
-.human-hand .dot-1 .dot-pip {
-  width: 21px;
-  height: 23px;
-}
-
-.human-hand .bamboo-stick {
-  min-width: 9px;
-  height: 18px;
-}
-
-.human-hand .bamboo-stick b {
-  width: 7px;
-  height: 18px;
-}
-
-.human-hand .bamboo-1 .bamboo-stick {
-  height: 24px;
-  transform: scale(1.85);
-}
-
-.human-hand .bamboo-1 .bamboo-stick b {
-  height: 24px;
-}
-
 .discard-river .tile {
   width: clamp(30px, 2.35vw, 42px);
   height: clamp(42px, 3.25vw, 58px);
   border-bottom-width: 3px;
-}
-
-.discard-river .dot-pip {
-  width: 7px;
-  height: 7px;
-}
-
-.discard-river .dot-1 .dot-pip {
-  width: 14px;
-  height: 16px;
-}
-
-.discard-river .bamboo-stick {
-  min-width: 6px;
-  height: 13px;
-}
-
-.discard-river .bamboo-stick b {
-  width: 5px;
-  height: 13px;
-}
-
-.discard-river .bamboo-1 .bamboo-stick {
-  height: 17px;
-  transform: scale(1.5);
-}
-
-.discard-river .bamboo-1 .bamboo-stick b {
-  height: 17px;
 }
 
 .dot-face,
@@ -1662,99 +1604,6 @@ textarea {
   font-size: 0.7rem;
 }
 
-.human-hand .character-face b,
-.discard-river .character-face b {
-  font-size: 1.46rem;
-}
-
-.human-hand .character-face em,
-.discard-river .character-face em {
-  font-size: 1.08rem;
-}
-
-.human-hand .honor-face,
-.discard-river .honor-face {
-  font-size: 2.08rem;
-}
-
-.human-hand .dragon-3,
-.discard-river .dragon-3 {
-  font-size: 1.82rem;
-}
-
-.human-hand .flower-face b,
-.discard-river .flower-face b {
-  font-size: 1.36rem;
-}
-
-.human-hand .flower-face em,
-.discard-river .flower-face em {
-  font-size: 0.8rem;
-}
-
-.tile.large .dot-face,
-.tile.large .bamboo-face {
-  padding: 13px 11px;
-  gap: 2px;
-}
-
-.tile.large .dot-pip {
-  width: 17px;
-  height: 17px;
-}
-
-.tile.large .dot-1 .dot-pip {
-  width: 31px;
-  height: 34px;
-}
-
-.tile.large .bamboo-stick {
-  min-width: 14px;
-  height: 28px;
-}
-
-.tile.large .bamboo-stick b {
-  width: 11px;
-  height: 28px;
-}
-
-.tile.large .bamboo-1 .bamboo-stick {
-  height: 36px;
-  transform: scale(1.9);
-}
-
-.tile.large .bamboo-1 .bamboo-stick b {
-  height: 36px;
-}
-
-.tile.large .character-face {
-  padding: 15px 8px 12px;
-}
-
-.tile.large .character-face b {
-  font-size: 2.3rem;
-}
-
-.tile.large .character-face em {
-  font-size: 1.72rem;
-}
-
-.tile.large .honor-face {
-  font-size: 3.2rem;
-}
-
-.tile.large .dragon-3 {
-  font-size: 2.72rem;
-}
-
-.tile.large .flower-face b {
-  font-size: 2.16rem;
-}
-
-.tile.large .flower-face em {
-  font-size: 1.12rem;
-}
-
 .meld {
   display: grid;
   gap: 3px;
@@ -2078,35 +1927,6 @@ textarea {
 
 .full-width-button {
   width: 100%;
-}
-
-.meld .dot-pip {
-  width: 5px;
-  height: 5px;
-}
-
-.meld .bamboo-stick {
-  min-width: 4px;
-  height: 9px;
-}
-
-.meld .bamboo-stick b {
-  width: 3px;
-  height: 9px;
-}
-
-.meld .character-face b,
-.meld .flower-face b {
-  font-size: 0.9rem;
-}
-
-.meld .character-face em {
-  font-size: 0.68rem;
-}
-
-.meld .honor-face,
-.meld .dragon-face {
-  font-size: 1.12rem;
 }
 
 @media (max-width: 1050px) {
@@ -3179,102 +2999,10 @@ textarea {
     margin-left: -2px;
   }
 
-  .table .tile:not(.large) .dot-pip {
-    width: 4px;
-    height: 4px;
-  }
-
-  .table .tile:not(.large) .dot-1 .dot-pip {
-    width: 9px;
-    height: 10px;
-  }
-
-  .table .tile:not(.large) .bamboo-stick,
-  .table .tile:not(.large) .bamboo-stick b {
-    min-width: 3px;
-    width: 3px;
-    height: 7px;
-  }
-
-  .table .tile:not(.large) .character-face {
-    padding: 3px 2px;
-  }
-
-  .table .tile:not(.large) .character-face b,
-  .table .tile:not(.large) .flower-face b {
-    font-size: 0.68rem;
-  }
-
-  .table .tile:not(.large) .character-face em,
-  .table .tile:not(.large) .flower-face em {
-    font-size: 0.5rem;
-  }
-
-  .table .tile:not(.large) .honor-face {
-    font-size: 0.92rem;
-  }
-
-  .table .tile:not(.large) .dragon-3 {
-    font-size: 0.78rem;
-    border-width: 1px;
-  }
-
-  .table .tile:not(.large) .bamboo-bird-face i {
-    border-width: 1px;
-  }
-
-  .table .tile.large .dot-pip {
-    width: 7px;
-    height: 7px;
-  }
-
-  .table .tile.large .character-face b {
-    font-size: 1.15rem;
-  }
-
-  .table .tile.large .character-face em {
-    font-size: 0.82rem;
-  }
-
-  .table .tile.large .honor-face {
-    font-size: 1.55rem;
-  }
-
   .modal-backdrop .tile:not(.large) {
     width: 28px;
     height: 38px;
     border-bottom-width: 3px;
-  }
-
-  .modal-backdrop .tile:not(.large) .dot-pip {
-    width: 5px;
-    height: 5px;
-  }
-
-  .modal-backdrop .tile:not(.large) .dot-1 .dot-pip {
-    width: 10px;
-    height: 11px;
-  }
-
-  .modal-backdrop .tile:not(.large) .bamboo-stick,
-  .modal-backdrop .tile:not(.large) .bamboo-stick b {
-    min-width: 3px;
-    width: 3px;
-    height: 8px;
-  }
-
-  .modal-backdrop .tile:not(.large) .character-face b,
-  .modal-backdrop .tile:not(.large) .flower-face b {
-    font-size: 0.78rem;
-  }
-
-  .modal-backdrop .tile:not(.large) .character-face em,
-  .modal-backdrop .tile:not(.large) .flower-face em {
-    font-size: 0.56rem;
-  }
-
-  .modal-backdrop .tile:not(.large) .honor-face {
-    font-size: 1.05rem;
   }
 
   .hand-actions {
@@ -3310,4 +3038,134 @@ textarea {
     padding-left: 0;
     border-left: 0;
   }
+}
+
+/* Tile artwork uses the tile itself as its coordinate system in every view. */
+.tile {
+  --tile-base-depth: max(3px, 8cqw);
+  container-type: inline-size;
+}
+
+.tile > .tile-face {
+  inset: 0 0 auto;
+  width: 100%;
+  height: calc(100% - var(--tile-base-depth));
+  box-sizing: border-box;
+  transform: none;
+}
+
+.tile .dot-face,
+.tile .bamboo-face {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  place-items: center;
+  gap: 2cqw;
+  padding: 11cqw 10cqw 9cqw;
+}
+
+.tile .dot-pip {
+  width: 72%;
+  height: auto;
+  min-width: 0;
+  aspect-ratio: 1;
+  border-width: max(1px, 2.5cqw);
+  box-sizing: border-box;
+}
+
+.tile .dot-1 .dot-pip {
+  width: 48%;
+  height: auto;
+}
+
+.tile .bamboo-stick {
+  width: 60%;
+  height: 78%;
+  min-width: 0;
+}
+
+.tile .bamboo-stick b {
+  width: 72%;
+  height: 100%;
+  min-width: 0;
+  box-shadow: 0 0 0 max(1px, 1.5cqw) rgba(8, 83, 58, 0.2);
+}
+
+.tile .character-face,
+.tile .honor-face,
+.tile .flower-face {
+  inset: 0 0 auto;
+  width: 100%;
+  height: calc(100% - var(--tile-base-depth));
+  padding: 7cqw 5cqw 5cqw;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-sizing: border-box;
+  transform: none;
+}
+
+.tile .character-face {
+  grid-template-rows: minmax(0, 1.05fr) minmax(0, 0.8fr);
+}
+
+.tile .character-face b {
+  font-size: 52cqw;
+  line-height: 0.95;
+}
+
+.tile .character-face em {
+  font-size: 34cqw;
+  line-height: 0.9;
+}
+
+.tile .honor-face {
+  font-size: 68cqw;
+  line-height: 1;
+}
+
+.tile .dragon-3 {
+  inset: 50% auto auto 50%;
+  width: 72%;
+  height: 66%;
+  padding: 0;
+  border: max(1px, 4cqw) solid currentColor;
+  border-radius: 8cqw;
+  font-size: 45cqw;
+  transform: translate(-50%, -56%);
+}
+
+.tile .flower-face {
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: 8cqw 5cqw 7cqw;
+}
+
+.tile .flower-face b {
+  font-size: 46cqw;
+  line-height: 0.95;
+}
+
+.tile .flower-face em {
+  font-size: 25cqw;
+  line-height: 1;
+}
+
+.tile .bamboo-bird-face {
+  inset: 50% auto auto 50%;
+  width: 78%;
+  height: calc(78% - var(--tile-base-depth));
+  transform: translate(-50%, -53%);
+}
+
+.tile .bamboo-bird-face i {
+  border-width: max(1px, 4cqw);
+}
+
+.opponent-discard-zone .discard-river {
+  flex-wrap: nowrap;
+  align-content: initial;
+  align-items: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
