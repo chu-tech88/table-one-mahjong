@@ -27,6 +27,7 @@ type UseNetworkedGameReturn = {
   updatePlayerName: (playerIndex: number, name: string) => void;
   updateDifficulty: (playerIndex: number, difficulty: Difficulty) => void;
   newHand: (dealer?: number, resetGame?: boolean) => void;
+  readyNextHand: () => void;
 };
 
 /**
@@ -259,6 +260,9 @@ export function useNetworkedGame(
     clientRef.current.newHand(dealer, resetGame);
     setSelectedTileId(undefined);
   }, []);
+  const readyNextHand = useCallback(() => {
+    clientRef.current?.readyNextHand();
+  }, []);
 
   return {
     game,
@@ -284,5 +288,6 @@ export function useNetworkedGame(
     updatePlayerName,
     updateDifficulty,
     newHand,
+    readyNextHand,
   };
 }

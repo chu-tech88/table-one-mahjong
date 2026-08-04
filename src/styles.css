@@ -2096,7 +2096,7 @@ textarea {
     ". top ."
     "left center right"
     "human human human";
-  grid-template-columns: clamp(116px, 10vw, 170px) minmax(0, 1fr) clamp(116px, 10vw, 170px);
+  grid-template-columns: clamp(190px, 21vw, 320px) minmax(0, 1fr) clamp(190px, 21vw, 320px);
   grid-template-rows: clamp(54px, 6.5svh, 68px) clamp(74px, 9svh, 102px) minmax(0, 1fr) clamp(214px, 28svh, 306px);
   gap: clamp(3px, 0.45vw, 8px);
   padding: clamp(7px, 0.8vw, 14px) clamp(10px, 1.4vw, 26px) clamp(10px, 1.4svh, 18px);
@@ -2211,6 +2211,30 @@ textarea {
 .opponent-right {
   align-self: center;
   width: 100%;
+  max-height: 100%;
+  justify-content: center;
+}
+
+.opponent-left .seat-heading,
+.opponent-right .seat-heading {
+  width: min(100%, 280px);
+}
+
+.opponent-left .seat-meta,
+.opponent-right .seat-meta {
+  display: none;
+}
+
+.side-opponent-stack {
+  display: grid;
+  grid-template-rows: minmax(68px, 96px) minmax(68px, 96px);
+  gap: 7px;
+  width: min(100%, 280px);
+  min-height: 0;
+}
+
+.side-opponent-stack .opponent-table-zone {
+  max-height: none;
 }
 
 .opponent .seat-heading,
@@ -2253,7 +2277,7 @@ textarea {
   flex-wrap: nowrap;
 }
 
-.opponent .seat-badges span:not(.dealer-badge):not(.ready-badge):not(.identity-badge) {
+.opponent .seat-badges span:not(.dealer-badge):not(.ready-badge):not(.identity-badge):not(.score-badge) {
   display: none;
 }
 
@@ -2275,6 +2299,11 @@ textarea {
 }
 
 .opponent .seat-meta span:first-child {
+  display: none;
+}
+
+.opponent-left .seat-meta,
+.opponent-right .seat-meta {
   display: none;
 }
 
@@ -2544,6 +2573,20 @@ textarea {
   width: min(1180px, 100%);
   max-height: none;
   height: 100%;
+  justify-content: center;
+  margin-inline: auto;
+}
+
+.human-seat .flower-row,
+.human-seat .meld-row {
+  justify-content: center;
+}
+
+.next-hand-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-align: center;
 }
 
 .human-hand {
@@ -2765,7 +2808,7 @@ textarea {
     --hand-tile-h: clamp(46px, 5.9vw, 72px);
     --river-tile-w: clamp(25px, 2.8vw, 32px);
     --river-tile-h: clamp(34px, 3.75vw, 44px);
-    grid-template-columns: 92px minmax(0, 1fr) 92px;
+    grid-template-columns: clamp(142px, 20vw, 210px) minmax(0, 1fr) clamp(142px, 20vw, 210px);
     grid-template-rows: 54px 72px minmax(0, 1fr) clamp(202px, 29svh, 244px);
     padding-inline: 10px;
   }
@@ -2808,7 +2851,7 @@ textarea {
       "center center center"
       "human human human";
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: 44px 58px minmax(0, 1fr) clamp(202px, 27svh, 228px);
+    grid-template-rows: 44px 176px minmax(0, 1fr) clamp(202px, 27svh, 228px);
     gap: 3px;
     padding: 5px 5px 8px;
   }
@@ -2889,6 +2932,22 @@ textarea {
 
   .opponent .seat-meta {
     font-size: 0.56rem;
+  }
+
+  .side-opponent-stack {
+    grid-template-rows: minmax(54px, 70px) minmax(54px, 70px);
+    gap: 3px;
+  }
+
+  .opponent-left,
+  .opponent-right {
+    align-self: stretch;
+    justify-content: start;
+  }
+
+  .opponent-left .seat-heading,
+  .opponent-right .seat-heading {
+    min-height: 24px;
   }
 
   .opponent .seat-sets-row {

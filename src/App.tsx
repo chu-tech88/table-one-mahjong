@@ -267,6 +267,7 @@ function TableDiscardGrid({
       {players.map((player, index) => {
         const relativeSeat = (index - selfIndex + 4) % 4;
         const isSelf = index === selfIndex;
+        if (relativeSeat === 1 || relativeSeat === 3) return null;
         return (
           <section
             className={`table-discard-lane discard-lane-${relativeSeat}`}
@@ -359,6 +360,8 @@ function Opponent({
   position: "left" | "top" | "right";
   onInspect: () => void;
 }) {
+  const isSideSeat = position === "left" || position === "right";
+  const revealedCount = player.flowers.length + player.melds.length;
   return (
     <section
       className={`opponent opponent-${position} ${active ? "active" : ""} ${dealer ? "dealer-seat" : ""}`}
@@ -375,6 +378,9 @@ function Opponent({
           <span className="identity-badge">
             {player.controller === "human" ? "Human" : "AI"}
           </span>
+          {isSideSeat ? (
+            <span className="score-badge">{player.score} pts</span>
+          ) : null}
           <span>{player.wind}</span>
         </div>
       </button>
@@ -382,6 +388,39 @@ function Opponent({
         <span>{difficulties[player.difficulty]}</span>
         <span>{player.score} pts</span>
       </div>
+      {isSideSeat ? (
+        <div className="side-opponent-stack">
+          <div className="opponent-table-zone opponent-discard-zone">
+            <button
+              className="opponent-zone-header"
+              type="button"
+              onClick={onInspect}
+            >
+              <span>Discards</span>
+              <small>{player.discards.length}</small>
+            </button>
+            <DiscardRiver player={player} />
+          </div>
+          <div
+            className="opponent-table-zone opponent-revealed-zone"
+            aria-label={`${player.name} revealed tiles`}
+          >
+            <button
+              className="opponent-zone-header"
+              type="button"
+              onClick={onInspect}
+            >
+              <span>Revealed</span>
+              <small>{revealedCount}</small>
+            </button>
+            {revealedCount > 0 ? (
+              <SeatSets flowers={player.flowers} melds={player.melds} />
+            ) : (
+              <span className="opponent-zone-empty">No open tiles</span>
+            )}
+          </div>
+        </div>
+      ) : null}
       {reveal ? (
         <div
           className="compact-hand revealed-hand"
@@ -597,6 +636,7 @@ function MahjongApp() {
     updatePlayerName,
     updateDifficulty,
     newHand,
+    readyNextHand,
   } = gameHook;
   const SELF = connection.playerIndex;
   const leftSeat = (SELF + 1) % 4;
@@ -737,7 +777,11 @@ function MahjongApp() {
       ? "Your turn - choose an action"
       : activityIsTurnCall && activity.player === SELF
         ? "Your turn"
-        : activity.text;
+        : playMode === "online" &&
+            currentPhase === "claim" &&
+            currentClaimer !== undefined
+          ? `${seatName(currentClaimer)} is waiting to discard.`
+          : activity.text;
   const centerStatusLabel =
     !activity.tile && showYourTurnInCenter
       ? "Your turn"
@@ -1739,10 +1783,30 @@ function MahjongApp() {
             <button
               className="full-width-button"
               type="button"
-              onClick={() => newHand(nextDealer, false)}
+              disabled={
+                playMode === "online" &&
+                (game.nextHandReady?.includes(SELF) ?? false)
+              }
+              onClick={() => {
+                if (playMode === "online") {
+                  readyNextHand();
+                } else {
+                  newHand(nextDealer, false);
+                }
+              }}
             >
-              Next Hand
+              {playMode === "online" &&
+              (game.nextHandReady?.includes(SELF) ?? false)
+                ? "Waiting for other players..."
+                : "Next Hand"}
             </button>
+            {playMode === "online" ? (
+              <p className="next-hand-status" aria-live="polite">
+                {game.nextHandReady?.includes(SELF)
+                  ? `${game.nextHandReady.length} of ${game.nextHandRequired?.length ?? 1} players ready. Waiting for everyone else to click Next Hand.`
+                  : "The next hand begins after every player clicks Next Hand."}
+              </p>
+            ) : null}
           </section>
         </div>
       ) : null}

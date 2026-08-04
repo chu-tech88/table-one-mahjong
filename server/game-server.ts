@@ -81,6 +81,84 @@ function syncControllers(room: GameRoom) {
   });
 }
 
+function connectedSeats(room: GameRoom) {
+  return room.players
+    .map((player, index) => (isOpenSocket(player ?? null) ? index : -1))
+    .filter((index) => index >= 0);
+}
+
+function gameForPlayer(game: Game, recipient: number) {
+  if (
+    game.phase !== "claim" ||
+    !game.pendingClaim ||
+    game.pendingClaim.claimer === recipient
+  ) {
+    return game;
+  }
+
+  const visible = structuredCloneGame(game);
+  const claimant = visible.pendingClaim?.claimer ?? visible.turn;
+  const claimantName =
+    visible.players[claimant]?.name || `Player ${claimant + 1}`;
+  visible.pendingClaim = undefined;
+  visible.message = `${claimantName} is waiting to discard.`;
+  visible.activity = {
+    player: claimant,
+    text: `${claimantName} is waiting to discard.`,
+  };
+  return visible;
+}
+
+function sendGameState(socket: WebSocket, game: Game, recipient: number) {
+  socket.send(
+    JSON.stringify({
+      type: "game-state-update",
+      game: gameForPlayer(game, recipient),
+    } as ServerMessage),
+  );
+}
+
+function broadcastGame(room: GameRoom) {
+  room.players.forEach((player, index) => {
+    if (isOpenSocket(player)) sendGameState(player, room.game, index);
+  });
+}
+
+function dealNextHand(game: Game) {
+  const dealer = nextDealerForRound(game);
+  return dealRound(
+    dealer,
+    game.players.map((player) => player.score),
+    nextRoundNumber(game),
+    game.players,
+    game.tableId,
+    game.rules,
+    game.houseRules,
+    nextDealerStreak(game),
+  );
+}
+
+function markReadyForNextHand(room: GameRoom, readyPlayer: number) {
+  const required = connectedSeats(room);
+  const ready = Array.from(
+    new Set([...(room.game.nextHandReady ?? []), readyPlayer]),
+  ).filter((index) => required.includes(index));
+
+  if (required.length > 0 && required.every((index) => ready.includes(index))) {
+    return dealNextHand(room.game);
+  }
+
+  const next = structuredCloneGame(room.game);
+  next.nextHandReady = ready;
+  next.nextHandRequired = required;
+  next.message = "Waiting for all players to continue.";
+  next.activity = {
+    player: readyPlayer,
+    text: "Waiting for all players to continue.",
+  };
+  return next;
+}
+
 function getMimeType(filePath: string) {
   return (
     MIME_TYPES[extname(filePath).toLowerCase()] ?? "application/octet-stream"
@@ -225,23 +303,7 @@ wss.on("connection", (socket) => {
         room.game.players[playerIndex].name = cleanPlayerName(msg.playerName);
         syncControllers(room);
 
-        // Send current game state to joining player
-        socket.send(
-          JSON.stringify({
-            type: "game-state-update",
-            game: room.game,
-          } as ServerMessage),
-        );
-        room.players.forEach((player) => {
-          if (isOpenSocket(player) && player !== socket) {
-            player.send(
-              JSON.stringify({
-                type: "game-state-update",
-                game: room.game,
-              } as ServerMessage),
-            );
-          }
-        });
+        broadcastGame(room);
 
         console.log(`[Room] Player ${playerIndex} joined room ${roomId}`);
 
@@ -432,6 +494,19 @@ wss.on("connection", (socket) => {
           }
         }
 
+        if (
+          msg.action.type === "ready-next-hand" &&
+          room.game.phase !== "round-over"
+        ) {
+          socket.send(
+            JSON.stringify({
+              type: "action-rejected",
+              reason: "The current hand is not complete",
+            } as ServerMessage),
+          );
+          return;
+        }
+
         let nextGame: Game | null = null;
         const action = msg.action;
 
@@ -600,6 +675,9 @@ wss.on("connection", (socket) => {
               );
             }
           }
+          if (action.type === "ready-next-hand") {
+            nextGame = markReadyForNextHand(room, playerIndex);
+          }
 
           if (!nextGame) {
             throw new Error("Invalid action");
@@ -609,17 +687,7 @@ wss.on("connection", (socket) => {
           room.game = nextGame;
 
           // -------- BROADCAST TO ALL PLAYERS --------
-          room.players.forEach((player) => {
-            if (isOpenSocket(player)) {
-              // 1 = OPEN
-              player.send(
-                JSON.stringify({
-                  type: "game-state-update",
-                  game: nextGame,
-                } as ServerMessage),
-              );
-            }
-          });
+          broadcastGame(room);
 
           // -------- TRIGGER AI TURN (IF NEEDED) --------
           setTimeout(() => playAITurnIfNeeded(roomId), 1500);
@@ -637,12 +705,7 @@ wss.on("connection", (socket) => {
       if (msg.type === "request-state") {
         const room = rooms.get(roomId);
         if (room && room.players[playerIndex] === socket) {
-          socket.send(
-            JSON.stringify({
-              type: "game-state-update",
-              game: room.game,
-            } as ServerMessage),
-          );
+          sendGameState(socket, room.game, playerIndex);
         } else {
           socket.send(
             JSON.stringify({
@@ -674,6 +737,25 @@ wss.on("connection", (socket) => {
         room.players[playerIndex] = null;
         syncControllers(room);
 
+        if (room.game.phase === "round-over" && room.game.nextHandReady) {
+          const required = connectedSeats(room);
+          const ready = room.game.nextHandReady.filter((index) =>
+            required.includes(index),
+          );
+          if (
+            required.length > 0 &&
+            required.every((index) => ready.includes(index))
+          ) {
+            room.game = dealNextHand(room.game);
+          } else {
+            room.game = {
+              ...room.game,
+              nextHandReady: ready,
+              nextHandRequired: required,
+            };
+          }
+        }
+
         // Broadcast disconnection to others
         room.players.forEach((player) => {
           if (isOpenSocket(player)) {
@@ -684,14 +766,9 @@ wss.on("connection", (socket) => {
                 playerIndex,
               } as ServerMessage),
             );
-            player.send(
-              JSON.stringify({
-                type: "game-state-update",
-                game: room.game,
-              } as ServerMessage),
-            );
           }
         });
+        broadcastGame(room);
 
         // Clean up AI timers for this player
         if (room.autoPlayAI.has(playerIndex)) {
@@ -738,16 +815,7 @@ function playAITurnIfNeeded(roomId: string) {
         (index) => isHumanSeat(room, index),
       );
       room.game = nextGame;
-      room.players.forEach((p) => {
-        if (isOpenSocket(p)) {
-          p.send(
-            JSON.stringify({
-              type: "game-state-update",
-              game: nextGame,
-            } as ServerMessage),
-          );
-        }
-      });
+      broadcastGame(room);
       setTimeout(() => playAITurnIfNeeded(roomId), 1500);
     }
     return;
@@ -787,17 +855,7 @@ function playAITurnIfNeeded(roomId: string) {
     room.game = nextGame;
 
     // Broadcast
-    room.players.forEach((p) => {
-      if (isOpenSocket(p)) {
-        // 1 = OPEN
-        p.send(
-          JSON.stringify({
-            type: "game-state-update",
-            game: nextGame,
-          } as ServerMessage),
-        );
-      }
-    });
+    broadcastGame(room);
 
     // Continue if another AI turn is needed
     setTimeout(() => playAITurnIfNeeded(roomId), 1500);

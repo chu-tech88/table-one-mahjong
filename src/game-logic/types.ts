@@ -209,6 +209,8 @@ export type Game = {
   handResult?: "win" | "draw";
   winner?: number;
   winSummary?: WinSummary;
+  nextHandReady?: number[];
+  nextHandRequired?: number[];
   rules: Rules;
   houseRules: HouseRule[];
 };

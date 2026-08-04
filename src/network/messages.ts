@@ -37,6 +37,7 @@ export type PlayerAction =
   | { type: "update-player-name"; playerIndex: number; name: string }
   | { type: "update-difficulty"; playerIndex: number; difficulty: Difficulty }
   | { type: "update-table-rules"; rules: Rules; houseRules: HouseRule[] }
+  | { type: "ready-next-hand" }
   | { type: "new-hand"; dealer?: number; resetGame?: boolean };
 
 export type RequestStateMessage = {

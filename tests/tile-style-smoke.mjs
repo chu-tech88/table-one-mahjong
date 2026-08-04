@@ -18,6 +18,16 @@ assert.match(
   /\.opponent-discard-zone \.discard-river\s*\{[^}]*flex-wrap:\s*nowrap;/s,
   "Opponent discard rivers must stay in one scrollable row",
 );
+assert.match(
+  css,
+  /\.side-opponent-stack\s*\{[^}]*grid-template-rows:[^}]*minmax\([^}]*minmax\(/s,
+  "Side opponents must stack discard and revealed zones vertically",
+);
+assert.match(
+  css,
+  /\.human-seat \.seat-sets-row\s*\{[^}]*justify-content:\s*center;/s,
+  "The human player's revealed sets must remain centered",
+);
 
 const obsoleteContextOverrides = [
   ".human-hand .dot-pip",

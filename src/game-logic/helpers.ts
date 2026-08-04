@@ -88,6 +88,10 @@ export function structuredCloneGame(game: Game): Game {
     activity: game.activity ? { ...game.activity } : undefined,
     declaredReady: game.declaredReady ? [...game.declaredReady] : undefined,
     settledBonuses: game.settledBonuses ? [...game.settledBonuses] : undefined,
+    nextHandReady: game.nextHandReady ? [...game.nextHandReady] : undefined,
+    nextHandRequired: game.nextHandRequired
+      ? [...game.nextHandRequired]
+      : undefined,
     actionLog: [...game.actionLog],
     rules: { ...game.rules },
     houseRules: game.houseRules.map((rule) => ({ ...rule })),

@@ -308,6 +308,10 @@ export class GameClient {
     });
   }
 
+  readyNextHand() {
+    this.sendAction({ type: "ready-next-hand" });
+  }
+
   kong(code: string, concealed: boolean) {
     this.sendAction({ type: "kong", code, concealed });
   }
