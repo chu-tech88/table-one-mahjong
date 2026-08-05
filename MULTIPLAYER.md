@@ -6,9 +6,10 @@ Multiplayer is fully active and supports up to 4 real human players in the same 
 
 - server-authoritative game state and validation
 - one client connection per occupied seat
-- seat conflict rejection on join
+- random server-authoritative seat assignment
+- saved-seat reconnection and seat conflict rejection
 - pre-join lobby seat availability API
-- occupied seats hidden in seat selection UI
+- full-room protection in the lobby
 
 ## Run Locally
 
@@ -35,9 +36,9 @@ npm run dev
 ## Join Flow
 
 1. Enter a room ID.
-2. Pick a seat from the available seat list.
-3. Join is rejected if another player took the same seat first.
-4. The lobby refreshes occupancy and hides seats already taken.
+2. Join the room; the server randomly assigns an available seat.
+3. A saved session requests its previous seat when reconnecting.
+4. The lobby refreshes occupancy and prevents joining a full room.
 
 If all 4 seats are occupied, join is disabled until a seat is freed.
 
@@ -46,6 +47,7 @@ If all 4 seats are occupied, join is disabled until a seat is freed.
 Key multiplayer messages:
 
 - `join-room`
+- `room-joined`
 - `player-action`
 - `request-state`
 - `request-room-seats`
@@ -54,7 +56,7 @@ Key multiplayer messages:
 - `room-seats-update`
 - `player-disconnected`
 
-The lobby uses `request-room-seats` / `room-seats-update` before join to show only open seats.
+The lobby uses `request-room-seats` / `room-seats-update` before joining to detect a full room. The server confirms the assigned seat with `room-joined`.
 
 ## Real 4-Player Behavior
 

@@ -46,9 +46,8 @@ npm run dev
 Open the client URL in up to 4 browser windows/devices.
 
 1. Enter the same room ID in each client.
-2. Each player picks an open seat.
-3. Occupied seats are hidden in the lobby seat picker.
-4. When all seats are taken, join is disabled.
+2. The server randomly assigns each player an open seat.
+3. When all seats are taken, join is disabled.
 
 For remote hosting, set a client WebSocket URL:
 
@@ -129,12 +128,13 @@ Run test suites individually:
 
 ```bash
 npm run test:singleplayer
+npm run test:25-human-games
 npm run test:multiplayer
 ```
 
-The multiplayer smoke test starts a temporary server, connects multiple clients,
-joins seats in one room, rejects a conflicting seat claim, performs a discard,
-and verifies that state updates broadcast to all joined clients.
+The multiplayer smoke test starts a temporary server, verifies automatic seat
+assignment and seat conflicts, performs a discard, and confirms that state
+updates broadcast to all joined clients.
 
 ## Upload to GitHub
 

@@ -139,9 +139,49 @@ async function main() {
   let ws1;
   let wsConflict;
   let wsResume;
+  let wsAutoClients = [];
+  let wsAutoFull;
 
   try {
     server = await startServer(port);
+
+    const autoRoomId = `${roomId}-automatic`;
+    const assignedSeats = [];
+    for (let index = 0; index < 4; index += 1) {
+      const automaticClient = await connectClient(url);
+      wsAutoClients.push(automaticClient);
+      const autoJoin = waitForMessage(
+        automaticClient,
+        (msg) => msg.type === "room-joined" && msg.roomId === autoRoomId,
+      );
+      send(automaticClient, {
+        type: "join-room",
+        roomId: autoRoomId,
+        playerName: `Auto Seat ${index + 1}`,
+      });
+      assignedSeats.push((await autoJoin).playerIndex);
+    }
+    assert.deepEqual(
+      [...assignedSeats].sort((a, b) => a - b),
+      [0, 1, 2, 3],
+      "Automatic assignment should fill each seat exactly once",
+    );
+
+    wsAutoFull = await connectClient(url);
+    const fullRoomRejection = waitForMessage(
+      wsAutoFull,
+      (msg) => msg.type === "action-rejected" && msg.reason.includes("is full"),
+    );
+    send(wsAutoFull, {
+      type: "join-room",
+      roomId: autoRoomId,
+      playerName: "Fifth Player",
+    });
+    await fullRoomRejection;
+    wsAutoClients.forEach((client) => client.close());
+    wsAutoClients = [];
+    wsAutoFull.close();
+    wsAutoFull = undefined;
 
     ws0 = await connectClient(url);
     ws1 = await connectClient(url);
@@ -325,6 +365,8 @@ async function main() {
     ws1?.close();
     wsConflict?.close();
     wsResume?.close();
+    wsAutoClients.forEach((client) => client.close());
+    wsAutoFull?.close();
 
     if (server) {
       server.kill("SIGTERM");

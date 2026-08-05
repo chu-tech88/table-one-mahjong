@@ -16,6 +16,7 @@
     "build": "tsc --noEmit && vite build",
     "test:singleplayer": "node tests/simulate-100-games.mjs",
     "test:50-games": "node tests/simulate-100-games.mjs --games=50",
+    "test:25-human-games": "tsx tests/simulate-human-games.ts --games=25",
     "test:logic": "tsx tests/game-logic-smoke.ts",
     "test:tile-styles": "node tests/tile-style-smoke.mjs",
     "test:multiplayer": "node tests/multiplayer-smoke.mjs",

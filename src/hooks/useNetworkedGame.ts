@@ -48,7 +48,7 @@ type UseNetworkedGameReturn = {
 export function useNetworkedGame(
   serverUrl: string,
   roomId: string,
-  playerIndex: number,
+  preferredPlayerIndex: number | undefined,
   playerName: string,
   enabled = true,
 ): UseNetworkedGameReturn {
@@ -56,6 +56,8 @@ export function useNetworkedGame(
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTileId, setSelectedTileId] = useState<string | undefined>();
+  const [playerIndex, setPlayerIndex] = useState(preferredPlayerIndex ?? -1);
+  const playerIndexRef = useRef(preferredPlayerIndex ?? -1);
   const clientRef = useRef<GameClient | null>(null);
 
   const rules: Rules = game?.rules ?? DEFAULT_RULES;
@@ -68,6 +70,8 @@ export function useNetworkedGame(
       setIsConnected(false);
       setError(null);
       setSelectedTileId(undefined);
+      setPlayerIndex(preferredPlayerIndex ?? -1);
+      playerIndexRef.current = preferredPlayerIndex ?? -1;
       return;
     }
 
@@ -84,6 +88,11 @@ export function useNetworkedGame(
     const connect = () => {
       if (!isMounted) return;
       const client = new GameClient({
+        onSeatAssigned: (assignedPlayerIndex) => {
+          if (!isMounted || client !== activeClient) return;
+          playerIndexRef.current = assignedPlayerIndex;
+          setPlayerIndex(assignedPlayerIndex);
+        },
         onGameStateUpdate: (newGame) => {
           if (!isMounted || client !== activeClient) return;
           setGame(newGame);
@@ -91,9 +100,9 @@ export function useNetworkedGame(
           setSelectedTileId((current) => {
             if (!current) return undefined;
             const isDiscardTurn =
-              newGame.turn === playerIndex && newGame.phase === "discard";
+              newGame.turn === playerIndexRef.current && newGame.phase === "discard";
             if (!isDiscardTurn) return undefined;
-            const stillInHand = newGame.players[playerIndex].hand.some(
+            const stillInHand = newGame.players[playerIndexRef.current]?.hand.some(
               (tile) => tile.id === current,
             );
             return stillInHand ? current : undefined;
@@ -113,7 +122,7 @@ export function useNetworkedGame(
       activeClient = client;
       clientRef.current = client;
       client
-        .connect(serverUrl, roomId, playerIndex, playerName)
+        .connect(serverUrl, roomId, preferredPlayerIndex, playerName)
         .then(() => {
           if (!isMounted || client !== activeClient) return;
           setIsConnected(true);
@@ -135,7 +144,7 @@ export function useNetworkedGame(
       window.clearTimeout(reconnectTimer);
       activeClient?.disconnect();
     };
-  }, [enabled, serverUrl, roomId, playerIndex, playerName]);
+  }, [enabled, serverUrl, roomId, preferredPlayerIndex, playerName]);
 
   const selectTile = useCallback(
     (tileId: string) => {

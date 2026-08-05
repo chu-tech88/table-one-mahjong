@@ -436,11 +436,11 @@ wss.on("connection", (socket) => {
         const requestedRoomId = msg.roomId;
         const requestedPlayerIndex = msg.playerIndex;
 
-        if (
+        if (requestedPlayerIndex !== undefined && (
           !Number.isInteger(requestedPlayerIndex) ||
           requestedPlayerIndex < 0 ||
           requestedPlayerIndex > 3
-        ) {
+        )) {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
@@ -464,21 +464,43 @@ wss.on("connection", (socket) => {
 
         const room = rooms.get(requestedRoomId)!;
         room.lastActivity = Date.now();
-        const existing = room.players[requestedPlayerIndex];
-        if (isOpenSocket(existing ?? null) && existing !== socket) {
+        const availableSeats = room.players
+          .map((player, index) => !isOpenSocket(player ?? null) ? index : -1)
+          .filter((index) => index >= 0);
+        if (requestedPlayerIndex !== undefined) {
+          const existing = room.players[requestedPlayerIndex];
+          if (isOpenSocket(existing ?? null) && existing !== socket) {
+            socket.send(
+              JSON.stringify({
+                type: "action-rejected",
+                reason: `Seat ${requestedPlayerIndex} is already taken in room ${requestedRoomId}`,
+              } as ServerMessage),
+            );
+            return;
+          }
+        } else if (availableSeats.length === 0) {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason: `Seat ${requestedPlayerIndex} is already taken in room ${requestedRoomId}`,
+              reason: `Room ${requestedRoomId} is full`,
             } as ServerMessage),
           );
           return;
         }
         roomId = requestedRoomId;
-        playerIndex = requestedPlayerIndex;
+        playerIndex = requestedPlayerIndex ??
+          availableSeats[Math.floor(Math.random() * availableSeats.length)];
         room.players[playerIndex] = socket;
         room.game.players[playerIndex].name = cleanPlayerName(msg.playerName);
         syncControllers(room);
+
+        socket.send(
+          JSON.stringify({
+            type: "room-joined",
+            roomId,
+            playerIndex,
+          } as ServerMessage),
+        );
 
         broadcastGame(room);
 

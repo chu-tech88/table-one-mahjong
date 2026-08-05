@@ -13,6 +13,7 @@ import { ClientMessage, ServerMessage, PlayerAction } from "./messages";
 
 export type GameClientCallbacks = {
   onGameStateUpdate?: (game: Game) => void;
+  onSeatAssigned?: (playerIndex: number) => void;
   onActionRejected?: (reason: string) => void;
   onDisconnected?: () => void;
 };
@@ -35,7 +36,7 @@ export class GameClient {
   connect(
     serverUrl: string,
     roomId: string,
-    playerIndex: number,
+    playerIndex: number | undefined,
     playerName: string,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -47,7 +48,7 @@ export class GameClient {
         }
 
         this.roomId = roomId;
-        this.playerIndex = playerIndex;
+        this.playerIndex = playerIndex ?? -1;
         this.playerName = playerName;
 
         console.log(`[GameClient] Connecting to ${serverUrl}`);
@@ -69,7 +70,7 @@ export class GameClient {
           this.sendMessage({
             type: "join-room",
             roomId,
-            playerIndex,
+            ...(playerIndex === undefined ? {} : { playerIndex }),
             playerName,
           });
 
@@ -159,6 +160,11 @@ export class GameClient {
       this.callbacks.onGameStateUpdate?.(message.game);
     }
 
+    if (message.type === "room-joined") {
+      this.playerIndex = message.playerIndex;
+      this.callbacks.onSeatAssigned?.(message.playerIndex);
+    }
+
     if (message.type === "action-rejected") {
       console.warn("Server rejected action:", message.reason);
       this.callbacks.onActionRejected?.(message.reason);
@@ -166,7 +172,7 @@ export class GameClient {
         this.sendMessage({
           type: "join-room",
           roomId: this.roomId,
-          playerIndex: this.playerIndex,
+          ...(this.playerIndex < 0 ? {} : { playerIndex: this.playerIndex }),
           playerName: this.playerName,
         });
       }

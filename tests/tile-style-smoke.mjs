@@ -69,6 +69,16 @@ assert.match(
   /@media \(max-width: 760px\)[\s\S]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"center center center"\s*"left \. right"/,
   "Mobile side opponents must appear below the top opponent information",
 );
+assert.doesNotMatch(
+  app,
+  /<span>Seat<\/span>[\s\S]*?<select/,
+  "The multiplayer lobby should not ask players to select a seat",
+);
+assert.doesNotMatch(
+  app,
+  /event\.target\.value\.replace\([^\n]+\)\s*\|\|\s*"table-one"/,
+  "Clearing the room name should leave the field empty",
+);
 
 const obsoleteContextOverrides = [
   ".human-hand .dot-pip",

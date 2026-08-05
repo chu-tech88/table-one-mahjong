@@ -13,7 +13,7 @@ type UseGameOptions =
       mode: "networked";
       serverUrl: string;
       roomId: string;
-      playerIndex: number;
+      playerIndex?: number;
       playerName: string;
       enabled?: boolean;
       initialGame?: Game;

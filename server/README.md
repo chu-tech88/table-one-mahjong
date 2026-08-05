@@ -47,7 +47,8 @@ Before a player joins, the client can request seat occupancy for a room:
 - client sends: `request-room-seats`
 - server responds: `room-seats-update` with `occupiedSeats`
 
-This supports the UI behavior that hides seats already taken.
+This lets the lobby prevent joins when a room is full. On join, the server
+randomly selects an open seat and responds with `room-joined`.
 
 ## Message Overview
 
@@ -60,6 +61,7 @@ Client to server:
 
 Server to client:
 
+- `room-joined`
 - `game-state-update`
 - `action-rejected`
 - `player-disconnected`

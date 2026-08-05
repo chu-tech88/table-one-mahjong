@@ -18,7 +18,7 @@ export type ClientMessage =
 export type JoinRoomMessage = {
   type: "join-room";
   roomId: string;
-  playerIndex: number;
+  playerIndex?: number;
   playerName: string;
 };
 
@@ -57,6 +57,7 @@ export type RequestRoomSeatsMessage = {
 // ============ SERVER → CLIENT ============
 
 export type ServerMessage =
+  | RoomJoinedMessage
   | GameStateUpdateMessage
   | RoomSeatsUpdateMessage
   | ActionRejectedMessage
@@ -66,6 +67,12 @@ export type ServerMessage =
 export type GameStateUpdateMessage = {
   type: "game-state-update";
   game: Game;
+};
+
+export type RoomJoinedMessage = {
+  type: "room-joined";
+  roomId: string;
+  playerIndex: number;
 };
 
 export type RoomSeatsUpdateMessage = {
