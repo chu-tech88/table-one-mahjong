@@ -1,5 +1,12 @@
 // Import game logic and types
-import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Game,
   HouseRule,
@@ -558,7 +565,9 @@ function MahjongApp() {
   }));
   const [occupiedSeats, setOccupiedSeats] = useState<number[]>([]);
   const [lobbySeatError, setLobbySeatError] = useState<string | null>(null);
-  const [activeScenario, setActiveScenario] = useState<ScenarioSnapshot | null>(null);
+  const [activeScenario, setActiveScenario] = useState<ScenarioSnapshot | null>(
+    null,
+  );
   const [scenarioFeedback, setScenarioFeedback] = useState<string | null>(null);
   const scenarioFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -810,7 +819,12 @@ function MahjongApp() {
         body: JSON.stringify(reportPayload),
       });
       const text = await response.text();
-      let data: { ok?: boolean; cardUrl?: string; message?: string; cardId?: string } | null = null;
+      let data: {
+        ok?: boolean;
+        cardUrl?: string;
+        message?: string;
+        cardId?: string;
+      } | null = null;
       try {
         data = text ? JSON.parse(text) : null;
       } catch {
@@ -823,7 +837,8 @@ function MahjongApp() {
         return;
       }
 
-      const fallbackMessage = data?.message ?? (text || "Trello request failed");
+      const fallbackMessage =
+        data?.message ?? (text || "Trello request failed");
       throw new Error(fallbackMessage);
     } catch (error) {
       const serialized = JSON.stringify(reportPayload, null, 2);
@@ -835,7 +850,9 @@ function MahjongApp() {
       link.click();
       window.URL.revokeObjectURL(url);
       setScenarioFeedback(
-        error instanceof Error ? error.message : "Unable to create Trello card. JSON downloaded instead.",
+        error instanceof Error
+          ? error.message
+          : "Unable to create Trello card. JSON downloaded instead.",
       );
     }
   };
@@ -865,7 +882,9 @@ function MahjongApp() {
     setScenarioFeedback(`Exported ${snapshot.label} as JSON.`);
   };
 
-  const importScenarioFromFile = async (event: ChangeEvent<HTMLInputElement>) => {
+  const importScenarioFromFile = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
@@ -1657,7 +1676,8 @@ function MahjongApp() {
               <section className="panel-block settings-section">
                 <h2>Bug reports</h2>
                 <p className="settings-note">
-                  Create a Trello-ready bug report payload from the current game state and download it as JSON.
+                  Create a Trello-ready bug report payload from the current game
+                  state and download it as JSON.
                 </p>
                 <div className="house-rule-actions">
                   <button
@@ -1689,7 +1709,9 @@ function MahjongApp() {
                   onChange={importScenarioFromFile}
                   type="file"
                 />
-                {scenarioFeedback ? <p className="settings-note">{scenarioFeedback}</p> : null}
+                {scenarioFeedback ? (
+                  <p className="settings-note">{scenarioFeedback}</p>
+                ) : null}
                 {activeScenario ? (
                   <p className="settings-note">
                     Last prepared report: {activeScenario.label}

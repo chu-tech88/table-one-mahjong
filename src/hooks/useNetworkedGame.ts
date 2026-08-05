@@ -220,7 +220,9 @@ export function useNetworkedGame(
     (id: string, points: number, enabled: boolean) =>
       setHouseRules(
         houseRules.map((rule) =>
-          rule.id === id ? { ...rule, points: Math.max(0, points), enabled } : rule,
+          rule.id === id
+            ? { ...rule, points: Math.max(0, points), enabled }
+            : rule,
         ),
       ),
     [houseRules, setHouseRules],

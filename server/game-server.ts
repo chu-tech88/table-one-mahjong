@@ -124,7 +124,11 @@ async function createTrelloCard(req: IncomingMessage, res: ServerResponse) {
     const description = String(payload?.description ?? "").trim();
     const snapshot = payload?.snapshot ?? {};
     const metadata = payload?.metadata ?? {};
-    const serialized = JSON.stringify({ snapshot, metadata, title, description }, null, 2);
+    const serialized = JSON.stringify(
+      { snapshot, metadata, title, description },
+      null,
+      2,
+    );
     const summaryDescription = [
       description || "Automated gameplay scenario export",
       "",
@@ -205,7 +209,10 @@ async function createTrelloCard(req: IncomingMessage, res: ServerResponse) {
       attachmentName,
     );
 
-    console.log("[Trello] Uploading attachment", { cardId: cardData.id, attachmentName });
+    console.log("[Trello] Uploading attachment", {
+      cardId: cardData.id,
+      attachmentName,
+    });
 
     const attachmentResponse = await fetch(
       `https://api.trello.com/1/cards/${cardData.id}/attachments?key=${trelloApiKey}&token=${trelloToken}`,
@@ -240,7 +247,9 @@ async function createTrelloCard(req: IncomingMessage, res: ServerResponse) {
     console.error("[Trello] Failed to create card", error);
     res.statusCode = 500;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.end(JSON.stringify({ ok: false, message: "Failed to create Trello card" }));
+    res.end(
+      JSON.stringify({ ok: false, message: "Failed to create Trello card" }),
+    );
   }
 }
 
@@ -447,7 +456,9 @@ wss.on("connection", (socket) => {
 
         syncControllers(room);
 
-        const hadOtherPlayers = room.players.some((player) => isOpenSocket(player ?? null));
+        const hadOtherPlayers = room.players.some((player) =>
+          isOpenSocket(player ?? null),
+        );
         if (hadOtherPlayers) {
           room.players.forEach((player) => {
             if (isOpenSocket(player)) {

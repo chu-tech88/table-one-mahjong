@@ -64,7 +64,10 @@ export function saveScenarioSnapshot(
   const resolved = resolveStorage(storage);
   if (!resolved) return snapshot;
   const snapshots = loadScenarioSnapshots(resolved);
-  const nextSnapshots = [snapshot, ...snapshots.filter((item) => item.id !== snapshot.id)];
+  const nextSnapshots = [
+    snapshot,
+    ...snapshots.filter((item) => item.id !== snapshot.id),
+  ];
   resolved.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(nextSnapshots));
   return snapshot;
 }
@@ -77,12 +80,16 @@ export function loadScenarioSnapshots(storage?: Storage): ScenarioSnapshot[] {
   return JSON.parse(raw) as ScenarioSnapshot[];
 }
 
-export function getLatestScenarioSnapshot(storage?: Storage): ScenarioSnapshot | undefined {
+export function getLatestScenarioSnapshot(
+  storage?: Storage,
+): ScenarioSnapshot | undefined {
   const snapshots = loadScenarioSnapshots(storage);
   return snapshots[0];
 }
 
-export function restoreScenarioSnapshot(snapshot: ScenarioSnapshot): ScenarioSnapshot {
+export function restoreScenarioSnapshot(
+  snapshot: ScenarioSnapshot,
+): ScenarioSnapshot {
   return {
     version: 1,
     id: snapshot.id || createId(),

@@ -1,10 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  Game,
-  Rules,
-  HouseRule,
-  Difficulty,
-} from "../game-logic/types";
+import { Game, Rules, HouseRule, Difficulty } from "../game-logic/types";
 import { createDefaultHouseRules, DEFAULT_RULES } from "../game-logic/rules";
 import { dealRound } from "../game-logic/deck";
 import {
@@ -56,11 +51,27 @@ type UseLocalGameReturn = {
   error?: string | null;
 };
 
-export function useLocalGame(options: UseLocalGameOptions = {}): UseLocalGameReturn {
-  const [rules, setRules] = useState<Rules>(() => options.initialRules ?? DEFAULT_RULES);
-  const [houseRules, setHouseRules] = useState<HouseRule[]>(() => options.initialHouseRules ?? createDefaultHouseRules());
-  const [game, setGame] = useState<Game>(() =>
-    options.initialGame ?? dealRound(0, undefined, 1, undefined, "local-table-one", DEFAULT_RULES, createDefaultHouseRules()),
+export function useLocalGame(
+  options: UseLocalGameOptions = {},
+): UseLocalGameReturn {
+  const [rules, setRules] = useState<Rules>(
+    () => options.initialRules ?? DEFAULT_RULES,
+  );
+  const [houseRules, setHouseRules] = useState<HouseRule[]>(
+    () => options.initialHouseRules ?? createDefaultHouseRules(),
+  );
+  const [game, setGame] = useState<Game>(
+    () =>
+      options.initialGame ??
+      dealRound(
+        0,
+        undefined,
+        1,
+        undefined,
+        "local-table-one",
+        DEFAULT_RULES,
+        createDefaultHouseRules(),
+      ),
   );
   const timerRef = useRef<number | undefined>(undefined);
 
@@ -68,9 +79,13 @@ export function useLocalGame(options: UseLocalGameOptions = {}): UseLocalGameRet
     if (!options.initialGame) return;
 
     setGame(structuredCloneGame(options.initialGame));
-    setRules(options.initialRules ? { ...options.initialRules } : { ...DEFAULT_RULES });
+    setRules(
+      options.initialRules ? { ...options.initialRules } : { ...DEFAULT_RULES },
+    );
     setHouseRules(
-      (options.initialHouseRules ?? createDefaultHouseRules()).map((rule) => ({ ...rule })),
+      (options.initialHouseRules ?? createDefaultHouseRules()).map((rule) => ({
+        ...rule,
+      })),
     );
   }, [options.initialGame, options.initialRules, options.initialHouseRules]);
 
@@ -134,12 +149,7 @@ export function useLocalGame(options: UseLocalGameOptions = {}): UseLocalGameRet
   const pass = useCallback(() => {
     setGame((current) => {
       if (current.phase !== "claim" || !current.lastDiscard) return current;
-      return passClaim(
-        current,
-        HUMAN,
-        rules,
-        houseRules,
-      );
+      return passClaim(current, HUMAN, rules, houseRules);
     });
   }, [rules, houseRules]);
 
@@ -160,7 +170,10 @@ export function useLocalGame(options: UseLocalGameOptions = {}): UseLocalGameRet
           source === "self-draw" &&
           (current.phase !== "discard" ||
             current.turn !== HUMAN ||
-            !isWinningHand(current.players[HUMAN].hand, current.players[HUMAN].melds.length))
+            !isWinningHand(
+              current.players[HUMAN].hand,
+              current.players[HUMAN].melds.length,
+            ))
         ) {
           return current;
         }
@@ -245,34 +258,36 @@ export function useLocalGame(options: UseLocalGameOptions = {}): UseLocalGameRet
     [],
   );
 
-  const newHand = useCallback((dealer?: number, resetGame = false) => {
-    setGame((current) => {
-      if (resetGame) {
+  const newHand = useCallback(
+    (dealer?: number, resetGame = false) => {
+      setGame((current) => {
+        if (resetGame) {
+          return dealRound(
+            0,
+            undefined,
+            1,
+            current.players,
+            current.tableId,
+            rules,
+            houseRules,
+            0,
+          );
+        }
+        const nextDealer = dealer ?? nextDealerForRound(current);
         return dealRound(
-          0,
-          undefined,
-          1,
+          nextDealer,
+          current.players.map((p) => p.score),
+          nextRoundNumber(current),
           current.players,
           current.tableId,
           rules,
           houseRules,
-          0,
+          nextDealerStreak(current),
         );
-      }
-      const nextDealer =
-        dealer ?? nextDealerForRound(current);
-      return dealRound(
-        nextDealer,
-        current.players.map((p) => p.score),
-        nextRoundNumber(current),
-        current.players,
-        current.tableId,
-        rules,
-        houseRules,
-        nextDealerStreak(current),
-      );
-    });
-  }, [rules, houseRules]);
+      });
+    },
+    [rules, houseRules],
+  );
 
   return {
     game,

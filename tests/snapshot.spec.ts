@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { dealRound } from "../src/game-logic/deck";
-import { DEFAULT_RULES, createDefaultHouseRules } from "../src/game-logic/rules";
+import {
+  DEFAULT_RULES,
+  createDefaultHouseRules,
+} from "../src/game-logic/rules";
 import {
   createScenarioSnapshot,
   getLatestScenarioSnapshot,

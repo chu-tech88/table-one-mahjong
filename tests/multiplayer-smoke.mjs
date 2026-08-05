@@ -146,8 +146,18 @@ async function main() {
     ws0 = await connectClient(url);
     ws1 = await connectClient(url);
 
-    send(ws0, { type: "join-room", roomId, playerIndex: 0, playerName: "Eric" });
-    send(ws1, { type: "join-room", roomId, playerIndex: 1, playerName: "Partner" });
+    send(ws0, {
+      type: "join-room",
+      roomId,
+      playerIndex: 0,
+      playerName: "Eric",
+    });
+    send(ws1, {
+      type: "join-room",
+      roomId,
+      playerIndex: 1,
+      playerName: "Partner",
+    });
 
     const state0 = await waitForMessage(
       ws0,
@@ -260,7 +270,10 @@ async function main() {
 
     const leaveRoomId = `${roomId}-leave`;
     const wsLeave = await connectClient(url);
-    const leaveJoinPromise = waitForMessage(wsLeave, (msg) => msg.type === "game-state-update");
+    const leaveJoinPromise = waitForMessage(
+      wsLeave,
+      (msg) => msg.type === "game-state-update",
+    );
     send(wsLeave, {
       type: "join-room",
       roomId: leaveRoomId,
