@@ -1,5 +1,5 @@
 // Import game logic and types
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   Game,
   HouseRule,
@@ -27,6 +27,12 @@ import {
 } from "./game-logic/validation";
 import { canDeclareReady } from "./game-logic/flow";
 import { useGame } from "./hooks/useGame";
+import {
+  createScenarioSnapshot,
+  restoreScenarioSnapshot,
+  saveScenarioSnapshot,
+  type ScenarioSnapshot,
+} from "./game-logic/snapshot";
 
 // Component rendering stays exactly the same
 const DEFAULT_SERVER_URL =
@@ -552,6 +558,9 @@ function MahjongApp() {
   }));
   const [occupiedSeats, setOccupiedSeats] = useState<number[]>([]);
   const [lobbySeatError, setLobbySeatError] = useState<string | null>(null);
+  const [activeScenario, setActiveScenario] = useState<ScenarioSnapshot | null>(null);
+  const [scenarioFeedback, setScenarioFeedback] = useState<string | null>(null);
+  const scenarioFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -569,13 +578,17 @@ function MahjongApp() {
     window.sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(snapshot));
   }, [connection, playMode]);
 
+  const isLocalReplay = Boolean(activeScenario) || playMode === "solo";
   const gameHook = useGame({
-    mode: "networked",
+    mode: isLocalReplay ? "local" : "networked",
     serverUrl: DEFAULT_SERVER_URL,
     roomId: connection.roomId,
     playerIndex: connection.playerIndex,
     playerName: connection.playerName.trim() || "Player",
-    enabled: connection.joined,
+    enabled: !isLocalReplay && connection.joined,
+    initialGame: activeScenario?.game,
+    initialRules: activeScenario?.rules,
+    initialHouseRules: activeScenario?.houseRules,
   });
   const {
     game,
@@ -597,6 +610,7 @@ function MahjongApp() {
     updatePlayerName,
     updateDifficulty,
     newHand,
+    leaveRoom,
   } = gameHook;
   const SELF = connection.playerIndex;
   const leftSeat = (SELF + 1) % 4;
@@ -752,6 +766,133 @@ function MahjongApp() {
     points: 1,
   });
 
+  const createBugReport = async () => {
+    if (!game) return;
+    const snapshot = createScenarioSnapshot(
+      game,
+      rules,
+      houseRules,
+      `Bug report ${new Date().toLocaleString()}`,
+      {
+        mode: connection.joined ? "networked" : "local",
+        roomId: connection.roomId,
+        playerIndex: connection.playerIndex,
+        playerName: connection.playerName.trim() || "Player",
+        notes: "Prepared for Trello integration",
+      },
+    );
+    saveScenarioSnapshot(snapshot);
+    setActiveScenario(snapshot);
+
+    const reportPayload = {
+      title: `Bug report: ${snapshot.label}`,
+      description: [
+        "Automated gameplay scenario export",
+        "",
+        "The attached JSON contains the game state and action history needed to replay this issue.",
+      ].join("\n"),
+      snapshot,
+      metadata: {
+        createdAt: snapshot.createdAt,
+        mode: snapshot.metadata.mode,
+        roomId: snapshot.metadata.roomId,
+        playerIndex: snapshot.metadata.playerIndex,
+        playerName: snapshot.metadata.playerName,
+      },
+    };
+
+    try {
+      const response = await fetch("/api/bug-report", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(reportPayload),
+      });
+      const text = await response.text();
+      let data: { ok?: boolean; cardUrl?: string; message?: string; cardId?: string } | null = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = null;
+      }
+
+      if (response.ok && data?.ok && data.cardUrl) {
+        window.open(data.cardUrl, "_blank", "noopener,noreferrer");
+        setScenarioFeedback(`Created Trello card. Opened ${data.cardUrl}.`);
+        return;
+      }
+
+      const fallbackMessage = data?.message ?? (text || "Trello request failed");
+      throw new Error(fallbackMessage);
+    } catch (error) {
+      const serialized = JSON.stringify(reportPayload, null, 2);
+      const blob = new Blob([serialized], { type: "application/json" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${snapshot.id}.json`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      setScenarioFeedback(
+        error instanceof Error ? error.message : "Unable to create Trello card. JSON downloaded instead.",
+      );
+    }
+  };
+
+  const exportCurrentScenario = () => {
+    if (!game) return;
+    const snapshot = createScenarioSnapshot(
+      game,
+      rules,
+      houseRules,
+      `Export ${new Date().toLocaleString()}`,
+      {
+        mode: connection.joined ? "networked" : "local",
+        roomId: connection.roomId,
+        playerIndex: connection.playerIndex,
+        playerName: connection.playerName.trim() || "Player",
+      },
+    );
+    const serialized = JSON.stringify(snapshot, null, 2);
+    const blob = new Blob([serialized], { type: "application/json" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${snapshot.id}.json`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+    setScenarioFeedback(`Exported ${snapshot.label} as JSON.`);
+  };
+
+  const importScenarioFromFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as ScenarioSnapshot;
+      if (!parsed?.game) {
+        throw new Error("Invalid snapshot format");
+      }
+      const restored = restoreScenarioSnapshot(parsed);
+      saveScenarioSnapshot(restored);
+      setActiveScenario(restored);
+      setConnection((current) => ({
+        ...current,
+        joined: true,
+        roomId: restored.metadata.roomId ?? current.roomId,
+        playerIndex: restored.metadata.playerIndex ?? current.playerIndex,
+        playerName: restored.metadata.playerName || current.playerName,
+      }));
+      setPlayMode(restored.metadata.mode === "networked" ? "online" : "solo");
+      setScenarioFeedback(`Imported ${restored.label}`);
+    } catch {
+      setScenarioFeedback("Could not import scenario JSON.");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
   useEffect(() => {
     if (connection.joined) return;
 
@@ -812,13 +953,15 @@ function MahjongApp() {
   useEffect(() => {
     if (connection.joined) return;
     if (!occupiedSeats.includes(connection.playerIndex)) return;
+    if (playMode !== "online") return;
+
     const firstOpenSeat = [0, 1, 2, 3].find(
       (seat) => !occupiedSeats.includes(seat),
     );
     if (firstOpenSeat !== undefined) {
       setConnection((current) => ({ ...current, playerIndex: firstOpenSeat }));
     }
-  }, [connection.joined, connection.playerIndex, occupiedSeats]);
+  }, [connection.joined, connection.playerIndex, occupiedSeats, playMode]);
 
   const seatOptions = [
     { value: 0, label: "East (seat 0)" },
@@ -828,6 +971,9 @@ function MahjongApp() {
   ].filter((option) => !occupiedSeats.includes(option.value));
 
   const leaveCurrentGame = () => {
+    if (playMode === "online" && connection.joined) {
+      leaveRoom();
+    }
     setSettingsOpen(false);
     setInspectedSeat(undefined);
     setChoosingChi(false);
@@ -971,6 +1117,17 @@ function MahjongApp() {
 
   // Guard for networked mode (game may be null while connecting)
   if (!game || !human) {
+    console.log("[App] Rendering loading fallback", {
+      activeScenario: Boolean(activeScenario),
+      joined: connection.joined,
+      playMode,
+      hasGame: Boolean(game),
+      hasHuman: Boolean(human),
+      playerIndex: connection.playerIndex,
+      roomId: connection.roomId,
+      gameHookConnected: gameHook.isConnected,
+      error: gameHook.error,
+    });
     return (
       <main className="app-shell">
         <header className="topbar">
@@ -1495,6 +1652,49 @@ function MahjongApp() {
                     )}
                   </div>
                 ))}
+              </section>
+
+              <section className="panel-block settings-section">
+                <h2>Bug reports</h2>
+                <p className="settings-note">
+                  Create a Trello-ready bug report payload from the current game state and download it as JSON.
+                </p>
+                <div className="house-rule-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={createBugReport}
+                  >
+                    Create Trello card
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={exportCurrentScenario}
+                  >
+                    Export JSON
+                  </button>
+                  <button
+                    className="text-button"
+                    type="button"
+                    onClick={() => scenarioFileInputRef.current?.click()}
+                  >
+                    Import JSON
+                  </button>
+                </div>
+                <input
+                  ref={scenarioFileInputRef}
+                  accept="application/json"
+                  hidden
+                  onChange={importScenarioFromFile}
+                  type="file"
+                />
+                {scenarioFeedback ? <p className="settings-note">{scenarioFeedback}</p> : null}
+                {activeScenario ? (
+                  <p className="settings-note">
+                    Last prepared report: {activeScenario.label}
+                  </p>
+                ) : null}
               </section>
 
               <section className="panel-block settings-section rules-section">

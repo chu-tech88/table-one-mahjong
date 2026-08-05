@@ -83,6 +83,36 @@ Notes:
 - Client uses same-origin WebSocket by default (`ws://` or `wss://` based on page protocol).
 - You can still override with `VITE_WS_URL` when needed.
 
+## Trello bug-report configuration
+
+The bug-report flow can create a Trello card and attach the JSON replay payload. To use it locally, set these environment variables before starting the server:
+
+```bash
+export TRELLO_API_KEY="your-trello-api-key"
+export TRELLO_TOKEN="your-trello-token"
+export TRELLO_LIST_ID="your-trello-list-id"
+```
+
+To make them available for every terminal session, you can add them to your shell profile, for example:
+
+```bash
+printf '\nexport TRELLO_API_KEY="your-trello-api-key"\nexport TRELLO_TOKEN="your-trello-token"\nexport TRELLO_LIST_ID="your-trello-list-id"\n' >> ~/.bashrc
+```
+
+Then restart the server:
+
+```bash
+npm run dev:server
+```
+
+How to get each value:
+
+- TRELLO_API_KEY: from https://trello.com/app-key
+- TRELLO_TOKEN: generated from the Trello authorization URL using your API key
+- TRELLO_LIST_ID: the ID of the Trello list that should receive new bug-report cards
+
+Keep these values private and do not commit them to the repository.
+
 ## Verify the game
 
 ```bash

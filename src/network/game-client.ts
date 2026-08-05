@@ -142,6 +142,12 @@ export class GameClient {
     });
   }
 
+  leaveRoom() {
+    this.sendMessage({
+      type: "leave-room",
+    });
+  }
+
   // ============ RECEIVE MESSAGES ============
 
   private handleServerMessage(message: ServerMessage) {

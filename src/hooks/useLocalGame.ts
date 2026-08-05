@@ -22,7 +22,14 @@ import {
   nextDealerForRound,
   nextDealerStreak,
   nextRoundNumber,
+  structuredCloneGame,
 } from "../game-logic/helpers";
+
+type UseLocalGameOptions = {
+  initialGame?: Game;
+  initialRules?: Rules;
+  initialHouseRules?: HouseRule[];
+};
 
 type UseLocalGameReturn = {
   game: Game;
@@ -44,17 +51,28 @@ type UseLocalGameReturn = {
   updatePlayerName: (playerIndex: number, name: string) => void;
   updateDifficulty: (playerIndex: number, difficulty: Difficulty) => void;
   newHand: (dealer?: number, resetGame?: boolean) => void;
+  leaveRoom: () => void;
   isConnected?: boolean;
   error?: string | null;
 };
 
-export function useLocalGame(): UseLocalGameReturn {
-  const [rules, setRules] = useState<Rules>(DEFAULT_RULES);
-  const [houseRules, setHouseRules] = useState<HouseRule[]>(createDefaultHouseRules);
+export function useLocalGame(options: UseLocalGameOptions = {}): UseLocalGameReturn {
+  const [rules, setRules] = useState<Rules>(() => options.initialRules ?? DEFAULT_RULES);
+  const [houseRules, setHouseRules] = useState<HouseRule[]>(() => options.initialHouseRules ?? createDefaultHouseRules());
   const [game, setGame] = useState<Game>(() =>
-    dealRound(0, undefined, 1, undefined, "local-table-one", DEFAULT_RULES, createDefaultHouseRules()),
+    options.initialGame ?? dealRound(0, undefined, 1, undefined, "local-table-one", DEFAULT_RULES, createDefaultHouseRules()),
   );
   const timerRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (!options.initialGame) return;
+
+    setGame(structuredCloneGame(options.initialGame));
+    setRules(options.initialRules ? { ...options.initialRules } : { ...DEFAULT_RULES });
+    setHouseRules(
+      (options.initialHouseRules ?? createDefaultHouseRules()).map((rule) => ({ ...rule })),
+    );
+  }, [options.initialGame, options.initialRules, options.initialHouseRules]);
 
   // Auto-play AI turns
   useEffect(() => {
@@ -276,6 +294,7 @@ export function useLocalGame(): UseLocalGameReturn {
     updatePlayerName,
     updateDifficulty,
     newHand,
+    leaveRoom: () => undefined,
     isConnected: true,
     error: null,
   };

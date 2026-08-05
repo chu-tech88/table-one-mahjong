@@ -10,6 +10,7 @@ import { Difficulty, Game, HouseRule, Rules } from "../game-logic/types";
 
 export type ClientMessage =
   | JoinRoomMessage
+  | LeaveRoomMessage
   | PlayerActionMessage
   | RequestStateMessage
   | RequestRoomSeatsMessage;
@@ -19,6 +20,10 @@ export type JoinRoomMessage = {
   roomId: string;
   playerIndex: number;
   playerName: string;
+};
+
+export type LeaveRoomMessage = {
+  type: "leave-room";
 };
 
 export type PlayerActionMessage = {

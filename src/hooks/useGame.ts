@@ -1,8 +1,14 @@
+import { Game, HouseRule, Rules } from "../game-logic/types";
 import { useLocalGame } from "./useLocalGame";
 import { useNetworkedGame } from "./useNetworkedGame";
 
 type UseGameOptions =
-  | { mode: "local" }
+  | {
+      mode: "local";
+      initialGame?: Game;
+      initialRules?: Rules;
+      initialHouseRules?: HouseRule[];
+    }
   | {
       mode: "networked";
       serverUrl: string;
@@ -10,6 +16,9 @@ type UseGameOptions =
       playerIndex: number;
       playerName: string;
       enabled?: boolean;
+      initialGame?: Game;
+      initialRules?: Rules;
+      initialHouseRules?: HouseRule[];
     };
 
 /**
@@ -37,5 +46,9 @@ export function useGame(options: UseGameOptions) {
       options.enabled ?? true,
     );
   }
-  return useLocalGame();
+  return useLocalGame({
+    initialGame: options.initialGame,
+    initialRules: options.initialRules,
+    initialHouseRules: options.initialHouseRules,
+  });
 }

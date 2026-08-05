@@ -258,6 +258,42 @@ async function main() {
     );
     assert.equal(resumed.game.rules.baseWin, 7);
 
+    const leaveRoomId = `${roomId}-leave`;
+    const wsLeave = await connectClient(url);
+    const leaveJoinPromise = waitForMessage(wsLeave, (msg) => msg.type === "game-state-update");
+    send(wsLeave, {
+      type: "join-room",
+      roomId: leaveRoomId,
+      playerIndex: 0,
+      playerName: "Leaver",
+    });
+    await leaveJoinPromise;
+
+    send(wsLeave, { type: "leave-room" });
+    await delay(120);
+
+    const wsFresh = await connectClient(url);
+    const freshJoinPromise = waitForMessage(
+      wsFresh,
+      (msg) => msg.type === "game-state-update",
+    );
+    send(wsFresh, {
+      type: "join-room",
+      roomId: leaveRoomId,
+      playerIndex: 0,
+      playerName: "Fresh",
+    });
+    const freshState = await freshJoinPromise;
+    assert.ok(
+      freshState.game.actionSeq < post0.game.actionSeq,
+      "An intentionally emptied room should start a fresh hand for the next player",
+    );
+    assert.equal(
+      freshState.game.turn,
+      0,
+      "A fresh room should begin with a new dealer turn",
+    );
+
     console.log(
       JSON.stringify(
         {

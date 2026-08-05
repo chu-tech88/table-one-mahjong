@@ -81,6 +81,15 @@ function syncControllers(room: GameRoom) {
   });
 }
 
+function resetRoomForNewSession(room: GameRoom) {
+  room.game = dealRound();
+  room.players = [null, null, null, null];
+  room.lastActivity = Date.now();
+  room.autoPlayAI.forEach((timer) => clearTimeout(timer));
+  room.autoPlayAI.clear();
+  syncControllers(room);
+}
+
 function getMimeType(filePath: string) {
   return (
     MIME_TYPES[extname(filePath).toLowerCase()] ?? "application/octet-stream"
@@ -93,6 +102,148 @@ function sendText(res: ServerResponse, status: number, text: string) {
   res.end(text);
 }
 
+async function readJsonBody(req: IncomingMessage) {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const raw = Buffer.concat(chunks).toString("utf8");
+  if (!raw.trim()) return {};
+  return JSON.parse(raw);
+}
+
+async function createTrelloCard(req: IncomingMessage, res: ServerResponse) {
+  if (req.method !== "POST") {
+    sendText(res, 405, "Method not allowed");
+    return;
+  }
+
+  try {
+    const payload = await readJsonBody(req);
+    const title = String(payload?.title ?? "Bug report").trim();
+    const description = String(payload?.description ?? "").trim();
+    const snapshot = payload?.snapshot ?? {};
+    const metadata = payload?.metadata ?? {};
+    const serialized = JSON.stringify({ snapshot, metadata, title, description }, null, 2);
+    const summaryDescription = [
+      description || "Automated gameplay scenario export",
+      "",
+      "A JSON replay payload is attached to this card.",
+      `Mode: ${metadata?.mode ?? "unknown"}`,
+      `Room: ${metadata?.roomId ?? "n/a"}`,
+      `Player: ${metadata?.playerName ?? "n/a"}`,
+    ]
+      .join("\n")
+      .slice(0, 4000);
+
+    const trelloApiKey = process.env.TRELLO_API_KEY?.trim();
+    const trelloToken = process.env.TRELLO_TOKEN?.trim();
+    const trelloListId = process.env.TRELLO_LIST_ID?.trim();
+
+    console.log("[Trello] Request received", {
+      hasApiKey: Boolean(trelloApiKey),
+      hasToken: Boolean(trelloToken),
+      hasListId: Boolean(trelloListId),
+      title,
+    });
+
+    if (!trelloApiKey || !trelloToken || !trelloListId) {
+      const missing = [
+        !trelloApiKey ? "TRELLO_API_KEY" : null,
+        !trelloToken ? "TRELLO_TOKEN" : null,
+        !trelloListId ? "TRELLO_LIST_ID" : null,
+      ].filter(Boolean);
+      console.error("[Trello] Missing configuration", { missing });
+      res.statusCode = 500;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(
+        JSON.stringify({
+          ok: false,
+          message: `Trello is not configured. Missing: ${missing.join(", ")}`,
+        }),
+      );
+      return;
+    }
+
+    const cardParams = new URLSearchParams({
+      key: trelloApiKey,
+      token: trelloToken,
+      idList: trelloListId,
+      name: title,
+      desc: summaryDescription,
+    });
+
+    const cardResponse = await fetch("https://api.trello.com/1/cards", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: cardParams,
+    });
+
+    if (!cardResponse.ok) {
+      const cardText = await cardResponse.text();
+      console.error("[Trello] Card creation failed", {
+        status: cardResponse.status,
+        body: cardText,
+      });
+      res.statusCode = cardResponse.status;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(JSON.stringify({ ok: false, message: cardText }));
+      return;
+    }
+
+    const cardData = (await cardResponse.json()) as {
+      id?: string;
+      url?: string;
+      name?: string;
+    };
+
+    const attachmentName = `${title.replace(/\s+/g, "-").toLowerCase() || "bug-report"}-${Date.now()}.json`;
+    const attachmentForm = new FormData();
+    attachmentForm.append(
+      "file",
+      new Blob([serialized], { type: "application/json" }),
+      attachmentName,
+    );
+
+    console.log("[Trello] Uploading attachment", { cardId: cardData.id, attachmentName });
+
+    const attachmentResponse = await fetch(
+      `https://api.trello.com/1/cards/${cardData.id}/attachments?key=${trelloApiKey}&token=${trelloToken}`,
+      {
+        method: "POST",
+        body: attachmentForm,
+      },
+    );
+
+    if (!attachmentResponse.ok) {
+      const attachmentText = await attachmentResponse.text();
+      console.error("[Trello] Attachment creation failed", {
+        status: attachmentResponse.status,
+        body: attachmentText,
+      });
+    } else {
+      console.log("[Trello] Attachment uploaded", { cardId: cardData.id });
+    }
+
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.end(
+      JSON.stringify({
+        ok: true,
+        cardId: cardData.id,
+        cardUrl: cardData.url,
+        cardName: cardData.name,
+        attachmentOk: attachmentResponse.ok,
+      }),
+    );
+  } catch (error) {
+    console.error("[Trello] Failed to create card", error);
+    res.statusCode = 500;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.end(JSON.stringify({ ok: false, message: "Failed to create Trello card" }));
+  }
+}
+
 async function serveClient(req: IncomingMessage, res: ServerResponse) {
   if (!req.url) {
     sendText(res, 400, "Bad request");
@@ -103,6 +254,11 @@ async function serveClient(req: IncomingMessage, res: ServerResponse) {
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.end(JSON.stringify({ ok: true, rooms: rooms.size }));
+    return;
+  }
+
+  if (req.url === "/api/bug-report") {
+    await createTrelloCard(req, res);
     return;
   }
 
@@ -165,6 +321,7 @@ httpServer.listen(PORT, () => {
 wss.on("connection", (socket) => {
   let roomId: string = "";
   let playerIndex: number = -1;
+  let isLeavingRoom = false;
 
   console.log(`[Connected] New client connected`);
 
@@ -266,6 +423,55 @@ wss.on("connection", (socket) => {
             occupiedSeats,
           } as ServerMessage),
         );
+      }
+
+      // ============ LEAVE ROOM ============
+      if (msg.type === "leave-room") {
+        const room = rooms.get(roomId);
+        if (!room) {
+          socket.send(
+            JSON.stringify({
+              type: "action-rejected",
+              reason: "Room not found",
+            } as ServerMessage),
+          );
+          return;
+        }
+
+        room.lastActivity = Date.now();
+        isLeavingRoom = true;
+
+        if (playerIndex >= 0 && room.players[playerIndex] === socket) {
+          room.players[playerIndex] = null;
+        }
+
+        syncControllers(room);
+
+        const hadOtherPlayers = room.players.some((player) => isOpenSocket(player ?? null));
+        if (hadOtherPlayers) {
+          room.players.forEach((player) => {
+            if (isOpenSocket(player)) {
+              player.send(
+                JSON.stringify({
+                  type: "game-state-update",
+                  game: room.game,
+                } as ServerMessage),
+              );
+            }
+          });
+        } else {
+          resetRoomForNewSession(room);
+          console.log(`[Room] Reset room ${roomId} after intentional leave`);
+        }
+
+        socket.send(
+          JSON.stringify({
+            type: "system",
+            message: "Left room",
+          } as ServerMessage),
+        );
+        socket.close(1000, "Left room");
+        return;
       }
 
       // ============ PLAYER ACTION ============
@@ -665,7 +871,7 @@ wss.on("connection", (socket) => {
   });
 
   socket.on("close", () => {
-    if (roomId && playerIndex >= 0) {
+    if (roomId && playerIndex >= 0 && !isLeavingRoom) {
       console.log(`[Disconnected] Player ${playerIndex} left room ${roomId}`);
 
       const room = rooms.get(roomId);
