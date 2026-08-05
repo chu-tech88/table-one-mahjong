@@ -1106,7 +1106,10 @@ function MahjongApp() {
     seatOptions.length > 0
       ? seatOptions
       : [
-          { value: connection.playerIndex, label: `Seat ${connection.playerIndex + 1}` },
+          {
+            value: connection.playerIndex,
+            label: `Seat ${connection.playerIndex + 1}`,
+          },
         ];
 
   const leaveCurrentGame = () => {
@@ -1238,7 +1241,9 @@ function MahjongApp() {
               className="full-width-button"
               type="button"
               disabled={
-                (playMode === "online" && seatOptions.length === 0 && occupiedSeats.length >= 4) ||
+                (playMode === "online" &&
+                  seatOptions.length === 0 &&
+                  occupiedSeats.length >= 4) ||
                 !connection.playerName.trim()
               }
               onClick={() =>

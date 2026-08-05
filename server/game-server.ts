@@ -1009,7 +1009,9 @@ wss.on("connection", (socket) => {
         );
         if (!hasRemainingHumanPlayers) {
           resetRoomForNewSession(room);
-          console.log(`[Room] Reset room ${roomId} after last human disconnected`);
+          console.log(
+            `[Room] Reset room ${roomId} after last human disconnected`,
+          );
         } else {
           // If a seat disconnects during its turn/claim, allow AI fallback progression.
           setTimeout(() => playAITurnIfNeeded(roomId), 50);
