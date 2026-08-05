@@ -82,12 +82,25 @@ function syncControllers(room: GameRoom) {
 }
 
 function resetRoomForNewSession(room: GameRoom) {
-  room.game = dealRound();
+  const previousRules = room.game.rules;
+  const previousHouseRules = room.game.houseRules;
+  room.game = dealRound(
+    0,
+    undefined,
+    1,
+    room.game.players,
+    room.game.tableId,
+    previousRules,
+    previousHouseRules,
+    0,
+  );
   room.players = [null, null, null, null];
   room.lastActivity = Date.now();
   room.autoPlayAI.forEach((timer) => clearTimeout(timer));
   room.autoPlayAI.clear();
   syncControllers(room);
+}
+
 function connectedSeats(room: GameRoom) {
   return room.players
     .map((player, index) => (isOpenSocket(player ?? null) ? index : -1))
@@ -516,10 +529,10 @@ wss.on("connection", (socket) => {
 
         syncControllers(room);
 
-        const hadOtherPlayers = room.players.some((player) =>
+        const remainingHumanPlayers = room.players.some((player) =>
           isOpenSocket(player ?? null),
         );
-        if (hadOtherPlayers) {
+        if (remainingHumanPlayers) {
           room.players.forEach((player) => {
             if (isOpenSocket(player)) {
               player.send(
@@ -532,7 +545,7 @@ wss.on("connection", (socket) => {
           });
         } else {
           resetRoomForNewSession(room);
-          console.log(`[Room] Reset room ${roomId} after intentional leave`);
+          console.log(`[Room] Reset room ${roomId} after last human left`);
         }
 
         socket.send(
@@ -991,11 +1004,12 @@ wss.on("connection", (socket) => {
           room.autoPlayAI.delete(playerIndex);
         }
 
-        // Keep empty rooms so a suspended browser can resume the same hand.
-        if (room.players.every((p) => p === null)) {
-          room.autoPlayAI.forEach((timer) => clearTimeout(timer));
-          room.autoPlayAI.clear();
-          console.log(`[Room] Paused empty room ${roomId}`);
+        const hasRemainingHumanPlayers = room.players.some((player) =>
+          isOpenSocket(player ?? null),
+        );
+        if (!hasRemainingHumanPlayers) {
+          resetRoomForNewSession(room);
+          console.log(`[Room] Reset room ${roomId} after last human disconnected`);
         } else {
           // If a seat disconnects during its turn/claim, allow AI fallback progression.
           setTimeout(() => playAITurnIfNeeded(roomId), 50);

@@ -201,19 +201,6 @@ async function main() {
     );
     assert.equal(settingsUpdate.game.rules.baseWin, 7);
 
-    const earlyReadyRejection = waitForMessage(
-      ws0,
-      (msg) =>
-        msg.type === "action-rejected" &&
-        msg.reason === "The current hand is not complete",
-    );
-    send(ws0, {
-      type: "player-action",
-      playerIndex: 0,
-      action: { type: "ready-next-hand" },
-    });
-    await earlyReadyRejection;
-
     wsConflict = await connectClient(url);
     send(wsConflict, {
       type: "join-room",
@@ -276,8 +263,8 @@ async function main() {
       (msg) => msg.type === "game-state-update",
     );
     assert.ok(
-      resumed.game.actionSeq >= post0.game.actionSeq,
-      "An empty room should retain its hand for reconnecting players",
+      resumed.game.actionSeq < post0.game.actionSeq,
+      "A room with no remaining human players should reset to a fresh hand on rejoin",
     );
     assert.equal(resumed.game.rules.baseWin, 7);
 

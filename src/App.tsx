@@ -1097,7 +1097,17 @@ function MahjongApp() {
     { value: 1, label: "South (seat 1)" },
     { value: 2, label: "West (seat 2)" },
     { value: 3, label: "North (seat 3)" },
-  ].filter((option) => !occupiedSeats.includes(option.value));
+  ].filter((option) => {
+    if (playMode !== "online") return true;
+    return !occupiedSeats.includes(option.value);
+  });
+
+  const availableSeatOptions =
+    seatOptions.length > 0
+      ? seatOptions
+      : [
+          { value: connection.playerIndex, label: `Seat ${connection.playerIndex + 1}` },
+        ];
 
   const leaveCurrentGame = () => {
     if (playMode === "online" && connection.joined) {
@@ -1198,9 +1208,8 @@ function MahjongApp() {
                           playerIndex: Number(event.target.value),
                         }))
                       }
-                      disabled={seatOptions.length === 0}
                     >
-                      {seatOptions.map((option) => (
+                      {availableSeatOptions.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
                         </option>
@@ -1220,7 +1229,7 @@ function MahjongApp() {
                 {lobbySeatError}
               </p>
             ) : null}
-            {seatOptions.length === 0 ? (
+            {playMode === "online" && seatOptions.length === 0 ? (
               <p style={{ fontSize: "0.9rem", color: "#666" }}>
                 All seats in this room are currently occupied.
               </p>
@@ -1229,7 +1238,7 @@ function MahjongApp() {
               className="full-width-button"
               type="button"
               disabled={
-                (playMode === "online" && seatOptions.length === 0) ||
+                (playMode === "online" && seatOptions.length === 0 && occupiedSeats.length >= 4) ||
                 !connection.playerName.trim()
               }
               onClick={() =>

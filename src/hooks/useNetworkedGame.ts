@@ -265,6 +265,7 @@ export function useNetworkedGame(
   }, []);
   const leaveRoom = useCallback(() => {
     clientRef.current?.leaveRoom();
+  }, []);
   const readyNextHand = useCallback(() => {
     clientRef.current?.readyNextHand();
   }, []);

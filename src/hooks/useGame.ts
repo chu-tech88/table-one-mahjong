@@ -37,18 +37,19 @@ type UseGameOptions =
  * Rest of code doesn't need to know which mode is active.
  */
 export function useGame(options: UseGameOptions) {
-  if (options.mode === "networked") {
-    return useNetworkedGame(
-      options.serverUrl,
-      options.roomId,
-      options.playerIndex,
-      options.playerName,
-      options.enabled ?? true,
-    );
-  }
-  return useLocalGame({
+  const localGame = useLocalGame({
     initialGame: options.initialGame,
     initialRules: options.initialRules,
     initialHouseRules: options.initialHouseRules,
   });
+
+  const networkedGame = useNetworkedGame(
+    options.mode === "networked" ? options.serverUrl : "ws://localhost:8080",
+    options.mode === "networked" ? options.roomId : "local-room",
+    options.mode === "networked" ? options.playerIndex : 0,
+    options.mode === "networked" ? options.playerName : "Player",
+    options.mode === "networked" ? (options.enabled ?? true) : false,
+  );
+
+  return options.mode === "networked" ? networkedGame : localGame;
 }
