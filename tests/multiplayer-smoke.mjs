@@ -201,6 +201,19 @@ async function main() {
     );
     assert.equal(settingsUpdate.game.rules.baseWin, 7);
 
+    const earlyReadyRejection = waitForMessage(
+      ws0,
+      (msg) =>
+        msg.type === "action-rejected" &&
+        msg.reason === "The current hand is not complete",
+    );
+    send(ws0, {
+      type: "player-action",
+      playerIndex: 0,
+      action: { type: "ready-next-hand" },
+    });
+    await earlyReadyRejection;
+
     wsConflict = await connectClient(url);
     send(wsConflict, {
       type: "join-room",

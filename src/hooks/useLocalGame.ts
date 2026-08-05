@@ -47,6 +47,7 @@ type UseLocalGameReturn = {
   updateDifficulty: (playerIndex: number, difficulty: Difficulty) => void;
   newHand: (dealer?: number, resetGame?: boolean) => void;
   leaveRoom: () => void;
+  readyNextHand: () => void;
   isConnected?: boolean;
   error?: string | null;
 };
@@ -289,6 +290,10 @@ export function useLocalGame(
     [rules, houseRules],
   );
 
+  const readyNextHand = useCallback(() => {
+    newHand(undefined, false);
+  }, [newHand]);
+
   return {
     game,
     selectedTileId: game.selectedId,
@@ -310,6 +315,7 @@ export function useLocalGame(
     updateDifficulty,
     newHand,
     leaveRoom: () => undefined,
+    readyNextHand,
     isConnected: true,
     error: null,
   };

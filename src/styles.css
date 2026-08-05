@@ -1141,68 +1141,10 @@ textarea {
   border-bottom-width: 7px;
 }
 
-.human-hand .dot-pip {
-  width: 11px;
-  height: 11px;
-}
-
-.human-hand .dot-1 .dot-pip {
-  width: 21px;
-  height: 23px;
-}
-
-.human-hand .bamboo-stick {
-  min-width: 9px;
-  height: 18px;
-}
-
-.human-hand .bamboo-stick b {
-  width: 7px;
-  height: 18px;
-}
-
-.human-hand .bamboo-1 .bamboo-stick {
-  height: 24px;
-  transform: scale(1.85);
-}
-
-.human-hand .bamboo-1 .bamboo-stick b {
-  height: 24px;
-}
-
 .discard-river .tile {
   width: clamp(30px, 2.35vw, 42px);
   height: clamp(42px, 3.25vw, 58px);
   border-bottom-width: 3px;
-}
-
-.discard-river .dot-pip {
-  width: 7px;
-  height: 7px;
-}
-
-.discard-river .dot-1 .dot-pip {
-  width: 14px;
-  height: 16px;
-}
-
-.discard-river .bamboo-stick {
-  min-width: 6px;
-  height: 13px;
-}
-
-.discard-river .bamboo-stick b {
-  width: 5px;
-  height: 13px;
-}
-
-.discard-river .bamboo-1 .bamboo-stick {
-  height: 17px;
-  transform: scale(1.5);
-}
-
-.discard-river .bamboo-1 .bamboo-stick b {
-  height: 17px;
 }
 
 .dot-face,
@@ -1662,99 +1604,6 @@ textarea {
   font-size: 0.7rem;
 }
 
-.human-hand .character-face b,
-.discard-river .character-face b {
-  font-size: 1.46rem;
-}
-
-.human-hand .character-face em,
-.discard-river .character-face em {
-  font-size: 1.08rem;
-}
-
-.human-hand .honor-face,
-.discard-river .honor-face {
-  font-size: 2.08rem;
-}
-
-.human-hand .dragon-3,
-.discard-river .dragon-3 {
-  font-size: 1.82rem;
-}
-
-.human-hand .flower-face b,
-.discard-river .flower-face b {
-  font-size: 1.36rem;
-}
-
-.human-hand .flower-face em,
-.discard-river .flower-face em {
-  font-size: 0.8rem;
-}
-
-.tile.large .dot-face,
-.tile.large .bamboo-face {
-  padding: 13px 11px;
-  gap: 2px;
-}
-
-.tile.large .dot-pip {
-  width: 17px;
-  height: 17px;
-}
-
-.tile.large .dot-1 .dot-pip {
-  width: 31px;
-  height: 34px;
-}
-
-.tile.large .bamboo-stick {
-  min-width: 14px;
-  height: 28px;
-}
-
-.tile.large .bamboo-stick b {
-  width: 11px;
-  height: 28px;
-}
-
-.tile.large .bamboo-1 .bamboo-stick {
-  height: 36px;
-  transform: scale(1.9);
-}
-
-.tile.large .bamboo-1 .bamboo-stick b {
-  height: 36px;
-}
-
-.tile.large .character-face {
-  padding: 15px 8px 12px;
-}
-
-.tile.large .character-face b {
-  font-size: 2.3rem;
-}
-
-.tile.large .character-face em {
-  font-size: 1.72rem;
-}
-
-.tile.large .honor-face {
-  font-size: 3.2rem;
-}
-
-.tile.large .dragon-3 {
-  font-size: 2.72rem;
-}
-
-.tile.large .flower-face b {
-  font-size: 2.16rem;
-}
-
-.tile.large .flower-face em {
-  font-size: 1.12rem;
-}
-
 .meld {
   display: grid;
   gap: 3px;
@@ -2080,35 +1929,6 @@ textarea {
   width: 100%;
 }
 
-.meld .dot-pip {
-  width: 5px;
-  height: 5px;
-}
-
-.meld .bamboo-stick {
-  min-width: 4px;
-  height: 9px;
-}
-
-.meld .bamboo-stick b {
-  width: 3px;
-  height: 9px;
-}
-
-.meld .character-face b,
-.meld .flower-face b {
-  font-size: 0.9rem;
-}
-
-.meld .character-face em {
-  font-size: 0.68rem;
-}
-
-.meld .honor-face,
-.meld .dragon-face {
-  font-size: 1.12rem;
-}
-
 @media (max-width: 1050px) {
   .app-shell {
     padding: 0;
@@ -2271,12 +2091,18 @@ textarea {
   --hand-tile-h: clamp(52px, 5.8vw, 100px);
   --river-tile-w: clamp(28px, 2.15vw, 38px);
   --river-tile-h: clamp(38px, 2.95vw, 52px);
+  --info-zone-width: clamp(210px, 18vw, 260px);
   grid-template-areas:
-    "toolbar toolbar toolbar"
-    ". top ."
-    "left center right"
-    "human human human";
-  grid-template-columns: clamp(116px, 10vw, 170px) minmax(0, 1fr) clamp(116px, 10vw, 170px);
+    "toolbar toolbar toolbar toolbar toolbar"
+    ". . top . ."
+    ". left center right ."
+    "human human human human human";
+  grid-template-columns:
+    minmax(0, 1fr)
+    clamp(210px, 18vw, 260px)
+    minmax(520px, 560px)
+    clamp(210px, 18vw, 260px)
+    minmax(0, 1fr);
   grid-template-rows: clamp(54px, 6.5svh, 68px) clamp(74px, 9svh, 102px) minmax(0, 1fr) clamp(214px, 28svh, 306px);
   gap: clamp(3px, 0.45vw, 8px);
   padding: clamp(7px, 0.8vw, 14px) clamp(10px, 1.4vw, 26px) clamp(10px, 1.4svh, 18px);
@@ -2391,6 +2217,30 @@ textarea {
 .opponent-right {
   align-self: center;
   width: 100%;
+  max-height: 100%;
+  justify-content: center;
+}
+
+.opponent-left .seat-heading,
+.opponent-right .seat-heading {
+  width: min(100%, 280px);
+}
+
+.opponent-left .seat-meta,
+.opponent-right .seat-meta {
+  display: none;
+}
+
+.side-opponent-stack {
+  display: grid;
+  grid-template-rows: minmax(68px, 96px) minmax(68px, 96px);
+  gap: 7px;
+  width: min(100%, var(--info-zone-width));
+  min-height: 0;
+}
+
+.side-opponent-stack .opponent-table-zone {
+  max-height: none;
 }
 
 .opponent .seat-heading,
@@ -2433,7 +2283,7 @@ textarea {
   flex-wrap: nowrap;
 }
 
-.opponent .seat-badges span:not(.dealer-badge):not(.ready-badge):not(.identity-badge) {
+.opponent .seat-badges span:not(.dealer-badge):not(.ready-badge):not(.identity-badge):not(.score-badge) {
   display: none;
 }
 
@@ -2455,6 +2305,11 @@ textarea {
 }
 
 .opponent .seat-meta span:first-child {
+  display: none;
+}
+
+.opponent-left .seat-meta,
+.opponent-right .seat-meta {
   display: none;
 }
 
@@ -2558,11 +2413,14 @@ textarea {
 
 .discard-lane-0 {
   grid-template-columns: minmax(0, 1fr);
+  justify-self: center;
+  width: var(--info-zone-width);
 }
 
 .discard-lane-2 {
+  grid-template-columns: repeat(2, var(--info-zone-width));
   justify-self: center;
-  width: min(480px, 66vw);
+  width: max-content;
 }
 
 .opponent-table-zone {
@@ -2724,6 +2582,20 @@ textarea {
   width: min(1180px, 100%);
   max-height: none;
   height: 100%;
+  justify-content: center;
+  margin-inline: auto;
+}
+
+.human-seat .flower-row,
+.human-seat .meld-row {
+  justify-content: center;
+}
+
+.next-hand-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-align: center;
 }
 
 .human-hand {
@@ -2945,7 +2817,18 @@ textarea {
     --hand-tile-h: clamp(46px, 5.9vw, 72px);
     --river-tile-w: clamp(25px, 2.8vw, 32px);
     --river-tile-h: clamp(34px, 3.75vw, 44px);
-    grid-template-columns: 92px minmax(0, 1fr) 92px;
+    --info-zone-width: clamp(142px, 20vw, 210px);
+    grid-template-areas:
+      "toolbar toolbar toolbar toolbar toolbar"
+      ". . top . ."
+      ". left center right ."
+      "human human human human human";
+    grid-template-columns:
+      minmax(0, 1fr)
+      clamp(142px, 20vw, 210px)
+      minmax(440px, 560px)
+      clamp(142px, 20vw, 210px)
+      minmax(0, 1fr);
     grid-template-rows: 54px 72px minmax(0, 1fr) clamp(202px, 29svh, 244px);
     padding-inline: 10px;
   }
@@ -2971,6 +2854,11 @@ textarea {
     display: none;
   }
 
+  .opponent-left,
+  .opponent-right {
+    justify-content: flex-start;
+  }
+
   .table-discard-grid {
     grid-template-columns: minmax(0, 1fr) minmax(130px, 0.8fr) minmax(0, 1fr);
   }
@@ -2982,13 +2870,15 @@ textarea {
     --hand-tile-h: clamp(28px, 7.05vw, 42px);
     --river-tile-w: clamp(21px, 6vw, 28px);
     --river-tile-h: clamp(29px, 8.1vw, 38px);
+    --info-zone-width: calc((100vw - 15px) / 3);
     grid-template-areas:
       "toolbar toolbar toolbar"
-      "left top right"
+      "top top top"
       "center center center"
+      "left . right"
       "human human human";
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: 44px 58px minmax(0, 1fr) clamp(202px, 27svh, 228px);
+    grid-template-rows: 44px 54px minmax(0, 1fr) 176px clamp(202px, 27svh, 228px);
     gap: 3px;
     padding: 5px 5px 8px;
   }
@@ -3069,6 +2959,22 @@ textarea {
 
   .opponent .seat-meta {
     font-size: 0.56rem;
+  }
+
+  .side-opponent-stack {
+    grid-template-rows: minmax(54px, 70px) minmax(54px, 70px);
+    gap: 3px;
+  }
+
+  .opponent-left,
+  .opponent-right {
+    align-self: stretch;
+    justify-content: start;
+  }
+
+  .opponent-left .seat-heading,
+  .opponent-right .seat-heading {
+    min-height: 24px;
   }
 
   .opponent .seat-sets-row {
@@ -3179,102 +3085,10 @@ textarea {
     margin-left: -2px;
   }
 
-  .table .tile:not(.large) .dot-pip {
-    width: 4px;
-    height: 4px;
-  }
-
-  .table .tile:not(.large) .dot-1 .dot-pip {
-    width: 9px;
-    height: 10px;
-  }
-
-  .table .tile:not(.large) .bamboo-stick,
-  .table .tile:not(.large) .bamboo-stick b {
-    min-width: 3px;
-    width: 3px;
-    height: 7px;
-  }
-
-  .table .tile:not(.large) .character-face {
-    padding: 3px 2px;
-  }
-
-  .table .tile:not(.large) .character-face b,
-  .table .tile:not(.large) .flower-face b {
-    font-size: 0.68rem;
-  }
-
-  .table .tile:not(.large) .character-face em,
-  .table .tile:not(.large) .flower-face em {
-    font-size: 0.5rem;
-  }
-
-  .table .tile:not(.large) .honor-face {
-    font-size: 0.92rem;
-  }
-
-  .table .tile:not(.large) .dragon-3 {
-    font-size: 0.78rem;
-    border-width: 1px;
-  }
-
-  .table .tile:not(.large) .bamboo-bird-face i {
-    border-width: 1px;
-  }
-
-  .table .tile.large .dot-pip {
-    width: 7px;
-    height: 7px;
-  }
-
-  .table .tile.large .character-face b {
-    font-size: 1.15rem;
-  }
-
-  .table .tile.large .character-face em {
-    font-size: 0.82rem;
-  }
-
-  .table .tile.large .honor-face {
-    font-size: 1.55rem;
-  }
-
   .modal-backdrop .tile:not(.large) {
     width: 28px;
     height: 38px;
     border-bottom-width: 3px;
-  }
-
-  .modal-backdrop .tile:not(.large) .dot-pip {
-    width: 5px;
-    height: 5px;
-  }
-
-  .modal-backdrop .tile:not(.large) .dot-1 .dot-pip {
-    width: 10px;
-    height: 11px;
-  }
-
-  .modal-backdrop .tile:not(.large) .bamboo-stick,
-  .modal-backdrop .tile:not(.large) .bamboo-stick b {
-    min-width: 3px;
-    width: 3px;
-    height: 8px;
-  }
-
-  .modal-backdrop .tile:not(.large) .character-face b,
-  .modal-backdrop .tile:not(.large) .flower-face b {
-    font-size: 0.78rem;
-  }
-
-  .modal-backdrop .tile:not(.large) .character-face em,
-  .modal-backdrop .tile:not(.large) .flower-face em {
-    font-size: 0.56rem;
-  }
-
-  .modal-backdrop .tile:not(.large) .honor-face {
-    font-size: 1.05rem;
   }
 
   .hand-actions {
@@ -3310,4 +3124,175 @@ textarea {
     padding-left: 0;
     border-left: 0;
   }
+}
+
+/* Tile artwork uses the tile itself as its coordinate system in every view. */
+.tile {
+  --tile-base-depth: max(3px, 8cqw);
+  container-type: inline-size;
+}
+
+.tile > .tile-face {
+  inset: 0 0 auto;
+  width: 100%;
+  height: calc(100% - var(--tile-base-depth));
+  box-sizing: border-box;
+  transform: none;
+}
+
+.tile .dot-face,
+.tile .bamboo-face {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  place-items: center;
+  gap: 2cqw;
+  padding: 11cqw 10cqw 9cqw;
+}
+
+.tile .dot-pip {
+  width: 72%;
+  height: auto;
+  min-width: 0;
+  aspect-ratio: 1;
+  border-width: max(1px, 2.5cqw);
+  box-sizing: border-box;
+}
+
+.tile .dot-1 .dot-pip {
+  grid-column: 1;
+  grid-row: 1;
+  width: 62%;
+  height: auto;
+  place-self: center;
+}
+
+.tile .dot-1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  padding: 0;
+}
+
+.tile .bamboo-stick {
+  display: block;
+  align-self: stretch;
+  justify-self: center;
+  width: 42%;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 12% 0;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, transparent 42%, rgba(255, 255, 255, 0.62) 45% 56%, transparent 59%),
+    linear-gradient(180deg, #147d5b 0 44%, #e0473d 45% 55%, #147d5b 56% 100%);
+  box-shadow: 0 0 0 1px rgba(8, 83, 58, 0.2);
+}
+
+.tile .bamboo-stick b {
+  display: none;
+}
+
+.tile .bamboo-svg-face {
+  inset: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: calc(100% - var(--tile-base-depth));
+  padding: 7% 9% 5%;
+  box-sizing: border-box;
+  transform: none;
+}
+
+.tile .bamboo-svg-face svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.tile .character-face,
+.tile .honor-face,
+.tile .flower-face {
+  inset: 0 0 auto;
+  width: 100%;
+  height: calc(100% - var(--tile-base-depth));
+  padding: 7cqw 5cqw 5cqw;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-sizing: border-box;
+  transform: none;
+}
+
+.tile .character-face {
+  grid-template-rows: minmax(0, 1.05fr) minmax(0, 0.8fr);
+}
+
+.tile .character-face b {
+  font-size: 52cqw;
+  line-height: 0.95;
+}
+
+.tile .character-face em {
+  font-size: 34cqw;
+  line-height: 0.9;
+}
+
+.tile .honor-face {
+  font-size: 68cqw;
+  line-height: 1;
+}
+
+.tile .dragon-3 {
+  inset: 50% auto auto 50%;
+  width: 72%;
+  height: 66%;
+  padding: 0;
+  border: max(1px, 4cqw) solid currentColor;
+  border-radius: 8cqw;
+  font-size: 45cqw;
+  transform: translate(-50%, -56%);
+}
+
+.tile .flower-face {
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: 8cqw 5cqw 7cqw;
+}
+
+.tile .flower-face b {
+  font-size: 46cqw;
+  line-height: 0.95;
+}
+
+.tile .flower-face em {
+  font-size: 25cqw;
+  line-height: 1;
+}
+
+.tile .bamboo-bird-face {
+  inset: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: calc(100% - var(--tile-base-depth));
+  transform: none;
+}
+
+.tile .bamboo-bird-face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(1.05) contrast(1.03);
+  mix-blend-mode: multiply;
+}
+
+.opponent-discard-zone .discard-river {
+  flex-wrap: nowrap;
+  align-content: initial;
+  align-items: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }

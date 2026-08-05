@@ -40,6 +40,7 @@ import {
   saveScenarioSnapshot,
   type ScenarioSnapshot,
 } from "./game-logic/snapshot";
+import oneBambooBird from "./assets/one-bamboo-bird.png";
 
 // Component rendering stays exactly the same
 const DEFAULT_SERVER_URL =
@@ -90,6 +91,90 @@ const flowerCharacters: Record<string, string> = {
   F8: "冬",
 };
 
+const bambooLayouts: Record<number, Array<[number, number]>> = {
+  2: [
+    [35, 28],
+    [65, 72],
+  ],
+  3: [
+    [28, 24],
+    [50, 50],
+    [72, 76],
+  ],
+  4: [
+    [32, 27],
+    [68, 27],
+    [32, 73],
+    [68, 73],
+  ],
+  5: [
+    [30, 24],
+    [70, 24],
+    [50, 50],
+    [30, 76],
+    [70, 76],
+  ],
+  6: [
+    [34, 20],
+    [66, 20],
+    [34, 50],
+    [66, 50],
+    [34, 80],
+    [66, 80],
+  ],
+  7: [
+    [24, 19],
+    [50, 19],
+    [76, 19],
+    [34, 50],
+    [66, 50],
+    [34, 81],
+    [66, 81],
+  ],
+  8: [
+    [34, 14],
+    [66, 14],
+    [34, 38],
+    [66, 38],
+    [34, 62],
+    [66, 62],
+    [34, 86],
+    [66, 86],
+  ],
+  9: [
+    [23, 18],
+    [50, 18],
+    [77, 18],
+    [23, 50],
+    [50, 50],
+    [77, 50],
+    [23, 82],
+    [50, 82],
+    [77, 82],
+  ],
+};
+
+function BambooFace({ rank }: { rank: number }) {
+  return (
+    <span className="tile-face bamboo-svg-face" aria-hidden="true">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+        {bambooLayouts[rank].map(([x, y], index) => (
+          <g key={`${x}-${y}-${index}`} transform={`translate(${x} ${y})`}>
+            <rect x="-5" y="-12" width="10" height="24" rx="5" fill="#147d5b" />
+            <rect x="-5" y="-2" width="10" height="4" fill="#d7433f" />
+            <path
+              d="M0 -10 V10"
+              stroke="#eff8e9"
+              strokeWidth="1.5"
+              opacity="0.65"
+            />
+          </g>
+        ))}
+      </svg>
+    </span>
+  );
+}
+
 function TileFace({ tile }: { tile: Tile }) {
   if (tile.suit === "dots") {
     return (
@@ -108,30 +193,11 @@ function TileFace({ tile }: { tile: Tile }) {
     if (tile.rank === 1) {
       return (
         <span className="tile-face bamboo-bird-face" aria-hidden="true">
-          <i className="bird-perch" />
-          <i className="bird-tail" />
-          <i className="bird-wing bird-wing-left" />
-          <i className="bird-body" />
-          <i className="bird-head" />
-          <i className="bird-eye" />
-          <i className="bird-beak" />
-          <i className="bird-crest" />
-          <i className="bird-wing bird-wing-right" />
+          <img src={oneBambooBird} alt="" />
         </span>
       );
     }
-    return (
-      <span
-        className={`tile-face bamboo-face bamboo-${tile.rank}`}
-        aria-hidden="true"
-      >
-        {Array.from({ length: tile.rank }, (_, index) => (
-          <i className="bamboo-stick" key={index}>
-            <b />
-          </i>
-        ))}
-      </span>
-    );
+    return <BambooFace rank={tile.rank} />;
   }
 
   if (tile.suit === "characters") {
@@ -280,6 +346,7 @@ function TableDiscardGrid({
       {players.map((player, index) => {
         const relativeSeat = (index - selfIndex + 4) % 4;
         const isSelf = index === selfIndex;
+        if (relativeSeat === 1 || relativeSeat === 3) return null;
         return (
           <section
             className={`table-discard-lane discard-lane-${relativeSeat}`}
@@ -372,6 +439,8 @@ function Opponent({
   position: "left" | "top" | "right";
   onInspect: () => void;
 }) {
+  const isSideSeat = position === "left" || position === "right";
+  const revealedCount = player.flowers.length + player.melds.length;
   return (
     <section
       className={`opponent opponent-${position} ${active ? "active" : ""} ${dealer ? "dealer-seat" : ""}`}
@@ -388,6 +457,9 @@ function Opponent({
           <span className="identity-badge">
             {player.controller === "human" ? "Human" : "AI"}
           </span>
+          {isSideSeat ? (
+            <span className="score-badge">{player.score} pts</span>
+          ) : null}
           <span>{player.wind}</span>
         </div>
       </button>
@@ -395,6 +467,39 @@ function Opponent({
         <span>{difficulties[player.difficulty]}</span>
         <span>{player.score} pts</span>
       </div>
+      {isSideSeat ? (
+        <div className="side-opponent-stack">
+          <div className="opponent-table-zone opponent-discard-zone">
+            <button
+              className="opponent-zone-header"
+              type="button"
+              onClick={onInspect}
+            >
+              <span>Discards</span>
+              <small>{player.discards.length}</small>
+            </button>
+            <DiscardRiver player={player} />
+          </div>
+          <div
+            className="opponent-table-zone opponent-revealed-zone"
+            aria-label={`${player.name} revealed tiles`}
+          >
+            <button
+              className="opponent-zone-header"
+              type="button"
+              onClick={onInspect}
+            >
+              <span>Revealed</span>
+              <small>{revealedCount}</small>
+            </button>
+            {revealedCount > 0 ? (
+              <SeatSets flowers={player.flowers} melds={player.melds} />
+            ) : (
+              <span className="opponent-zone-empty">No open tiles</span>
+            )}
+          </div>
+        </div>
+      ) : null}
       {reveal ? (
         <div
           className="compact-hand revealed-hand"
@@ -620,6 +725,7 @@ function MahjongApp() {
     updateDifficulty,
     newHand,
     leaveRoom,
+    readyNextHand,
   } = gameHook;
   const SELF = connection.playerIndex;
   const leftSeat = (SELF + 1) % 4;
@@ -760,7 +866,11 @@ function MahjongApp() {
       ? "Your turn - choose an action"
       : activityIsTurnCall && activity.player === SELF
         ? "Your turn"
-        : activity.text;
+        : playMode === "online" &&
+            currentPhase === "claim" &&
+            currentClaimer !== undefined
+          ? `${seatName(currentClaimer)} is waiting to discard.`
+          : activity.text;
   const centerStatusLabel =
     !activity.tile && showYourTurnInCenter
       ? "Your turn"
@@ -1961,10 +2071,30 @@ function MahjongApp() {
             <button
               className="full-width-button"
               type="button"
-              onClick={() => newHand(nextDealer, false)}
+              disabled={
+                playMode === "online" &&
+                (game.nextHandReady?.includes(SELF) ?? false)
+              }
+              onClick={() => {
+                if (playMode === "online") {
+                  readyNextHand();
+                } else {
+                  newHand(nextDealer, false);
+                }
+              }}
             >
-              Next Hand
+              {playMode === "online" &&
+              (game.nextHandReady?.includes(SELF) ?? false)
+                ? "Waiting for other players..."
+                : "Next Hand"}
             </button>
+            {playMode === "online" ? (
+              <p className="next-hand-status" aria-live="polite">
+                {game.nextHandReady?.includes(SELF)
+                  ? `${game.nextHandReady.length} of ${game.nextHandRequired?.length ?? 1} players ready. Waiting for everyone else to click Next Hand.`
+                  : "The next hand begins after every player clicks Next Hand."}
+              </p>
+            ) : null}
           </section>
         </div>
       ) : null}

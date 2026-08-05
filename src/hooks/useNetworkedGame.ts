@@ -28,6 +28,7 @@ type UseNetworkedGameReturn = {
   updateDifficulty: (playerIndex: number, difficulty: Difficulty) => void;
   newHand: (dealer?: number, resetGame?: boolean) => void;
   leaveRoom: () => void;
+  readyNextHand: () => void;
 };
 
 /**
@@ -264,6 +265,8 @@ export function useNetworkedGame(
   }, []);
   const leaveRoom = useCallback(() => {
     clientRef.current?.leaveRoom();
+  const readyNextHand = useCallback(() => {
+    clientRef.current?.readyNextHand();
   }, []);
 
   return {
@@ -291,5 +294,6 @@ export function useNetworkedGame(
     updateDifficulty,
     newHand,
     leaveRoom,
+    readyNextHand,
   };
 }
