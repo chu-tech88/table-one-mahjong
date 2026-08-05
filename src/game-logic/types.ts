@@ -197,6 +197,7 @@ export type Game = {
   phase: Phase;
   lastDiscard?: LastDiscard;
   pendingClaim?: PendingClaim;
+  claimPasses?: number[];
   pendingAddedGong?: PendingAddedGong;
   message: string;
   selectedId?: string;

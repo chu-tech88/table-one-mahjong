@@ -70,11 +70,12 @@ function auditState(game: Game) {
 function otherClaimExists(game: Game) {
   const pending = game.pendingClaim;
   const discard = game.lastDiscard;
-  if (!pending || !discard || pending.canHu) return false;
+  if (!pending || !discard) return false;
 
+  const passed = new Set(game.claimPasses ?? []);
   return [1, 2, 3]
     .map((offset) => (discard.by + offset) % 4)
-    .filter((seat) => seat !== pending.claimer)
+    .filter((seat) => seat !== pending.claimer && !passed.has(seat))
     .some((seat) => {
       const player = game.players[seat];
       return (
@@ -96,6 +97,7 @@ type HandResult = {
   concealedGongs: number;
   revealedGongs: number;
   claimPasses: number;
+  queuedClaimContinuations: number;
   skippedClaimRisks: number;
   flowers: number;
   points: number;
@@ -122,6 +124,7 @@ function playHumanHand(index: number): HandResult {
   let concealedGongs = 0;
   let revealedGongs = 0;
   let claimPasses = 0;
+  let queuedClaimContinuations = 0;
   let skippedClaimRisks = 0;
   const errors: string[] = [];
 
@@ -195,8 +198,12 @@ function playHumanHand(index: number): HandResult {
             );
             claims[call === "kong" ? "gong" : call] += 1;
           } else {
-            if (otherClaimExists(game)) skippedClaimRisks += 1;
+            const shouldContinueClaimQueue = otherClaimExists(game);
             game = passClaim(game, seat, game.rules, game.houseRules, ALL_HUMAN);
+            if (shouldContinueClaimQueue) {
+              if (game.phase === "claim") queuedClaimContinuations += 1;
+              else skippedClaimRisks += 1;
+            }
             claimPasses += 1;
           }
         }
@@ -228,6 +235,7 @@ function playHumanHand(index: number): HandResult {
     concealedGongs,
     revealedGongs,
     claimPasses,
+    queuedClaimContinuations,
     skippedClaimRisks,
     flowers: game.players.reduce((sum, player) => sum + player.flowers.length, 0),
     points: game.winSummary?.total ?? 0,
@@ -271,6 +279,7 @@ const summary = {
     concealedGong: sum((result) => result.concealedGongs),
     revealedOrAddedGong: sum((result) => result.revealedGongs),
     passes: sum((result) => result.claimPasses),
+    queuedContinuations: sum((result) => result.queuedClaimContinuations),
   },
   flowersCollected: sum((result) => result.flowers),
   skippedClaimRisks: sum((result) => result.skippedClaimRisks),
@@ -281,3 +290,4 @@ const summary = {
 
 console.log(JSON.stringify(summary, null, 2));
 assert.equal(summary.completedWithoutInvariantError, gameCount);
+assert.equal(summary.skippedClaimRisks, 0);

@@ -452,6 +452,7 @@ export function scoreRound(
   }
 
   next.phase = "round-over";
+  next.claimPasses = undefined;
   next.pendingAddedGong = undefined;
   next.robbingGong = undefined;
   next.winner = winner;
@@ -488,6 +489,7 @@ export function finishExhaustedHand(game: Game) {
   next.handResult = "draw";
   next.winner = undefined;
   next.pendingClaim = undefined;
+  next.claimPasses = undefined;
   next.pendingAddedGong = undefined;
   next.lastDiscard = undefined;
   next.drawnTileId = undefined;

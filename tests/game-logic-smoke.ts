@@ -222,6 +222,122 @@ assert.equal(huPriority.pendingClaim?.canPong, false);
 assert.equal(huPriority.pendingClaim?.canChi, false);
 assert.equal(huPriority.pendingClaim?.canKong, false);
 
+const sequentialHuGame = dealRound();
+const huDiscard = tiles(["W1"])[0];
+const huWait = [
+  "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
+  "B1", "B2", "B3", "C1", "C2", "C3", "W1",
+];
+sequentialHuGame.players[1].hand = tiles(huWait);
+sequentialHuGame.players[2].hand = tiles(huWait);
+sequentialHuGame.players[3].hand = [];
+sequentialHuGame.lastDiscard = { tile: huDiscard, by: 0 };
+const firstHuOffer = advanceAfterDiscard(
+  sequentialHuGame,
+  0,
+  sequentialHuGame.rules,
+  sequentialHuGame.houseRules,
+  () => true,
+);
+assert.equal(firstHuOffer.pendingClaim?.claimer, 1);
+assert.equal(firstHuOffer.pendingClaim?.canHu, true);
+const secondHuOffer = passClaim(
+  firstHuOffer,
+  1,
+  firstHuOffer.rules,
+  firstHuOffer.houseRules,
+  () => true,
+);
+assert.equal(secondHuOffer.pendingClaim?.claimer, 2);
+assert.equal(secondHuOffer.pendingClaim?.canHu, true);
+
+const huOverPongGame = dealRound();
+const huOverPongDiscard = tiles(["D5"])[0];
+huOverPongGame.players[1].hand = tiles(["D5", "D5"]);
+huOverPongGame.players[2].hand = tiles([
+  "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
+  "B1", "B2", "B3", "C1", "C2", "C3", "D5",
+]);
+huOverPongGame.players[3].hand = [];
+huOverPongGame.lastDiscard = { tile: huOverPongDiscard, by: 0 };
+const huOverPong = advanceAfterDiscard(
+  huOverPongGame,
+  0,
+  huOverPongGame.rules,
+  huOverPongGame.houseRules,
+  () => true,
+);
+assert.equal(huOverPong.pendingClaim?.claimer, 2);
+assert.equal(huOverPong.pendingClaim?.canHu, true);
+assert.equal(huOverPong.pendingClaim?.canPong, false);
+
+const pongQueueGame = dealRound();
+const pongDiscard = tiles(["D5"])[0];
+pongQueueGame.players[1].hand = tiles(["D5", "D5"]);
+pongQueueGame.players[2].hand = tiles(["D5", "D5", "D5"]);
+pongQueueGame.players[3].hand = [];
+pongQueueGame.lastDiscard = { tile: pongDiscard, by: 0 };
+const firstPongOffer = advanceAfterDiscard(
+  pongQueueGame,
+  0,
+  pongQueueGame.rules,
+  pongQueueGame.houseRules,
+  () => true,
+);
+assert.equal(firstPongOffer.pendingClaim?.claimer, 1);
+assert.equal(firstPongOffer.pendingClaim?.canPong, true);
+const secondPongOffer = passClaim(
+  firstPongOffer,
+  1,
+  firstPongOffer.rules,
+  firstPongOffer.houseRules,
+  () => true,
+);
+assert.equal(secondPongOffer.pendingClaim?.claimer, 2);
+assert.equal(secondPongOffer.pendingClaim?.canKong, true);
+
+const pongBeforeChiGame = dealRound();
+const chiDiscard = tiles(["D5"])[0];
+pongBeforeChiGame.players[1].hand = tiles(["D4", "D6"]);
+pongBeforeChiGame.players[2].hand = tiles(["D5", "D5"]);
+pongBeforeChiGame.players[3].hand = [];
+pongBeforeChiGame.lastDiscard = { tile: chiDiscard, by: 0 };
+const pongBeforeChi = advanceAfterDiscard(
+  pongBeforeChiGame,
+  0,
+  pongBeforeChiGame.rules,
+  pongBeforeChiGame.houseRules,
+  () => true,
+);
+assert.equal(pongBeforeChi.pendingClaim?.claimer, 2);
+assert.equal(pongBeforeChi.pendingClaim?.canPong, true);
+const chiAfterPongPass = passClaim(
+  pongBeforeChi,
+  2,
+  pongBeforeChi.rules,
+  pongBeforeChi.houseRules,
+  () => true,
+);
+assert.equal(chiAfterPongPass.pendingClaim?.claimer, 1);
+assert.equal(chiAfterPongPass.pendingClaim?.canChi, true);
+assert.equal(chiAfterPongPass.pendingClaim?.canPong, false);
+
+const invalidChiDirectionGame = dealRound();
+const invalidChiDiscard = tiles(["D5"])[0];
+invalidChiDirectionGame.players[1].hand = [];
+invalidChiDirectionGame.players[2].hand = tiles(["D4", "D6"]);
+invalidChiDirectionGame.players[3].hand = [];
+invalidChiDirectionGame.lastDiscard = { tile: invalidChiDiscard, by: 0 };
+const invalidChiDirection = advanceAfterDiscard(
+  invalidChiDirectionGame,
+  0,
+  invalidChiDirectionGame.rules,
+  invalidChiDirectionGame.houseRules,
+  () => true,
+);
+assert.equal(invalidChiDirection.pendingClaim, undefined);
+assert.equal(invalidChiDirection.turn, 1);
+
 const waitHand = tiles([
   "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",
   "B1", "B2", "B3", "C1", "C2", "C3", "W1",

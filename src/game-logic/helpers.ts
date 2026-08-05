@@ -79,6 +79,7 @@ export function structuredCloneGame(game: Game): Game {
     wall: [...game.wall],
     lastDiscard: game.lastDiscard ? { ...game.lastDiscard } : undefined,
     pendingClaim: game.pendingClaim ? { ...game.pendingClaim } : undefined,
+    claimPasses: game.claimPasses ? [...game.claimPasses] : undefined,
     pendingAddedGong: game.pendingAddedGong
       ? {
           ...game.pendingAddedGong,

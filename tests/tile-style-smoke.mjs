@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 
 const css = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
 const app = await readFile(new URL("../src/App.tsx", import.meta.url), "utf8");
+const server = await readFile(new URL("../server/game-server.ts", import.meta.url), "utf8");
 
 assert.match(
   css,
@@ -73,6 +74,16 @@ assert.doesNotMatch(
   app,
   /<span>Seat<\/span>[\s\S]*?<select/,
   "The multiplayer lobby should not ask players to select a seat",
+);
+assert.match(
+  server,
+  /visible\.pendingClaim = undefined;[\s\S]*?is waiting to discard\./,
+  "Other players must not receive the active player's claim options",
+);
+assert.match(
+  app,
+  /playMode === "online"[\s\S]*?currentPhase === "claim"[\s\S]*?is waiting to discard\./,
+  "Online table activity must use neutral claim language",
 );
 assert.doesNotMatch(
   app,

@@ -1060,9 +1060,9 @@ function playAITurnIfNeeded(roomId: string) {
   if (game.phase === "claim" && game.pendingClaim && game.lastDiscard) {
     const activeClaimant = game.pendingClaim.claimer;
     if (!isHumanSeat(room, activeClaimant)) {
-      const nextGame = startTurn(
+      const nextGame = passClaim(
         game,
-        (game.lastDiscard.by + 1) % 4,
+        activeClaimant,
         game.rules,
         game.houseRules,
         (index) => isHumanSeat(room, index),

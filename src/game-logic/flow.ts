@@ -39,7 +39,9 @@ export function advanceAfterDiscard(
   if (!discard) return next;
 
   const order = [1, 2, 3].map((offset) => (discardedBy + offset) % 4);
-  const hu = order.find((index) =>
+  const passed = new Set(next.claimPasses ?? []);
+  const eligibleOrder = order.filter((index) => !passed.has(index));
+  const hu = eligibleOrder.find((index) =>
     isWinningHand(
       [...next.players[index].hand, discard.tile],
       next.players[index].melds.length,
@@ -68,7 +70,7 @@ export function advanceAfterDiscard(
     return scoreRound(next, hu, "discard", rules, houseRules);
   }
 
-  for (const playerIndex of order) {
+  for (const playerIndex of eligibleOrder) {
     if (next.declaredReady?.includes(playerIndex)) continue;
     const playerCanKong = canExposedKong(
       next.players[playerIndex].hand,
@@ -121,6 +123,7 @@ export function advanceAfterDiscard(
   const chiSeat = (discardedBy + 1) % 4;
   if (
     isHumanSeat(chiSeat) &&
+    !passed.has(chiSeat) &&
     !next.declaredReady?.includes(chiSeat) &&
     possibleChiOptions(next.players[chiSeat].hand, discard.tile).length > 0
   ) {
@@ -146,6 +149,7 @@ export function advanceAfterDiscard(
   const chiPlayer = (discardedBy + 1) % 4;
   if (
     !isHumanSeat(chiPlayer) &&
+    !passed.has(chiPlayer) &&
     !next.declaredReady?.includes(chiPlayer) &&
     possibleChiOptions(next.players[chiPlayer].hand, discard.tile).length > 0 &&
     shouldCall(next.players[chiPlayer], "chi")
@@ -215,6 +219,7 @@ export function applyClaim(
   next.turn = playerIndex;
   next.phase = "discard";
   next.pendingClaim = undefined;
+  next.claimPasses = undefined;
   next.lastDiscard = undefined;
   next.drawnTileId = undefined;
   next.message = tableNarration(
@@ -273,6 +278,7 @@ export function startTurn(
   next.turn = playerIndex;
   next.lastDiscard = undefined;
   next.pendingClaim = undefined;
+  next.claimPasses = undefined;
 
   const player = next.players[playerIndex];
   if (isWinningHand(player.hand, player.melds.length)) {
@@ -378,6 +384,7 @@ export function discardTile(
   player.hand = player.hand.filter((candidate) => candidate.id !== tileId);
   player.discards.push(tile);
   next.lastDiscard = { tile, by: playerIndex };
+  next.claimPasses = undefined;
   next.selectedId = undefined;
   next.drawnTileId = undefined;
   next.drawContext = undefined;
@@ -531,7 +538,19 @@ export function passClaim(
     return resolveAddedGong(next, rules, houseRules, isHumanSeat);
   }
   if (game.phase !== "claim" || !game.lastDiscard) return game;
-  return startTurn(game, (game.lastDiscard.by + 1) % 4, rules, houseRules, isHumanSeat);
+  const discardedBy = game.lastDiscard.by;
+  const next = structuredCloneGame(game);
+  next.claimPasses = Array.from(
+    new Set([...(next.claimPasses ?? []), playerIndex]),
+  );
+  next.pendingClaim = undefined;
+  return advanceAfterDiscard(
+    next,
+    discardedBy,
+    rules,
+    houseRules,
+    isHumanSeat,
+  );
 }
 
 export { HUMAN };
