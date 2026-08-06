@@ -40,6 +40,7 @@ import {
   saveScenarioSnapshot,
   type ScenarioSnapshot,
 } from "./game-logic/snapshot";
+import html2canvas from "html2canvas";
 import oneBambooBird from "./assets/one-bamboo-bird.png";
 
 // Component rendering stays exactly the same
@@ -624,13 +625,6 @@ type SavedSession = {
   savedAt: number;
 };
 
-type ConnectionState = {
-  roomId: string;
-  playerIndex?: number;
-  playerName: string;
-  joined: boolean;
-};
-
 const ACTIVE_SESSION_KEY = "table-one-mahjong-active-session-v2";
 
 function parseSavedSession(raw: string | null) {
@@ -669,7 +663,7 @@ function MahjongApp() {
   const [playMode, setPlayMode] = useState<"solo" | "online">(
     restoredActiveSession?.playMode ?? "solo",
   );
-  const [connection, setConnection] = useState<ConnectionState>(() => ({
+  const [connection, setConnection] = useState(() => ({
     roomId: restoredActiveSession?.roomId ?? createSoloRoomId(),
     playerIndex: restoredActiveSession?.playerIndex ?? 0,
     playerName: restoredActiveSession?.playerName ?? "",
@@ -682,6 +676,22 @@ function MahjongApp() {
   );
   const [scenarioFeedback, setScenarioFeedback] = useState<string | null>(null);
   const scenarioFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!connection.joined) {
+      window.sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+      return;
+    }
+    const snapshot: SavedSession = {
+      playMode,
+      roomId: connection.roomId,
+      playerIndex: connection.playerIndex,
+      playerName: connection.playerName,
+      savedAt: Date.now(),
+    };
+    window.sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(snapshot));
+  }, [connection, playMode]);
 
   const isLocalReplay = Boolean(activeScenario) || playMode === "solo";
   const gameHook = useGame({
@@ -717,28 +727,8 @@ function MahjongApp() {
     newHand,
     leaveRoom,
     readyNextHand,
-    playerIndex: assignedPlayerIndex,
   } = gameHook;
-  const SELF = assignedPlayerIndex >= 0
-    ? assignedPlayerIndex
-    : connection.playerIndex ?? 0;
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!connection.joined) {
-      window.sessionStorage.removeItem(ACTIVE_SESSION_KEY);
-      return;
-    }
-    if (assignedPlayerIndex < 0) return;
-    const snapshot: SavedSession = {
-      playMode,
-      roomId: connection.roomId,
-      playerIndex: assignedPlayerIndex,
-      playerName: connection.playerName,
-      savedAt: Date.now(),
-    };
-    window.sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(snapshot));
-  }, [assignedPlayerIndex, connection, playMode]);
+  const SELF = connection.playerIndex;
   const leftSeat = (SELF + 1) % 4;
   const topSeat = (SELF + 2) % 4;
   const rightSeat = (SELF + 3) % 4;
@@ -914,6 +904,22 @@ function MahjongApp() {
     saveScenarioSnapshot(snapshot);
     setActiveScenario(snapshot);
 
+    let screenshotDataUrl: string | undefined;
+    try {
+      const screenshotTarget = document.querySelector(
+        ".table",
+      ) as HTMLElement | null;
+      const canvas = await html2canvas(screenshotTarget ?? document.body, {
+        backgroundColor: "#0f172a",
+        logging: false,
+        scale: 1.5,
+        useCORS: true,
+      });
+      screenshotDataUrl = canvas.toDataURL("image/png");
+    } catch {
+      screenshotDataUrl = undefined;
+    }
+
     const reportPayload = {
       title: `Bug report: ${snapshot.label}`,
       description: [
@@ -922,6 +928,7 @@ function MahjongApp() {
         "The attached JSON contains the game state and action history needed to replay this issue.",
       ].join("\n"),
       snapshot,
+      screenshot: screenshotDataUrl,
       metadata: {
         createdAt: snapshot.createdAt,
         mode: snapshot.metadata.mode,
@@ -1090,9 +1097,59 @@ function MahjongApp() {
     };
   }, [connection.joined, connection.roomId]);
 
-  const openSeatCount = 4 - occupiedSeats.length;
+  useEffect(() => {
+    if (connection.joined) return;
+    if (!occupiedSeats.includes(connection.playerIndex)) return;
+    if (playMode !== "online") return;
+
+    const firstOpenSeat = [0, 1, 2, 3].find(
+      (seat) => !occupiedSeats.includes(seat),
+    );
+    if (firstOpenSeat !== undefined) {
+      setConnection((current) => ({ ...current, playerIndex: firstOpenSeat }));
+    }
+  }, [connection.joined, connection.playerIndex, occupiedSeats, playMode]);
+
+  const seatOptions = [
+    { value: 0, label: "East (seat 0)" },
+    { value: 1, label: "South (seat 1)" },
+    { value: 2, label: "West (seat 2)" },
+    { value: 3, label: "North (seat 3)" },
+  ].filter((option) => {
+    if (playMode !== "online") return true;
+    return !occupiedSeats.includes(option.value);
+  });
+
+  const availableSeatOptions =
+    seatOptions.length > 0
+      ? seatOptions
+      : [
+          {
+            value: connection.playerIndex,
+            label: `Seat ${connection.playerIndex + 1}`,
+          },
+        ];
+
+  const hasOtherHumanPlayers = Boolean(
+    game?.players.some(
+      (player, index) => index !== SELF && player.controller === "human",
+    ),
+  );
+  const shouldConfirmLeave =
+    playMode === "solo" ||
+    (playMode === "online" && connection.joined && !hasOtherHumanPlayers);
 
   const leaveCurrentGame = () => {
+    if (shouldConfirmLeave) {
+      const message =
+        playMode === "solo"
+          ? "Leaving this game will lose your current progress. Continue?"
+          : "You are the last human in this room. Leaving will reset the room and you’ll lose your current progress. Continue?";
+      if (!window.confirm(message)) {
+        return;
+      }
+    }
+
     if (playMode === "online" && connection.joined) {
       leaveRoom();
     }
@@ -1102,6 +1159,8 @@ function MahjongApp() {
     setChoosingKong(false);
     setSelectedKongCode(undefined);
     setUiSelectedTileId(undefined);
+    setActiveScenario(null);
+    setScenarioFeedback(null);
     setConnection((current) => ({ ...current, joined: false }));
   };
 
@@ -1112,7 +1171,7 @@ function MahjongApp() {
           <h1>Table One Mahjong</h1>
           <div className="round-status">
             <span>Multiplayer</span>
-            <strong>Choose a room</strong>
+            <strong>Choose a room to join</strong>
           </div>
         </header>
         <section className="game-layout lobby-layout">
@@ -1141,7 +1200,6 @@ function MahjongApp() {
                   setConnection((current) => ({
                     ...current,
                     roomId: "table-one",
-                    playerIndex: undefined,
                   }));
                 }}
               >
@@ -1175,16 +1233,16 @@ function MahjongApp() {
                       onChange={(event) =>
                         setConnection((current) => ({
                           ...current,
-                          roomId: event.target.value.replace(/\s+/g, "-"),
+                          roomId:
+                            event.target.value.replace(/\s+/g, "-") ||
+                            "table-one",
                         }))
                       }
-                      placeholder="Enter a table name"
                     />
                   </label>
-                  <div className="solo-table-summary">
-                    <span>Your seat</span>
-                    <strong>Assigned randomly when you join</strong>
-                  </div>
+                  <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>
+                    Seat is assigned automatically when you join.
+                  </p>
                 </>
               ) : (
                 <div className="solo-table-summary">
@@ -1198,7 +1256,7 @@ function MahjongApp() {
                 {lobbySeatError}
               </p>
             ) : null}
-            {openSeatCount === 0 ? (
+            {playMode === "online" && seatOptions.length === 0 ? (
               <p style={{ fontSize: "0.9rem", color: "#666" }}>
                 All seats in this room are currently occupied.
               </p>
@@ -1208,12 +1266,15 @@ function MahjongApp() {
               type="button"
               disabled={
                 (playMode === "online" &&
-                  (openSeatCount === 0 || !connection.roomId.trim())) ||
+                  seatOptions.length === 0 &&
+                  occupiedSeats.length >= 4) ||
                 !connection.playerName.trim()
               }
-              onClick={() =>
-                setConnection((current) => ({ ...current, joined: true }))
-              }
+              onClick={() => {
+                setActiveScenario(null);
+                setScenarioFeedback(null);
+                setConnection((current) => ({ ...current, joined: true }));
+              }}
             >
               {playMode === "solo" ? "Start game" : "Join room"}
             </button>

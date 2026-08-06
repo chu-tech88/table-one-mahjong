@@ -218,6 +218,7 @@ async function createTrelloCard(req: IncomingMessage, res: ServerResponse) {
       null,
       2,
     );
+    const screenshotDataUrl = String(payload?.screenshot ?? "").trim();
     const summaryDescription = [
       description || "Automated gameplay scenario export",
       "",
@@ -290,35 +291,53 @@ async function createTrelloCard(req: IncomingMessage, res: ServerResponse) {
       name?: string;
     };
 
-    const attachmentName = `${title.replace(/\s+/g, "-").toLowerCase() || "bug-report"}-${Date.now()}.json`;
-    const attachmentForm = new FormData();
-    attachmentForm.append(
-      "file",
-      new Blob([serialized], { type: "application/json" }),
-      attachmentName,
-    );
-
-    console.log("[Trello] Uploading attachment", {
-      cardId: cardData.id,
-      attachmentName,
-    });
-
-    const attachmentResponse = await fetch(
-      `https://api.trello.com/1/cards/${cardData.id}/attachments?key=${trelloApiKey}&token=${trelloToken}`,
+    const attachments = [
       {
-        method: "POST",
-        body: attachmentForm,
+        name: `${title.replace(/\s+/g, "-").toLowerCase() || "bug-report"}-${Date.now()}.json`,
+        data: new Blob([serialized], { type: "application/json" }),
       },
-    );
+    ];
 
-    if (!attachmentResponse.ok) {
-      const attachmentText = await attachmentResponse.text();
-      console.error("[Trello] Attachment creation failed", {
-        status: attachmentResponse.status,
-        body: attachmentText,
+    if (screenshotDataUrl.startsWith("data:image/")) {
+      const base64 = screenshotDataUrl.split(",")[1] ?? "";
+      const screenshotBuffer = Buffer.from(base64, "base64");
+      attachments.push({
+        name: `${title.replace(/\s+/g, "-").toLowerCase() || "bug-report"}-${Date.now()}.png`,
+        data: new Blob([screenshotBuffer], { type: "image/png" }),
       });
-    } else {
-      console.log("[Trello] Attachment uploaded", { cardId: cardData.id });
+    }
+
+    let attachmentResponse: Response | null = null;
+    for (const attachment of attachments) {
+      const attachmentForm = new FormData();
+      attachmentForm.append("file", attachment.data, attachment.name);
+
+      console.log("[Trello] Uploading attachment", {
+        cardId: cardData.id,
+        attachmentName: attachment.name,
+      });
+
+      attachmentResponse = await fetch(
+        `https://api.trello.com/1/cards/${cardData.id}/attachments?key=${trelloApiKey}&token=${trelloToken}`,
+        {
+          method: "POST",
+          body: attachmentForm,
+        },
+      );
+
+      if (!attachmentResponse.ok) {
+        const attachmentText = await attachmentResponse.text();
+        console.error("[Trello] Attachment creation failed", {
+          status: attachmentResponse.status,
+          body: attachmentText,
+          attachmentName: attachment.name,
+        });
+      } else {
+        console.log("[Trello] Attachment uploaded", {
+          cardId: cardData.id,
+          attachmentName: attachment.name,
+        });
+      }
     }
 
     res.statusCode = 200;
@@ -436,11 +455,11 @@ wss.on("connection", (socket) => {
         const requestedRoomId = msg.roomId;
         const requestedPlayerIndex = msg.playerIndex;
 
-        if (requestedPlayerIndex !== undefined && (
+        if (
           !Number.isInteger(requestedPlayerIndex) ||
           requestedPlayerIndex < 0 ||
           requestedPlayerIndex > 3
-        )) {
+        ) {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
@@ -464,43 +483,21 @@ wss.on("connection", (socket) => {
 
         const room = rooms.get(requestedRoomId)!;
         room.lastActivity = Date.now();
-        const availableSeats = room.players
-          .map((player, index) => !isOpenSocket(player ?? null) ? index : -1)
-          .filter((index) => index >= 0);
-        if (requestedPlayerIndex !== undefined) {
-          const existing = room.players[requestedPlayerIndex];
-          if (isOpenSocket(existing ?? null) && existing !== socket) {
-            socket.send(
-              JSON.stringify({
-                type: "action-rejected",
-                reason: `Seat ${requestedPlayerIndex} is already taken in room ${requestedRoomId}`,
-              } as ServerMessage),
-            );
-            return;
-          }
-        } else if (availableSeats.length === 0) {
+        const existing = room.players[requestedPlayerIndex];
+        if (isOpenSocket(existing ?? null) && existing !== socket) {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason: `Room ${requestedRoomId} is full`,
+              reason: `Seat ${requestedPlayerIndex} is already taken in room ${requestedRoomId}`,
             } as ServerMessage),
           );
           return;
         }
         roomId = requestedRoomId;
-        playerIndex = requestedPlayerIndex ??
-          availableSeats[Math.floor(Math.random() * availableSeats.length)];
+        playerIndex = requestedPlayerIndex;
         room.players[playerIndex] = socket;
         room.game.players[playerIndex].name = cleanPlayerName(msg.playerName);
         syncControllers(room);
-
-        socket.send(
-          JSON.stringify({
-            type: "room-joined",
-            roomId,
-            playerIndex,
-          } as ServerMessage),
-        );
 
         broadcastGame(room);
 
@@ -1060,9 +1057,9 @@ function playAITurnIfNeeded(roomId: string) {
   if (game.phase === "claim" && game.pendingClaim && game.lastDiscard) {
     const activeClaimant = game.pendingClaim.claimer;
     if (!isHumanSeat(room, activeClaimant)) {
-      const nextGame = passClaim(
+      const nextGame = startTurn(
         game,
-        activeClaimant,
+        (game.lastDiscard.by + 1) % 4,
         game.rules,
         game.houseRules,
         (index) => isHumanSeat(room, index),
