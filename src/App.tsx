@@ -1040,7 +1040,10 @@ function MahjongApp() {
         metadata: {
           ...(snapshotCandidate.metadata ?? {}),
           ...(parsed.metadata ?? {}),
-          mode: snapshotCandidate.metadata?.mode ?? parsed.metadata?.mode ?? "local",
+          mode:
+            snapshotCandidate.metadata?.mode ??
+            parsed.metadata?.mode ??
+            "local",
         },
       });
 
