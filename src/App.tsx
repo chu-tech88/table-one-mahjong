@@ -1017,11 +1017,33 @@ function MahjongApp() {
     if (!file) return;
     try {
       const text = await file.text();
-      const parsed = JSON.parse(text) as ScenarioSnapshot;
-      if (!parsed?.game) {
+      const parsed = JSON.parse(text) as Partial<ScenarioSnapshot> & {
+        snapshot?: Partial<ScenarioSnapshot>;
+        metadata?: Partial<ScenarioSnapshot["metadata"]>;
+        title?: string;
+        description?: string;
+      };
+
+      const snapshotCandidate = parsed.snapshot?.game
+        ? (parsed.snapshot as ScenarioSnapshot)
+        : parsed.game
+          ? (parsed as ScenarioSnapshot)
+          : null;
+
+      if (!snapshotCandidate?.game) {
         throw new Error("Invalid snapshot format");
       }
-      const restored = restoreScenarioSnapshot(parsed);
+
+      const restored = restoreScenarioSnapshot({
+        ...snapshotCandidate,
+        label: snapshotCandidate.label || parsed.title || "Imported scenario",
+        metadata: {
+          ...(snapshotCandidate.metadata ?? {}),
+          ...(parsed.metadata ?? {}),
+          mode: snapshotCandidate.metadata?.mode ?? parsed.metadata?.mode ?? "local",
+        },
+      });
+
       saveScenarioSnapshot(restored);
       setActiveScenario(restored);
       setConnection((current) => ({
