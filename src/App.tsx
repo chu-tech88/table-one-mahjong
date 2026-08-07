@@ -754,7 +754,9 @@ function MahjongApp() {
   const chatSocketRef = useRef<WebSocket | null>(null);
   const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
   const [chatDraft, setChatDraft] = useState("");
-  const [chatMessages, setChatMessages] = useState<StoredLobbyChatMessage[]>([]);
+  const [chatMessages, setChatMessages] = useState<StoredLobbyChatMessage[]>(
+    [],
+  );
   const activeChatRoomRef = useRef<string | null>(null);
   const [choosingKong, setChoosingKong] = useState(false);
   const [selectedKongCode, setSelectedKongCode] = useState<
@@ -893,7 +895,9 @@ function MahjongApp() {
             createdAt?: number;
           };
           const normalizedMessage = {
-            id: messagePayload.id ?? `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            id:
+              messagePayload.id ??
+              `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
             playerIndex: messagePayload.playerIndex ?? -1,
             playerName: messagePayload.playerName ?? "Player",
             text: messagePayload.text ?? "",
@@ -943,7 +947,13 @@ function MahjongApp() {
         chatSocketRef.current = null;
       }
     };
-  }, [playMode, connection.joined, connection.roomId, connection.playerIndex, connection.playerName]);
+  }, [
+    playMode,
+    connection.joined,
+    connection.roomId,
+    connection.playerIndex,
+    connection.playerName,
+  ]);
 
   const nextDealer = game ? nextDealerForRound(game) : SELF;
   const dealerStatus = game
@@ -1918,14 +1928,12 @@ function MahjongApp() {
                     {chatMessages.length === 0 ? (
                       <p className="lobby-chat-empty">No chat yet.</p>
                     ) : (
-                      [...chatMessages]
-                        .slice(-5)
-                        .map((message) => (
-                          <div key={message.id} className="lobby-chat-message">
-                            <strong>{message.playerName}</strong>
-                            <span>{message.text}</span>
-                          </div>
-                        ))
+                      [...chatMessages].slice(-5).map((message) => (
+                        <div key={message.id} className="lobby-chat-message">
+                          <strong>{message.playerName}</strong>
+                          <span>{message.text}</span>
+                        </div>
+                      ))
                     )}
                     <div ref={chatMessagesEndRef} />
                   </div>

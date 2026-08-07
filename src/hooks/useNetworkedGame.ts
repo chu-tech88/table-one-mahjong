@@ -95,11 +95,12 @@ export function useNetworkedGame(
           setSelectedTileId((current) => {
             if (!current) return undefined;
             const isDiscardTurn =
-              newGame.turn === playerIndexRef.current && newGame.phase === "discard";
+              newGame.turn === playerIndexRef.current &&
+              newGame.phase === "discard";
             if (!isDiscardTurn) return undefined;
-            const stillInHand = newGame.players[playerIndexRef.current]?.hand.some(
-              (tile) => tile.id === current,
-            );
+            const stillInHand = newGame.players[
+              playerIndexRef.current
+            ]?.hand.some((tile) => tile.id === current);
             return stillInHand ? current : undefined;
           });
         },

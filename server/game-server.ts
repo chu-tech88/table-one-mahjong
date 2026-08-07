@@ -115,7 +115,9 @@ function resetRoomForNewSession(room: GameRoom) {
 }
 
 function removeRoomIfEmpty(roomId: string, room: GameRoom) {
-  const hasHumanSeats = room.players.some((player) => isOpenSocket(player ?? null));
+  const hasHumanSeats = room.players.some((player) =>
+    isOpenSocket(player ?? null),
+  );
   if (!hasHumanSeats) {
     rooms.delete(roomId);
     room.autoPlayAI.forEach((timer) => clearTimeout(timer));

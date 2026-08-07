@@ -73,26 +73,54 @@ async function main() {
   const url = `ws://127.0.0.1:${port}`;
   const roomId = `chat-${Date.now()}`;
 
-  const server = spawn(process.execPath, ["--import", "tsx", "server/game-server.ts"], {
-    cwd: process.cwd(),
-    env: { ...process.env, WS_PORT: String(port) },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const server = spawn(
+    process.execPath,
+    ["--import", "tsx", "server/game-server.ts"],
+    {
+      cwd: process.cwd(),
+      env: { ...process.env, WS_PORT: String(port) },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
 
   try {
     await delay(1000);
     const wsA = await connectClient(url);
     const wsB = await connectClient(url);
 
-    wsA.send(JSON.stringify({ type: "join-room", roomId, playerIndex: 0, playerName: "A" }));
-    wsB.send(JSON.stringify({ type: "join-room", roomId, playerIndex: 1, playerName: "B" }));
+    wsA.send(
+      JSON.stringify({
+        type: "join-room",
+        roomId,
+        playerIndex: 0,
+        playerName: "A",
+      }),
+    );
+    wsB.send(
+      JSON.stringify({
+        type: "join-room",
+        roomId,
+        playerIndex: 1,
+        playerName: "B",
+      }),
+    );
 
     await waitForMessage(wsA, (msg) => msg.type === "game-state-update");
     await waitForMessage(wsB, (msg) => msg.type === "game-state-update");
 
-    wsA.send(JSON.stringify({ type: "lobby-chat", text: "hello room", playerIndex: 0, playerName: "A" }));
+    wsA.send(
+      JSON.stringify({
+        type: "lobby-chat",
+        text: "hello room",
+        playerIndex: 0,
+        playerName: "A",
+      }),
+    );
 
-    const received = await waitForMessage(wsB, (msg) => msg.type === "lobby-chat-message");
+    const received = await waitForMessage(
+      wsB,
+      (msg) => msg.type === "lobby-chat-message",
+    );
     assert.equal(received.message?.text, "hello room");
     assert.equal(received.message?.playerName, "A");
   } finally {
