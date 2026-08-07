@@ -231,10 +231,9 @@ textarea {
       74px,
       0.16fr
     );
-  grid-template-rows: clamp(48px, 6svh, 72px) clamp(72px, 11svh, 112px) minmax(
-      170px,
-      1fr
-    ) clamp(190px, 31svh, 286px);
+  grid-template-rows:
+    clamp(48px, 6svh, 72px) clamp(72px, 11svh, 112px) minmax(170px, 1fr)
+    clamp(190px, 31svh, 286px);
   gap: clamp(4px, 0.55vw, 9px);
   height: 100svh;
   min-height: 0;
@@ -1044,10 +1043,9 @@ textarea {
   grid-area: human;
   position: relative;
   display: grid;
-  grid-template-rows: auto auto clamp(32px, 5.8svh, 52px) minmax(
-      clamp(84px, 13svh, 124px),
-      1fr
-    ) auto;
+  grid-template-rows:
+    auto auto clamp(32px, 5.8svh, 52px) minmax(clamp(84px, 13svh, 124px), 1fr)
+    auto;
   align-content: stretch;
   justify-items: center;
   gap: clamp(3px, 0.45vw, 6px);
@@ -2291,10 +2289,9 @@ textarea {
     minmax(520px, 560px)
     clamp(210px, 18vw, 260px)
     minmax(0, 1fr);
-  grid-template-rows: clamp(54px, 6.5svh, 68px) clamp(74px, 9svh, 102px) minmax(
-      0,
-      1fr
-    ) clamp(214px, 28svh, 306px);
+  grid-template-rows:
+    clamp(54px, 6.5svh, 68px) clamp(74px, 9svh, 102px) minmax(0, 1fr)
+    clamp(214px, 28svh, 306px);
   gap: clamp(3px, 0.45vw, 8px);
   padding: clamp(7px, 0.8vw, 14px) clamp(10px, 1.4vw, 26px)
     clamp(10px, 1.4svh, 18px);
