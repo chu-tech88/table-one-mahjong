@@ -88,11 +88,6 @@ export function useNetworkedGame(
     const connect = () => {
       if (!isMounted) return;
       const client = new GameClient({
-        onSeatAssigned: (assignedPlayerIndex) => {
-          if (!isMounted || client !== activeClient) return;
-          playerIndexRef.current = assignedPlayerIndex;
-          setPlayerIndex(assignedPlayerIndex);
-        },
         onGameStateUpdate: (newGame) => {
           if (!isMounted || client !== activeClient) return;
           setGame(newGame);
@@ -122,7 +117,7 @@ export function useNetworkedGame(
       activeClient = client;
       clientRef.current = client;
       client
-        .connect(serverUrl, roomId, preferredPlayerIndex, playerName)
+        .connect(serverUrl, roomId, preferredPlayerIndex ?? 0, playerName)
         .then(() => {
           if (!isMounted || client !== activeClient) return;
           setIsConnected(true);
@@ -276,7 +271,7 @@ export function useNetworkedGame(
     clientRef.current?.leaveRoom();
   }, []);
   const readyNextHand = useCallback(() => {
-    clientRef.current?.readyNextHand();
+    clientRef.current?.newHand(undefined, true);
   }, []);
 
   return {

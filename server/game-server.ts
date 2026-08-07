@@ -33,6 +33,7 @@ import { ClientMessage, ServerMessage } from "../src/network/messages";
 interface GameRoom {
   game: Game;
   players: (WebSocket | null)[];
+  chatSubscribers: Set<WebSocket>;
   created: number;
   lastActivity: number;
   autoPlayAI: Map<number, NodeJS.Timeout>; // Track AI turn timers
@@ -95,10 +96,36 @@ function resetRoomForNewSession(room: GameRoom) {
     0,
   );
   room.players = [null, null, null, null];
+  room.chatSubscribers.clear();
   room.lastActivity = Date.now();
   room.autoPlayAI.forEach((timer) => clearTimeout(timer));
   room.autoPlayAI.clear();
   syncControllers(room);
+
+  room.chatSubscribers.forEach((subscriber) => {
+    if (isOpenSocket(subscriber)) {
+      subscriber.send(
+        JSON.stringify({
+          type: "system",
+          message: "Room reset: chat cleared",
+        } as ServerMessage),
+      );
+    }
+  });
+}
+
+function removeRoomIfEmpty(roomId: string, room: GameRoom) {
+  const hasHumanSeats = room.players.some((player) => isOpenSocket(player ?? null));
+  if (!hasHumanSeats) {
+    rooms.delete(roomId);
+    room.autoPlayAI.forEach((timer) => clearTimeout(timer));
+    room.autoPlayAI.clear();
+    room.chatSubscribers.clear();
+  }
+}
+
+function shouldPreserveRoom(room: GameRoom) {
+  return room.players.some((player) => isOpenSocket(player ?? null));
 }
 
 function connectedSeats(room: GameRoom) {
@@ -474,6 +501,7 @@ wss.on("connection", (socket) => {
           rooms.set(requestedRoomId, {
             game: dealRound(),
             players: [null, null, null, null],
+            chatSubscribers: new Set<WebSocket>(),
             created: Date.now(),
             lastActivity: Date.now(),
             autoPlayAI: new Map(),
@@ -526,6 +554,60 @@ wss.on("connection", (socket) => {
         );
       }
 
+      if (msg.type === "join-lobby-chat") {
+        const room = rooms.get(msg.roomId);
+        if (!room) {
+          socket.send(
+            JSON.stringify({
+              type: "action-rejected",
+              reason: "Room not found",
+            } as ServerMessage),
+          );
+          return;
+        }
+
+        roomId = msg.roomId;
+        playerIndex = msg.playerIndex;
+        room.chatSubscribers.add(socket);
+        room.lastActivity = Date.now();
+        return;
+      }
+
+      if (msg.type === "lobby-chat") {
+        const room = rooms.get(msg.roomId);
+        if (!room || !room.chatSubscribers.has(socket)) {
+          socket.send(
+            JSON.stringify({
+              type: "action-rejected",
+              reason: "Not joined to lobby chat",
+            } as ServerMessage),
+          );
+          return;
+        }
+
+        const normalizedText = String(msg.text ?? "")
+          .trim()
+          .slice(0, 140);
+        if (!normalizedText) return;
+
+        const payload = {
+          type: "lobby-chat-message",
+          message: {
+            id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            playerIndex: msg.playerIndex,
+            playerName: cleanPlayerName(msg.playerName),
+            text: normalizedText,
+            createdAt: Date.now(),
+          },
+        } as ServerMessage;
+
+        room.chatSubscribers.forEach((subscriber) => {
+          if (isOpenSocket(subscriber)) {
+            subscriber.send(JSON.stringify(payload));
+          }
+        });
+      }
+
       // ============ LEAVE ROOM ============
       if (msg.type === "leave-room") {
         const room = rooms.get(roomId);
@@ -542,15 +624,15 @@ wss.on("connection", (socket) => {
         room.lastActivity = Date.now();
         isLeavingRoom = true;
 
+        room.chatSubscribers.delete(socket);
+
         if (playerIndex >= 0 && room.players[playerIndex] === socket) {
           room.players[playerIndex] = null;
         }
 
         syncControllers(room);
 
-        const remainingHumanPlayers = room.players.some((player) =>
-          isOpenSocket(player ?? null),
-        );
+        const remainingHumanPlayers = shouldPreserveRoom(room);
         if (remainingHumanPlayers) {
           room.players.forEach((player) => {
             if (isOpenSocket(player)) {
@@ -564,6 +646,7 @@ wss.on("connection", (socket) => {
           });
         } else {
           resetRoomForNewSession(room);
+          removeRoomIfEmpty(roomId, room);
           console.log(`[Room] Reset room ${roomId} after last human left`);
         }
 
@@ -1023,11 +1106,10 @@ wss.on("connection", (socket) => {
           room.autoPlayAI.delete(playerIndex);
         }
 
-        const hasRemainingHumanPlayers = room.players.some((player) =>
-          isOpenSocket(player ?? null),
-        );
+        const hasRemainingHumanPlayers = shouldPreserveRoom(room);
         if (!hasRemainingHumanPlayers) {
           resetRoomForNewSession(room);
+          removeRoomIfEmpty(roomId, room);
           console.log(
             `[Room] Reset room ${roomId} after last human disconnected`,
           );

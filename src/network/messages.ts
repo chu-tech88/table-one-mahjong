@@ -13,12 +13,14 @@ export type ClientMessage =
   | LeaveRoomMessage
   | PlayerActionMessage
   | RequestStateMessage
-  | RequestRoomSeatsMessage;
+  | RequestRoomSeatsMessage
+  | LobbyChatMessage
+  | JoinLobbyChatMessage;
 
 export type JoinRoomMessage = {
   type: "join-room";
   roomId: string;
-  playerIndex?: number;
+  playerIndex: number;
   playerName: string;
 };
 
@@ -54,25 +56,34 @@ export type RequestRoomSeatsMessage = {
   roomId: string;
 };
 
+export type LobbyChatMessage = {
+  type: "lobby-chat";
+  roomId: string;
+  playerIndex: number;
+  playerName: string;
+  text: string;
+};
+
+export type JoinLobbyChatMessage = {
+  type: "join-lobby-chat";
+  roomId: string;
+  playerIndex: number;
+  playerName: string;
+};
+
 // ============ SERVER → CLIENT ============
 
 export type ServerMessage =
-  | RoomJoinedMessage
   | GameStateUpdateMessage
   | RoomSeatsUpdateMessage
   | ActionRejectedMessage
   | PlayerDisconnectedMessage
-  | SystemMessage;
+  | SystemMessage
+  | LobbyChatMessageBroadcast;
 
 export type GameStateUpdateMessage = {
   type: "game-state-update";
   game: Game;
-};
-
-export type RoomJoinedMessage = {
-  type: "room-joined";
-  roomId: string;
-  playerIndex: number;
 };
 
 export type RoomSeatsUpdateMessage = {
@@ -94,4 +105,15 @@ export type PlayerDisconnectedMessage = {
 export type SystemMessage = {
   type: "system";
   message: string;
+};
+
+export type LobbyChatMessageBroadcast = {
+  type: "lobby-chat-message";
+  message: {
+    id: string;
+    playerIndex: number;
+    playerName: string;
+    text: string;
+    createdAt: number;
+  };
 };
