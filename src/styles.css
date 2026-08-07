@@ -2734,10 +2734,10 @@ textarea {
 }
 
 .human-seat {
-  grid-template-rows: 32px clamp(34px, 5.2svh, 48px) minmax(72px, 1fr) 42px;
+  grid-template-rows: auto auto minmax(72px, 1fr) auto;
   gap: 3px;
   padding-bottom: 2px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .human-profile {
@@ -2781,9 +2781,14 @@ textarea {
 .human-seat .seat-sets-row {
   width: min(1180px, 100%);
   max-height: none;
-  height: 100%;
+  height: auto;
+  min-height: clamp(34px, 5.2svh, 48px);
   justify-content: center;
   margin-inline: auto;
+  padding: 4px 8px;
+  border: 1px solid rgba(241, 205, 69, 0.16);
+  border-radius: 8px;
+  background: rgba(6, 38, 15, 0.24);
 }
 
 .human-seat .flower-row,
@@ -2801,6 +2806,7 @@ textarea {
 .human-hand {
   align-items: end;
   width: min(1360px, 100%);
+  min-height: 0;
   height: 100%;
   gap: clamp(1px, 0.25vw, 4px);
   padding: 9px 2px 1px;
