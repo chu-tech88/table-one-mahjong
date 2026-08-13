@@ -377,12 +377,10 @@ function DiscardRiver({ player }: { player: Player }) {
 function TableDiscardGrid({
   players,
   selfIndex,
-  activePlayerIndex,
   onInspect,
 }: {
   players: Player[];
   selfIndex: number;
-  activePlayerIndex: number;
   onInspect: (index: number) => void;
 }) {
   return (
@@ -411,26 +409,22 @@ function TableDiscardGrid({
             </div>
             {!isSelf ? (
               <div
-                className={`turn-bar-anchor ${activePlayerIndex === index ? "turn-active" : ""}`}
+                className="opponent-table-zone opponent-revealed-zone"
+                aria-label={`${player.name} revealed tiles`}
               >
-                <div
-                  className="opponent-table-zone opponent-revealed-zone"
-                  aria-label={`${player.name} revealed tiles`}
+                <button
+                  className="opponent-zone-header"
+                  type="button"
+                  onClick={() => onInspect(index)}
                 >
-                  <button
-                    className="opponent-zone-header"
-                    type="button"
-                    onClick={() => onInspect(index)}
-                  >
-                    <span>Revealed</span>
-                    <small>{player.flowers.length + player.melds.length}</small>
-                  </button>
-                  {player.flowers.length > 0 || player.melds.length > 0 ? (
-                    <SeatSets flowers={player.flowers} melds={player.melds} />
-                  ) : (
-                    <span className="opponent-zone-empty">No open tiles</span>
-                  )}
-                </div>
+                  <span>Revealed</span>
+                  <small>{player.flowers.length + player.melds.length}</small>
+                </button>
+                {player.flowers.length > 0 || player.melds.length > 0 ? (
+                  <SeatSets flowers={player.flowers} melds={player.melds} />
+                ) : (
+                  <span className="opponent-zone-empty">No open tiles</span>
+                )}
               </div>
             ) : null}
           </section>
@@ -497,6 +491,12 @@ function Opponent({
       aria-current={active ? "true" : undefined}
     >
       <button className="seat-heading" type="button" onClick={onInspect}>
+        {active ? (
+          <span className="turn-beacon">
+            <i aria-hidden="true" />
+            Turn
+          </span>
+        ) : null}
         <strong>{player.name}</strong>
         <div className="seat-badges">
           {dealer ? (
@@ -534,25 +534,23 @@ function Opponent({
             </button>
             <DiscardRiver player={player} />
           </div>
-          <div className={`turn-bar-anchor ${active ? "turn-active" : ""}`}>
-            <div
-              className="opponent-table-zone opponent-revealed-zone"
-              aria-label={`${player.name} revealed tiles`}
+          <div
+            className="opponent-table-zone opponent-revealed-zone"
+            aria-label={`${player.name} revealed tiles`}
+          >
+            <button
+              className="opponent-zone-header"
+              type="button"
+              onClick={onInspect}
             >
-              <button
-                className="opponent-zone-header"
-                type="button"
-                onClick={onInspect}
-              >
-                <span>Revealed</span>
-                <small>{revealedCount}</small>
-              </button>
-              {revealedCount > 0 ? (
-                <SeatSets flowers={player.flowers} melds={player.melds} />
-              ) : (
-                <span className="opponent-zone-empty">No open tiles</span>
-              )}
-            </div>
+              <span>Revealed</span>
+              <small>{revealedCount}</small>
+            </button>
+            {revealedCount > 0 ? (
+              <SeatSets flowers={player.flowers} melds={player.melds} />
+            ) : (
+              <span className="opponent-zone-empty">No open tiles</span>
+            )}
           </div>
         </div>
       ) : null}
@@ -1907,6 +1905,12 @@ function MahjongApp() {
                 type="button"
                 onClick={() => setInspectedSeat(SELF)}
               >
+                {game.turn === SELF ? (
+                  <span className="turn-beacon">
+                    <i aria-hidden="true" />
+                    Your turn
+                  </span>
+                ) : null}
                 <strong>{human.name} (You)</strong>
               </button>
               <div className="seat-badges">
@@ -1928,11 +1932,7 @@ function MahjongApp() {
                 <span>{human.hand.length} in hand</span>
               </div>
             </div>
-            <div
-              className={`turn-bar-anchor human-revealed-frame ${game.turn === SELF ? "turn-active" : ""}`}
-            >
-              <SeatSets flowers={human.flowers} melds={human.melds} />
-            </div>
+            <SeatSets flowers={human.flowers} melds={human.melds} />
             {choosingChi && humanChiOptions.length > 1 ? (
               <div
                 className="chi-choice-panel"
@@ -2025,7 +2025,6 @@ function MahjongApp() {
             <TableDiscardGrid
               players={game.players}
               selfIndex={SELF}
-              activePlayerIndex={game.turn}
               onInspect={setInspectedSeat}
             />
             <div className="table-center-core">
