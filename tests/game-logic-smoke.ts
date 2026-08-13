@@ -14,6 +14,7 @@ import {
   DEFAULT_RULES,
 } from "../src/game-logic/rules";
 import {
+  finishExhaustedHand,
   scoreRound,
   scoreStandardRules,
   settleAllEightFlowers,
@@ -21,6 +22,8 @@ import {
 import {
   nextDealerForRound,
   nextDealerStreak,
+  possessiveName,
+  tableNarration,
   tilePrototypeFromCode,
 } from "../src/game-logic/helpers";
 import { StandardRuleKey } from "../src/game-logic/types";
@@ -33,6 +36,13 @@ import {
 
 let fixtureTileId = 0;
 assert.equal(DEAD_WALL_TILES, 16, "A hand must end with 16 wall tiles remaining");
+assert.equal(
+  tableNarration("win", "You", "self-draw"),
+  "You win by self-draw.",
+  "Second-person table narration must use the correct verb",
+);
+assert.equal(possessiveName("Grace"), "Grace's");
+assert.equal(possessiveName("You"), "your");
 function tiles(codes: string[]) {
   return codes.map((code) => ({
     ...tilePrototypeFromCode(code),
@@ -364,9 +374,58 @@ const drawnHand = startTurn(
 );
 assert.equal(drawnHand.phase, "round-over");
 assert.equal(drawnHand.handResult, "draw");
-assert.equal(drawnHand.winSummary?.title, "No tiles remaining");
+assert.equal(drawnHand.winSummary?.title, "No playable tiles remaining");
+assert.equal(
+  drawnHand.winSummary?.detail,
+  "Sixteen tiles remain in the dead wall. You continue as dealer and receive a +2 consecutive dealer bonus in the next hand.",
+  "The exhausted-hand summary must use correct second-person grammar",
+);
 assert.equal(nextDealerForRound(drawnHand), drawnHand.dealer);
 assert.equal(nextDealerStreak(drawnHand), drawnHand.dealerStreak + 1);
+
+const namedDealerDraw = dealRound();
+namedDealerDraw.players[namedDealerDraw.dealer].name = "Grace";
+const namedDealerSummary = finishExhaustedHand(namedDealerDraw);
+assert.equal(
+  namedDealerSummary.winSummary?.detail,
+  "Sixteen tiles remain in the dead wall. Grace continues as dealer and receives a +2 consecutive dealer bonus in the next hand.",
+  "Third-person summaries must retain singular verbs",
+);
+
+const selfDrawCopy = dealRound();
+selfDrawCopy.players[0].name = "You";
+const selfDrawSummary = scoreRound(
+  selfDrawCopy,
+  0,
+  "self-draw",
+  selfDrawCopy.rules,
+  [],
+);
+assert.match(
+  selfDrawSummary.winSummary?.detail ?? "",
+  /^You win by self-draw and receive \d+ points from each opponent\.$/,
+  "Self-draw summaries must use second-person grammar",
+);
+
+const discardCopy = dealRound();
+discardCopy.players[0].name = "You";
+discardCopy.players[1].name = "Grace";
+discardCopy.lastDiscard = {
+  tile: discardCopy.players[1].hand[0],
+  by: 1,
+};
+const discardSummary = scoreRound(
+  discardCopy,
+  0,
+  "discard",
+  discardCopy.rules,
+  [],
+);
+assert.match(
+  discardSummary.winSummary?.detail ?? "",
+  /^You win on Grace's discard for \d+ total points\.$/,
+  "Discard-win summaries must use a possessive player name",
+);
 
 const dealerWinResult = dealRound();
 dealerWinResult.winner = dealerWinResult.dealer;

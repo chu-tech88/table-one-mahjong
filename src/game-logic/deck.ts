@@ -190,7 +190,7 @@ export function dealRound(
 
   const dealerName = players[dealer].name;
   const dealerMessage =
-    dealer === 0 ? "You are Dealer" : `${dealerName} is dealer`;
+    dealer === 0 ? "You are Dealer" : `${dealerName} is Dealer`;
 
   let game: Game = {
     tableId,

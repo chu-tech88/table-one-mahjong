@@ -165,6 +165,21 @@ assert.match(
   /playMode === "online"[\s\S]*?currentPhase === "claim"[\s\S]*?is waiting to discard\./,
   "Online table activity must use neutral claim language",
 );
+assert.match(
+  css,
+  /\.opponent-revealed-zone \.seat-sets-row\s*\{[^}]*align-items:\s*flex-end;/s,
+  "Opponent flowers and melds must share a common tile baseline",
+);
+assert.match(
+  css,
+  /\.human-revealed-shelf\s*\{[^}]*align-items:\s*flex-end;[^}]*border-bottom:[^}]*overflow:\s*hidden;[^}]*contain:\s*layout paint;/s,
+  "The human revealed tray must be separated from and contained above the playable hand",
+);
+assert.match(
+  css,
+  /\.human-seat \.seat-sets-row\s*\{[^}]*width:\s*max-content;[^}]*max-width:\s*100%;[^}]*background:\s*transparent;/s,
+  "The human revealed tray should remain compact and centered",
+);
 assert.doesNotMatch(
   app,
   /event\.target\.value\.replace\([^\n]+\)\s*\|\|\s*"table-one"/,

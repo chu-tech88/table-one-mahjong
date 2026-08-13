@@ -580,7 +580,7 @@ wss.on("connection", (socket) => {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason: "Room not found",
+              reason: "Room not found.",
             } as ServerMessage),
           );
           return;
@@ -599,7 +599,7 @@ wss.on("connection", (socket) => {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason: "Not joined to lobby chat",
+              reason: "You have not joined this room's chat.",
             } as ServerMessage),
           );
           return;
@@ -635,7 +635,7 @@ wss.on("connection", (socket) => {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason: "Room not found",
+              reason: "Room not found.",
             } as ServerMessage),
           );
           return;
@@ -693,7 +693,7 @@ wss.on("connection", (socket) => {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason: "Room not found",
+              reason: "Room not found.",
             } as ServerMessage),
           );
           return;
@@ -718,7 +718,7 @@ wss.on("connection", (socket) => {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
-                reason: `Not your turn. Current turn: Player ${room.game.turn}`,
+                reason: `It is not your turn. ${room.game.players[room.game.turn].name} is currently playing.`,
               } as ServerMessage),
             );
             return;
@@ -733,7 +733,7 @@ wss.on("connection", (socket) => {
               JSON.stringify({
                 type: "action-rejected",
                 reason:
-                  "After declaring ready, you must discard the tile just drawn",
+                  "After declaring ready, you must discard the tile you just drew.",
               } as ServerMessage),
             );
             return;
@@ -754,7 +754,7 @@ wss.on("connection", (socket) => {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
-                reason: "That Gong is not available right now",
+                reason: "That Gong is not available right now.",
               } as ServerMessage),
             );
             return;
@@ -766,7 +766,7 @@ wss.on("connection", (socket) => {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
-                reason: "A ready declaration is not available for that discard",
+                reason: "A ready declaration is not available for that discard.",
               } as ServerMessage),
             );
             return;
@@ -778,7 +778,7 @@ wss.on("connection", (socket) => {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
-                reason: "Not in claim phase",
+                reason: "No claim is available right now.",
               } as ServerMessage),
             );
             return;
@@ -787,7 +787,7 @@ wss.on("connection", (socket) => {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
-                reason: "You are not the active claimant",
+                reason: "You are not the active claimant.",
               } as ServerMessage),
             );
             return;
@@ -796,7 +796,7 @@ wss.on("connection", (socket) => {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
-                reason: "Hu has priority over Pong, Chi, and Gong",
+                reason: "Hu has priority over Pong, Chi, and Gong.",
               } as ServerMessage),
             );
             return;
@@ -813,7 +813,7 @@ wss.on("connection", (socket) => {
               socket.send(
                 JSON.stringify({
                   type: "action-rejected",
-                  reason: "You cannot win on this discard",
+                  reason: "You cannot win on this discard.",
                 } as ServerMessage),
               );
               return;
@@ -830,7 +830,7 @@ wss.on("connection", (socket) => {
               socket.send(
                 JSON.stringify({
                   type: "action-rejected",
-                  reason: "You cannot self-draw win right now",
+                  reason: "You cannot win by self-draw right now.",
                 } as ServerMessage),
               );
               return;
@@ -843,7 +843,7 @@ wss.on("connection", (socket) => {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
-                reason: "Only player 0 can start a new hand",
+                reason: "Only the room controller can start a new hand.",
               } as ServerMessage),
             );
             return;
@@ -857,7 +857,7 @@ wss.on("connection", (socket) => {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason: "The current hand is not complete",
+              reason: "The current hand is not complete.",
             } as ServerMessage),
           );
           return;
@@ -873,7 +873,7 @@ wss.on("connection", (socket) => {
               (t) => t.id === action.tileId,
             );
             if (!tile) {
-              throw new Error("Tile not in hand");
+              throw new Error("The selected tile is not in your hand.");
             }
 
             console.log(
@@ -891,7 +891,7 @@ wss.on("connection", (socket) => {
 
           if (action.type === "claim") {
             if (room.game.phase !== "claim") {
-              throw new Error("Not in claim phase");
+              throw new Error("No claim is available right now.");
             }
 
             console.log(
@@ -909,7 +909,7 @@ wss.on("connection", (socket) => {
 
           if (action.type === "pass") {
             if (room.game.phase !== "claim") {
-              throw new Error("Not in claim phase");
+              throw new Error("No claim is available right now.");
             }
 
             console.log(`[Action] Player ${playerIndex} passes`);
@@ -963,7 +963,7 @@ wss.on("connection", (socket) => {
               action.playerIndex !== playerIndex &&
               room.game.players[action.playerIndex]?.controller !== "ai"
             ) {
-              throw new Error("You can only rename yourself or an AI player");
+              throw new Error("You can only rename yourself or an AI player.");
             }
             nextGame = structuredCloneGame(room.game);
             nextGame.players[action.playerIndex].name = cleanPlayerName(
@@ -978,7 +978,7 @@ wss.on("connection", (socket) => {
               room.game.players[action.playerIndex]?.controller === "human" ||
               !["calm", "balanced", "sharp"].includes(action.difficulty)
             ) {
-              throw new Error("Only AI difficulty can be changed");
+              throw new Error("Only an AI player's difficulty can be changed.");
             }
             nextGame = structuredCloneGame(room.game);
             nextGame.players[action.playerIndex].difficulty = action.difficulty;
@@ -1036,7 +1036,7 @@ wss.on("connection", (socket) => {
           }
 
           if (!nextGame) {
-            throw new Error("Invalid action");
+            throw new Error("That action is not available right now.");
           }
 
           // -------- UPDATE ROOM STATE --------
@@ -1061,7 +1061,7 @@ wss.on("connection", (socket) => {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason: error instanceof Error ? error.message : "Unknown error",
+              reason: error instanceof Error ? error.message : "An unknown error occurred.",
             } as ServerMessage),
           );
         }
@@ -1076,7 +1076,7 @@ wss.on("connection", (socket) => {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason: "Not joined to a seat in this room",
+              reason: "You have not joined a seat in this room.",
             } as ServerMessage),
           );
           socket.close(1008, "Not joined to a seat");
@@ -1087,7 +1087,7 @@ wss.on("connection", (socket) => {
       socket.send(
         JSON.stringify({
           type: "system",
-          message: "Server error",
+          message: "A server error occurred.",
         } as ServerMessage),
       );
     }

@@ -20,6 +20,20 @@ export function actionName(type: MeldType) {
     : type.charAt(0).toUpperCase() + type.slice(1);
 }
 
+export function playerVerb(
+  playerName: string,
+  singular: string,
+  secondPerson: string,
+) {
+  return playerName.trim().toLowerCase() === "you" ? secondPerson : singular;
+}
+
+export function possessiveName(playerName: string) {
+  const name = playerName.trim();
+  if (name.toLowerCase() === "you") return "your";
+  return name.endsWith("s") ? `${name}'` : `${name}'s`;
+}
+
 export function tableNarration(
   kind: "deal" | "turn" | "discard" | "claim" | "kong" | "win" | "draw",
   playerName: string,
@@ -35,7 +49,8 @@ export function tableNarration(
     return `${playerName} called ${detail}. Choose a discard.`;
   if (kind === "kong")
     return `${playerName} declared ${detail}. Draw again, then discard.`;
-  if (kind === "win") return `${playerName} wins by ${detail}.`;
+  if (kind === "win")
+    return `${playerName} ${playerVerb(playerName, "wins", "win")} by ${detail}.`;
   return "The wall is empty. This hand is a draw.";
 }
 

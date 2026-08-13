@@ -1249,7 +1249,7 @@ function MahjongApp() {
   const rawActivityText = isSelfDiscardTurn
     ? "Your turn"
     : isSelfClaimTurn
-      ? "Your turn - choose an action"
+      ? "Your turn: choose an action"
       : activityIsTurnCall && activity.player === SELF
         ? "Your turn"
         : playMode === "online" &&
@@ -1666,7 +1666,7 @@ function MahjongApp() {
                     />
                   </label>
                   <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>
-                    Seat is assigned automatically when you join.
+                    Your seat is assigned automatically when you join.
                   </p>
                 </>
               ) : (
@@ -2685,8 +2685,8 @@ function MahjongApp() {
             {playMode === "online" ? (
               <p className="next-hand-status" aria-live="polite">
                 {game.nextHandReady?.includes(SELF)
-                  ? `${game.nextHandReady.length} of ${game.nextHandRequired?.length ?? 1} players ready. Waiting for everyone else to click Next Hand.`
-                  : "The next hand begins after every player clicks Next Hand."}
+                  ? `${game.nextHandReady.length} of ${game.nextHandRequired?.length ?? 1} player${(game.nextHandRequired?.length ?? 1) === 1 ? "" : "s"} ready. Waiting for everyone else to select Next Hand.`
+                  : "The next hand begins after every player selects Next Hand."}
               </p>
             ) : null}
           </section>

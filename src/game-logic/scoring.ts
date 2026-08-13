@@ -2,6 +2,8 @@ import { Game, HouseRule, Rules, StandardRuleKey, Tile } from "./types";
 import {
   appendAction,
   countCodes,
+  playerVerb,
+  possessiveName,
   sortTiles,
   structuredCloneGame,
   tableNarration,
@@ -445,9 +447,10 @@ export function scoreRound(
 
   const scoreItems = [...scoredRules];
   if (dealerBonusPaid > 0) {
+    const consecutiveDeals = next.dealerStreak;
     const item = {
       name: "Dealer loss",
-      description: `The dealer pays 1 point plus 2 for each consecutive deal (${next.dealerStreak} consecutive).`,
+      description: `The dealer pays 1 point plus 2 for each consecutive deal (${consecutiveDeals} consecutive deal${consecutiveDeals === 1 ? "" : "s"}).`,
       points: dealerBonusPaid,
       multiplier: 1,
     };
@@ -464,25 +467,26 @@ export function scoreRound(
   next.drawnTileId = undefined;
   next.activity = {
     player: winner,
-    text: tableNarration("win", player.name, source === "self-draw" ? "self draw" : "discard"),
+    text: tableNarration("win", player.name, source === "self-draw" ? "self-draw" : "discard"),
     tile: source === "discard" ? next.lastDiscard?.tile : undefined,
   };
   next.winSummary = {
     winner,
     winningTileId,
-    title: `${player.name} wins`,
+    title: `${player.name} ${playerVerb(player.name, "wins", "win")}`,
     detail:
       source === "self-draw"
-        ? `${player.name} wins by self draw for ${points} points from each player.`
-        : `${player.name} wins on ${next.lastDiscard ? next.players[next.lastDiscard.by].name : "a"} discard for ${total} total points.`,
+        ? `${player.name} ${playerVerb(player.name, "wins", "win")} by self-draw and ${playerVerb(player.name, "receives", "receive")} ${points} points from each opponent.`
+        : `${player.name} ${playerVerb(player.name, "wins", "win")} on ${next.lastDiscard ? possessiveName(next.players[next.lastDiscard.by].name) : "a player's"} discard for ${total} total points.`,
     points,
     total,
     lineItems,
     scoreItems,
   };
-  next.message = `${player.name} wins by ${source === "self-draw" ? "self draw" : "discard"} for ${points} points${
-    source === "self-draw" ? " from each player" : ""
-  }.`;
+  next.message =
+    source === "self-draw"
+      ? `${player.name} ${playerVerb(player.name, "wins", "win")} by self-draw and ${playerVerb(player.name, "receives", "receive")} ${points} points from each opponent.`
+      : `${player.name} ${playerVerb(player.name, "wins", "win")} on ${next.lastDiscard ? possessiveName(next.players[next.lastDiscard.by].name) : "a player's"} discard for ${total} total points.`;
   appendAction(next, "score-round", winner, next.message);
   return next;
 }
@@ -499,14 +503,15 @@ export function finishExhaustedHand(game: Game) {
   next.lastDiscard = undefined;
   next.drawnTileId = undefined;
   next.robbingGong = undefined;
-  next.message = "No tiles remaining. The dealer continues for the next hand.";
+  const dealerName = next.players[next.dealer].name;
+  next.message = "No playable tiles remain. The dealer continues into the next hand.";
   next.activity = { player: next.dealer, text: next.message };
   next.winSummary = {
-    title: "No tiles remaining",
-    detail: `Sixteen tiles remain. ${next.players[next.dealer].name} continues as dealer with a +${nextStreak * 2} consecutive-dealer bonus next hand.`,
+    title: "No playable tiles remaining",
+    detail: `Sixteen tiles remain in the dead wall. ${dealerName} ${playerVerb(dealerName, "continues", "continue")} as dealer and ${playerVerb(dealerName, "receives", "receive")} a +${nextStreak * 2} consecutive dealer bonus in the next hand.`,
     points: 0,
     total: 0,
-    lineItems: ["Wall exhausted: no score payment"],
+    lineItems: ["Wall exhausted: no points exchanged"],
     scoreItems: [],
   };
   appendAction(next, "hand-draw", next.dealer, next.message);

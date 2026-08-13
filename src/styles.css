@@ -2899,7 +2899,7 @@ textarea {
 .opponent-revealed-zone .seat-sets-row {
   display: flex;
   flex-wrap: nowrap;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 5px;
   min-width: 0;
   padding: 2px 0 0;
@@ -2913,6 +2913,7 @@ textarea {
 .opponent-revealed-zone .meld-row {
   flex: 0 0 auto;
   flex-wrap: nowrap;
+  align-items: flex-end;
   gap: 4px;
 }
 
@@ -2955,8 +2956,8 @@ textarea {
 
 .human-seat {
   grid-template-rows:
-    auto clamp(38px, 5.8svh, 54px) minmax(72px, 1fr) auto;
-  gap: 3px;
+    auto clamp(48px, 6.2svh, 58px) minmax(72px, 1fr) auto;
+  gap: clamp(5px, 0.65svh, 8px);
   padding-bottom: 2px;
   overflow: visible;
 }
@@ -3008,28 +3009,35 @@ textarea {
 }
 
 .human-revealed-shelf {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
   width: min(1180px, 100%);
   height: 100%;
   min-width: 0;
+  padding: 0 6px 5px;
+  border-bottom: 1px solid rgba(241, 205, 69, 0.18);
   overflow: hidden;
   contain: layout paint;
 }
 
 .human-seat .seat-sets-row {
-  width: 100%;
+  width: max-content;
+  max-width: 100%;
   max-height: 100%;
-  height: 100%;
+  height: auto;
   min-height: 0;
   justify-content: center;
   margin-inline: auto;
-  padding: 4px 8px;
-  border: 1px solid rgba(241, 205, 69, 0.16);
-  border-radius: 8px;
-  background: rgba(6, 38, 15, 0.24);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .human-seat .flower-row,
 .human-seat .meld-row {
+  align-items: flex-end;
   justify-content: center;
 }
 
@@ -3043,12 +3051,13 @@ textarea {
 .human-hand {
   position: relative;
   z-index: 2;
+  isolation: isolate;
   align-items: end;
   width: min(1360px, 100%);
   min-height: 0;
   height: 100%;
   gap: clamp(1px, 0.25vw, 4px);
-  padding: 9px 2px 1px;
+  padding: 12px 2px 1px;
   overflow: hidden;
 }
 
@@ -3541,11 +3550,12 @@ textarea {
 
   .human-seat {
     grid-template-rows: 30px 40px minmax(66px, 1fr) 38px;
-    gap: 2px;
+    gap: 4px;
   }
 
   .human-revealed-shelf {
     height: 40px;
+    padding-bottom: 4px;
   }
 
   .human-profile {
@@ -3590,7 +3600,7 @@ textarea {
 
   .human-hand {
     gap: 1px;
-    padding: 7px 0 1px;
+    padding: 9px 0 1px;
   }
 
   .human-hand .tile {
