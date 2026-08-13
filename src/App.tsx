@@ -409,6 +409,8 @@ function TileView({
   hidden,
   selected,
   drawn,
+  latest,
+  revealed,
   waiting,
   winning,
   large,
@@ -421,6 +423,8 @@ function TileView({
   hidden?: boolean;
   selected?: boolean;
   drawn?: boolean;
+  latest?: boolean;
+  revealed?: boolean;
   waiting?: boolean;
   winning?: boolean;
   large?: boolean;
@@ -439,8 +443,8 @@ function TileView({
   }
   return (
     <button
-      className={`tile ${tile.suit} ${selected ? "selected" : ""} ${drawn ? "drawn" : ""} ${waiting ? "waiting" : ""} ${winning ? "winning-tile" : ""} ${large ? "large" : ""}`}
-      aria-label={`${tile.label}${drawn ? ", newly drawn" : ""}${waiting ? ", part of a waiting set" : ""}${winning ? ", winning tile" : ""}`}
+      className={`tile ${tile.suit} ${selected ? "selected" : ""} ${drawn ? "drawn tile-motion-draw" : ""} ${latest ? "discard-latest tile-motion-discard" : ""} ${revealed ? "tile-motion-reveal" : ""} ${waiting ? "waiting" : ""} ${winning ? "winning-tile" : ""} ${large ? "large" : ""}`}
+      aria-label={`${tile.label}${drawn ? ", newly drawn" : ""}${latest ? ", latest discard" : ""}${waiting ? ", part of a waiting set" : ""}${winning ? ", winning tile" : ""}`}
       disabled={disabled}
       onMouseDown={onMouseDown}
       onClick={onClick}
@@ -465,7 +469,7 @@ function MeldView({ meld }: { meld: Meld }) {
       : meld.type.charAt(0).toUpperCase() + meld.type.slice(1);
   return (
     <div
-      className="meld"
+      className="meld meld-motion-enter"
       title={`${meld.concealed ? "Concealed " : ""}${meldName}`}
     >
       <span>{meld.concealed ? "Silent Gong" : meldName.toUpperCase()}</span>
@@ -487,9 +491,22 @@ function DiscardRiver({ player }: { player: Player }) {
   const discards = [...player.discards].reverse();
   return (
     <div className="discard-river" aria-label={`${player.name} discard pile`}>
-      {discards.map((tile) => (
-        <TileView key={tile.id} tile={tile} disabled />
+      {discards.map((tile, index) => (
+        <TileView
+          key={tile.id}
+          tile={tile}
+          latest={index === 0}
+          disabled
+        />
       ))}
+      {discards.length > 4 ? (
+        <span
+          className="discard-overflow-count"
+          aria-label={`${discards.length - 4} earlier discards`}
+        >
+          +{discards.length - 4}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -569,7 +586,7 @@ function SeatSets({
       {flowers.length > 0 ? (
         <div className="flower-row">
           {flowers.map((tile) => (
-            <TileView key={tile.id} tile={tile} disabled />
+            <TileView key={tile.id} tile={tile} revealed disabled />
           ))}
         </div>
       ) : null}
@@ -945,6 +962,7 @@ function MahjongApp() {
   const [chatMessages, setChatMessages] = useState<StoredLobbyChatMessage[]>(
     [],
   );
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const activeChatRoomRef = useRef<string | null>(null);
   const [choosingKong, setChoosingKong] = useState(false);
   const [selectedKongCode, setSelectedKongCode] = useState<
@@ -1064,6 +1082,7 @@ function MahjongApp() {
 
   useEffect(() => {
     if (!chatOpen) return;
+    setUnreadChatCount(0);
     chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatOpen, chatMessages.length]);
 
@@ -1078,6 +1097,7 @@ function MahjongApp() {
     }
 
     setChatMessages([]);
+    setUnreadChatCount(0);
     activeChatRoomRef.current = connection.roomId;
   }, [playMode, connection.joined, connection.roomId]);
 
@@ -1144,6 +1164,9 @@ function MahjongApp() {
             saveLobbyMessages(connection.roomId, next);
             return next;
           });
+          if (messagePayload.playerIndex !== connection.playerIndex) {
+            setUnreadChatCount((current) => Math.min(99, current + 1));
+          }
         }
 
         if (
@@ -1154,6 +1177,7 @@ function MahjongApp() {
           clearLobbyChatHistory(connection.roomId);
           activeChatRoomRef.current = null;
           setChatMessages([]);
+          setUnreadChatCount(0);
         }
       } catch {
         // Ignore malformed chat payloads.
@@ -1222,7 +1246,7 @@ function MahjongApp() {
     /(choose a discard|is taking a turn|your turn)/i.test(activity.text);
   const showYourTurnInCenter =
     isSelfDiscardTurn || isSelfClaimTurn || activityIndicatesSelfAction;
-  const activityText = isSelfDiscardTurn
+  const rawActivityText = isSelfDiscardTurn
     ? "Your turn"
     : isSelfClaimTurn
       ? "Your turn - choose an action"
@@ -1233,12 +1257,29 @@ function MahjongApp() {
             currentClaimer !== undefined
           ? `${seatName(currentClaimer)} is waiting to discard.`
           : activity.text;
+  const activityDealer = game?.dealer;
+  const activityText =
+    playMode === "online" &&
+    activityDealer !== undefined &&
+    activityDealer !== SELF &&
+    /you are dealer/i.test(rawActivityText)
+      ? `${seatName(activityDealer)} is Dealer. The hand begins.`
+      : rawActivityText;
   const centerStatusLabel =
     !activity.tile && showYourTurnInCenter
-      ? "Your turn"
+      ? isSelfClaimTurn
+        ? "Action required"
+        : "Your turn"
       : activity.tile
         ? `${seatName(activity.player)}'s discard`
         : "Table activity";
+  const activityNoticeTone = showYourTurnInCenter
+    ? "action"
+    : /(point|score|bonus|wins?|collected all eight flowers)/i.test(activityText)
+      ? "score"
+      : currentPhase === "claim"
+        ? "decision"
+        : "info";
   const ruleRows = useMemo(() => [["Base win", "baseWin"]] as const, []);
 
   const [houseDraft, setHouseDraft] = useState({
@@ -1984,9 +2025,14 @@ function MahjongApp() {
             </button>
           </div>
           {aiTakeoverSeat !== undefined ? (
-            <div className="presence-notice" role="status" aria-live="polite">
-              <strong>{seatName(aiTakeoverSeat)} disconnected.</strong>
-              <span>AI has taken over this seat.</span>
+            <div
+              className="table-notice table-notice-floating notice-warning"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="notice-kicker">Connection</span>
+              <strong>{seatName(aiTakeoverSeat)} disconnected</strong>
+              <small>AI has taken over this seat.</small>
             </div>
           ) : null}
           <div className="table-wall wall-top" aria-hidden="true">
@@ -2148,7 +2194,10 @@ function MahjongApp() {
               onInspect={setInspectedSeat}
             />
             <div className="table-center-core">
-              <div className="center-activity" aria-live="polite">
+              <div
+                className={`center-activity table-notice table-notice-center notice-${activityNoticeTone}`}
+                aria-live="polite"
+              >
                 <span>
                   Round {game.round} · {centerStatusLabel}
                 </span>
@@ -2169,6 +2218,11 @@ function MahjongApp() {
                 onClick={() => setChatOpen((current) => !current)}
               >
                 <span>Chat</span>
+                {unreadChatCount > 0 && !chatOpen ? (
+                  <em className="notice-count" aria-label={`${unreadChatCount} unread messages`}>
+                    {unreadChatCount}
+                  </em>
+                ) : null}
                 <strong>{chatPreviewText}</strong>
               </button>
               {chatOpen ? (

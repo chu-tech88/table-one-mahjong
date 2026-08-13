@@ -82,6 +82,26 @@ assert.match(
 );
 assert.match(
   app,
+  /discard-overflow-count[\s\S]*earlier discards/,
+  "Compact rivers must preserve access to the full discard history",
+);
+assert.match(
+  css,
+  /@media \(max-width: 760px\)[\s\S]*\.discard-river \.tile:nth-of-type\(n \+ 5\)[\s\S]*\.discard-overflow-count\s*\{\s*display:\s*grid;/,
+  "Mobile rivers must prioritize the four newest discards",
+);
+assert.match(
+  css,
+  /\.tile-motion-draw[\s\S]*\.tile-motion-discard[\s\S]*\.meld-motion-enter[\s\S]*@keyframes tile-draw-enter/,
+  "Draw, discard, and reveal changes must use restrained explanatory motion",
+);
+assert.match(
+  app,
+  /table-notice-floating notice-warning[\s\S]*notice-\$\{activityNoticeTone\}[\s\S]*notice-count/,
+  "Turn, claim, connection, score, and chat events must share one notification system",
+);
+assert.match(
+  app,
   /game\.winSummary\.winner === SELF[\s\S]*?"You win"[\s\S]*?seatName\(game\.winSummary\.winner\)/,
   "The hand-complete title must be relative to the viewer's assigned seat",
 );

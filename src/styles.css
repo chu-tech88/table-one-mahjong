@@ -279,25 +279,70 @@ textarea {
   z-index: 5;
 }
 
-.presence-notice {
-  position: absolute;
-  z-index: 12;
-  top: clamp(58px, 7svh, 76px);
-  left: 50%;
-  display: flex;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 1px solid rgba(255, 218, 67, 0.6);
+.table-notice {
+  --notice-accent: #9fc8ad;
+  --notice-border: rgba(159, 200, 173, 0.34);
+  --notice-background: rgba(8, 45, 21, 0.94);
+  border: 1px solid var(--notice-border);
   border-radius: 6px;
-  background: rgba(9, 50, 23, 0.96);
-  color: #fff7cc;
-  font-size: 0.75rem;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
-  transform: translateX(-50%);
+  background: var(--notice-background);
+  color: #f7fff9;
+  box-shadow:
+    inset 3px 0 0 var(--notice-accent),
+    0 8px 20px rgba(0, 0, 0, 0.2);
 }
 
-.presence-notice strong {
-  color: #ffe16a;
+.notice-action {
+  --notice-accent: #ffdc45;
+  --notice-border: rgba(255, 220, 69, 0.42);
+}
+
+.notice-decision {
+  --notice-accent: #5fc6bc;
+  --notice-border: rgba(95, 198, 188, 0.4);
+}
+
+.notice-score {
+  --notice-accent: #f0ae45;
+  --notice-border: rgba(240, 174, 69, 0.42);
+}
+
+.notice-warning {
+  --notice-accent: #ee9a42;
+  --notice-border: rgba(238, 154, 66, 0.5);
+}
+
+.table-notice-floating {
+  position: absolute;
+  z-index: 15;
+  top: clamp(58px, 7svh, 76px);
+  left: 50%;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 8px;
+  min-width: 220px;
+  padding: 8px 11px;
+  font-size: 0.72rem;
+  transform: translateX(-50%);
+  animation: notice-enter 220ms ease-out both;
+}
+
+.table-notice-floating .notice-kicker {
+  grid-column: 1;
+  color: var(--notice-accent);
+  font-size: 0.56rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.table-notice-floating strong {
+  grid-column: 2;
+}
+
+.table-notice-floating small {
+  grid-column: 1 / -1;
+  color: #cfe2d4;
+  font-size: 0.66rem;
 }
 
 .tiles-remaining,
@@ -721,6 +766,23 @@ textarea {
   white-space: nowrap;
 }
 
+.notice-count {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #e25445;
+  color: #fff;
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 0 0 2px rgba(226, 84, 69, 0.18);
+}
+
 .lobby-chat-card {
   display: grid;
   gap: 8px;
@@ -848,10 +910,9 @@ textarea {
   justify-items: center;
   gap: 4px;
   width: min(360px, 100%);
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: 7px 9px;
   text-align: center;
+  box-shadow: inset 3px 0 0 var(--notice-accent);
 }
 
 .center-activity span {
@@ -862,6 +923,17 @@ textarea {
   color: #fff8e8;
   font-size: 0.94rem;
   line-height: 1.25;
+}
+
+@keyframes notice-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -5px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 .last-discard {
@@ -1237,6 +1309,67 @@ textarea {
     0 10px 20px rgba(123, 89, 15, 0.2);
 }
 
+.tile-motion-draw {
+  animation: tile-draw-enter 240ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+
+.tile-motion-discard {
+  animation: tile-discard-settle 210ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+
+.tile-motion-reveal,
+.meld-motion-enter {
+  animation: tile-reveal-enter 230ms ease-out both;
+}
+
+.dealer-badge {
+  animation: dealer-badge-enter 260ms ease-out both;
+}
+
+@keyframes tile-draw-enter {
+  from {
+    opacity: 0.45;
+    transform: translateY(-10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tile-discard-settle {
+  from {
+    opacity: 0.45;
+    transform: translateY(-9px) scale(1.06);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tile-reveal-enter {
+  from {
+    opacity: 0.3;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dealer-badge-enter {
+  from {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .tile.waiting {
   border-color: var(--danger);
   box-shadow:
@@ -1333,6 +1466,20 @@ textarea {
   width: clamp(30px, 2.35vw, 42px);
   height: clamp(42px, 3.25vw, 58px);
   border-bottom-width: 3px;
+}
+
+.discard-overflow-count {
+  display: none;
+  place-items: center;
+  min-width: 26px;
+  height: var(--river-tile-h);
+  padding: 0 4px;
+  border: 1px solid rgba(225, 240, 229, 0.2);
+  border-radius: 5px;
+  background: rgba(5, 39, 17, 0.72);
+  color: #d8eadf;
+  font-size: 0.58rem;
+  font-weight: 900;
 }
 
 .dot-face,
@@ -2439,7 +2586,7 @@ textarea {
 
 .opponent-left .seat-heading,
 .opponent-right .seat-heading {
-  width: min(100%, 280px);
+  width: min(100%, var(--info-zone-width));
 }
 
 .opponent-left .seat-meta,
@@ -2474,6 +2621,11 @@ textarea {
   color: #fff4b4;
   font: inherit;
   transform: none;
+}
+
+.opponent-left .seat-heading,
+.opponent-right .seat-heading {
+  width: min(100%, var(--info-zone-width));
 }
 
 .opponent .seat-heading:hover,
@@ -2522,7 +2674,13 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .turn-beacon i {
+  .turn-beacon i,
+  .tile-motion-draw,
+  .tile-motion-discard,
+  .tile-motion-reveal,
+  .meld-motion-enter,
+  .dealer-badge,
+  .table-notice-floating {
     animation: none;
   }
 }
@@ -3287,8 +3445,39 @@ textarea {
     min-height: 24px;
   }
 
+  .opponent-left .turn-beacon,
+  .opponent-right .turn-beacon {
+    gap: 0;
+    font-size: 0;
+  }
+
   .opponent .seat-sets-row {
+    display: flex;
+    justify-content: flex-start;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .opponent .seat-sets-row::-webkit-scrollbar {
     display: none;
+  }
+
+  .opponent-revealed-zone .meld > span {
+    display: none;
+  }
+
+  .opponent-revealed-zone .seat-sets-row {
+    padding-top: 2px;
+  }
+
+  .discard-river .tile:nth-of-type(n + 5) {
+    display: none;
+  }
+
+  .discard-overflow-count {
+    display: grid;
   }
 
   .center-table::before {
@@ -3345,7 +3534,7 @@ textarea {
   }
 
   .human-profile {
-    grid-template-columns: minmax(86px, 1fr) auto;
+    grid-template-columns: minmax(86px, 1fr) auto auto;
     gap: 5px;
     padding-inline: 2px;
   }
@@ -3364,7 +3553,13 @@ textarea {
   }
 
   .human-profile .seat-meta {
-    grid-column: 1 / -1;
+    grid-column: auto;
+    display: flex;
+    font-size: 0.56rem;
+    white-space: nowrap;
+  }
+
+  .human-profile .seat-meta span:not(:first-child) {
     display: none;
   }
 
