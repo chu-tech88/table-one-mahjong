@@ -123,13 +123,13 @@ const bambooLayouts: Record<number, Array<[number, number]>> = {
     [66, 80],
   ],
   7: [
-    [24, 19],
-    [50, 19],
-    [76, 19],
-    [34, 50],
-    [66, 50],
-    [34, 81],
-    [66, 81],
+    [50, 18],
+    [23, 50],
+    [50, 50],
+    [77, 50],
+    [23, 82],
+    [50, 82],
+    [77, 82],
   ],
   8: [
     [34, 14],
@@ -160,8 +160,8 @@ function BambooFace({ rank }: { rank: number }) {
       <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
         {bambooLayouts[rank].map(([x, y], index) => (
           <g key={`${x}-${y}-${index}`} transform={`translate(${x} ${y})`}>
-            <rect x="-5" y="-12" width="10" height="24" rx="5" fill="#147d5b" />
-            <rect x="-5" y="-2" width="10" height="4" fill="#d7433f" />
+            <rect x="-7" y="-14" width="14" height="28" rx="7" fill="#147d5b" />
+            <rect x="-7" y="-2.5" width="14" height="5" fill="#d7433f" />
             <path
               d="M0 -10 V10"
               stroke="#eff8e9"
@@ -171,6 +171,44 @@ function BambooFace({ rank }: { rank: number }) {
           </g>
         ))}
       </svg>
+    </span>
+  );
+}
+
+const flowerPalettes = [
+  ["#b62d48", "#ef8ca0"],
+  ["#7350a6", "#b69bd8"],
+  ["#c98918", "#f0ca54"],
+  ["#167d59", "#62b884"],
+  ["#b62d48", "#f2a0ad"],
+  ["#c75d24", "#f2b04f"],
+  ["#9a4b31", "#d9915d"],
+  ["#315d9c", "#88a8d2"],
+] as const;
+
+function FlowerFace({ tile }: { tile: Tile }) {
+  const [primary, secondary] = flowerPalettes[tile.rank - 1];
+  return (
+    <span className="tile-face flower-illustration-face" aria-hidden="true">
+      <svg viewBox="0 0 100 120" preserveAspectRatio="xMidYMid meet">
+        <path d="M48 111 C45 83 51 60 64 30" fill="none" stroke="#247049" strokeWidth="5" strokeLinecap="round" />
+        <path d="M49 82 C33 72 24 72 17 78 C30 83 39 88 49 91" fill="#4d9567" />
+        <path d="M56 60 C70 50 79 50 85 56 C74 62 66 67 57 70" fill="#4d9567" />
+        <g transform="translate(65 28)">
+          {[0, 72, 144, 216, 288].map((rotation) => (
+            <ellipse key={rotation} cx="0" cy="-13" rx="8" ry="15" fill={secondary} transform={`rotate(${rotation})`} />
+          ))}
+          <circle r="7" fill={primary} />
+        </g>
+        <g transform="translate(38 60) scale(.72)">
+          {[0, 72, 144, 216, 288].map((rotation) => (
+            <ellipse key={rotation} cx="0" cy="-13" rx="8" ry="15" fill={secondary} transform={`rotate(${rotation})`} />
+          ))}
+          <circle r="7" fill={primary} />
+        </g>
+      </svg>
+      <b>{flowerCharacters[tile.code] ?? tile.short}</b>
+      <em>{tile.rank}</em>
     </span>
   );
 }
@@ -229,12 +267,7 @@ function TileFace({ tile }: { tile: Tile }) {
   }
 
   if (tile.suit === "flowers") {
-    return (
-      <span className="tile-face flower-face" aria-hidden="true">
-        <b>{flowerCharacters[tile.code] ?? tile.short}</b>
-        <em>{tile.rank}</em>
-      </span>
-    );
+    return <FlowerFace tile={tile} />;
   }
 
   return (
@@ -250,6 +283,7 @@ function TileView({
   selected,
   drawn,
   waiting,
+  winning,
   large,
   disabled,
   onMouseDown,
@@ -261,6 +295,7 @@ function TileView({
   selected?: boolean;
   drawn?: boolean;
   waiting?: boolean;
+  winning?: boolean;
   large?: boolean;
   disabled?: boolean;
   onMouseDown?: () => void;
@@ -277,8 +312,8 @@ function TileView({
   }
   return (
     <button
-      className={`tile ${tile.suit} ${selected ? "selected" : ""} ${drawn ? "drawn" : ""} ${waiting ? "waiting" : ""} ${large ? "large" : ""}`}
-      aria-label={`${tile.label}${drawn ? ", newly drawn" : ""}${waiting ? ", part of a waiting set" : ""}`}
+      className={`tile ${tile.suit} ${selected ? "selected" : ""} ${drawn ? "drawn" : ""} ${waiting ? "waiting" : ""} ${winning ? "winning-tile" : ""} ${large ? "large" : ""}`}
+      aria-label={`${tile.label}${drawn ? ", newly drawn" : ""}${waiting ? ", part of a waiting set" : ""}${winning ? ", winning tile" : ""}`}
       disabled={disabled}
       onMouseDown={onMouseDown}
       onClick={onClick}
@@ -428,6 +463,7 @@ function Opponent({
   ready,
   reveal,
   position,
+  presence,
   onInspect,
 }: {
   player: Player;
@@ -437,13 +473,15 @@ function Opponent({
   ready: boolean;
   reveal: boolean;
   position: "left" | "top" | "right";
+  presence?: "connected" | "reconnecting" | "ai";
   onInspect: () => void;
 }) {
   const isSideSeat = position === "left" || position === "right";
   const revealedCount = player.flowers.length + player.melds.length;
   return (
     <section
-      className={`opponent opponent-${position} ${active ? "active" : ""} ${dealer ? "dealer-seat" : ""}`}
+      className={`opponent opponent-${position} ${active ? "turn-active" : ""} ${dealer ? "dealer-seat" : ""}`}
+      aria-current={active ? "true" : undefined}
     >
       <button className="seat-heading" type="button" onClick={onInspect}>
         <strong>{player.name}</strong>
@@ -454,6 +492,9 @@ function Opponent({
             </span>
           ) : null}
           {ready ? <span className="ready-badge">Ready</span> : null}
+          {presence === "reconnecting" ? (
+            <span className="reconnecting-badge">Reconnecting</span>
+          ) : null}
           <span className="identity-badge">
             {player.controller === "human" ? "Human" : "AI"}
           </span>
@@ -717,6 +758,7 @@ function MahjongApp() {
     newHand,
     leaveRoom,
     readyNextHand,
+    aiTakeoverSeat,
     playerIndex: assignedPlayerIndex,
   } = gameHook;
   const SELF = assignedPlayerIndex >= 0
@@ -758,6 +800,54 @@ function MahjongApp() {
   const [selectedKongCode, setSelectedKongCode] = useState<
     string | undefined
   >();
+  const previousTurnWasMine = useRef(false);
+  const audioUnlocked = useRef(false);
+
+  useEffect(() => {
+    const unlockAudio = () => {
+      audioUnlocked.current = true;
+    };
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+    };
+  }, []);
+
+  useEffect(() => {
+    const turnIsMine = Boolean(
+      game &&
+        game.phase !== "round-over" &&
+        ((game.phase === "discard" && game.turn === SELF) ||
+          (game.phase === "claim" && game.pendingClaim?.claimer === SELF)),
+    );
+    if (turnIsMine && !previousTurnWasMine.current && audioUnlocked.current) {
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as typeof window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      if (AudioContextClass) {
+        const context = new AudioContextClass();
+        const gain = context.createGain();
+        gain.gain.setValueAtTime(0.0001, context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.48);
+        gain.connect(context.destination);
+        [659.25, 880].forEach((frequency, index) => {
+          const oscillator = context.createOscillator();
+          oscillator.type = "sine";
+          oscillator.frequency.value = frequency;
+          oscillator.connect(gain);
+          oscillator.start(context.currentTime + index * 0.12);
+          oscillator.stop(context.currentTime + 0.42 + index * 0.12);
+        });
+        window.setTimeout(() => void context.close(), 750);
+      }
+      navigator.vibrate?.(80);
+    }
+    previousTurnWasMine.current = turnIsMine;
+  }, [game?.phase, game?.turn, game?.pendingClaim?.claimer, SELF]);
   const [uiSelectedTileId, setUiSelectedTileId] = useState<string | undefined>(
     undefined,
   );
@@ -1504,6 +1594,12 @@ function MahjongApp() {
               ⚙
             </button>
           </div>
+          {aiTakeoverSeat !== undefined ? (
+            <div className="presence-notice" role="status" aria-live="polite">
+              <strong>{seatName(aiTakeoverSeat)} disconnected.</strong>
+              <span>AI has taken over this seat.</span>
+            </div>
+          ) : null}
           <div className="table-wall wall-top" aria-hidden="true">
             {Array.from({ length: 18 }, (_, index) => (
               <i key={index} />
@@ -1522,6 +1618,7 @@ function MahjongApp() {
           <Opponent
             player={{ ...game.players[topSeat], name: seatName(topSeat) }}
             active={game.turn === topSeat}
+            presence={game.seatPresence?.[topSeat]}
             dealer={game.dealer === topSeat}
             dealerStreak={game.dealerStreak}
             ready={game.declaredReady?.includes(topSeat) ?? false}
@@ -1530,7 +1627,8 @@ function MahjongApp() {
             onInspect={() => setInspectedSeat(topSeat)}
           />
           <section
-            className={`human-seat ${game.turn === SELF ? "active" : ""} ${game.dealer === SELF ? "dealer-seat" : ""}`}
+            className={`human-seat ${game.turn === SELF ? "turn-active" : ""} ${game.dealer === SELF ? "dealer-seat" : ""}`}
+            aria-current={game.turn === SELF ? "true" : undefined}
           >
             <div className="human-profile">
               <button
@@ -1640,6 +1738,7 @@ function MahjongApp() {
           <Opponent
             player={{ ...game.players[leftSeat], name: seatName(leftSeat) }}
             active={game.turn === leftSeat}
+            presence={game.seatPresence?.[leftSeat]}
             dealer={game.dealer === leftSeat}
             dealerStreak={game.dealerStreak}
             ready={game.declaredReady?.includes(leftSeat) ?? false}
@@ -1670,6 +1769,7 @@ function MahjongApp() {
           <Opponent
             player={{ ...game.players[rightSeat], name: seatName(rightSeat) }}
             active={game.turn === rightSeat}
+            presence={game.seatPresence?.[rightSeat]}
             dealer={game.dealer === rightSeat}
             dealerStreak={game.dealerStreak}
             ready={game.declaredReady?.includes(rightSeat) ?? false}
@@ -1976,7 +2076,13 @@ function MahjongApp() {
             aria-labelledby="win-title"
           >
             <p className="eyebrow">Hand complete</p>
-            <h2 id="win-title">{game.winSummary.title}</h2>
+            <h2 id="win-title">
+              {game.winSummary.winner === undefined
+                ? game.winSummary.title
+                : game.winSummary.winner === SELF
+                  ? "You win"
+                  : `${seatName(game.winSummary.winner)} wins`}
+            </h2>
             <p>{game.winSummary.detail}</p>
             {winningPlayer && game.winSummary.winner !== undefined ? (
               <div
@@ -1988,7 +2094,12 @@ function MahjongApp() {
                   <strong>Concealed tiles</strong>
                   <div className="winning-tile-row">
                     {winningPlayer.hand.map((tile) => (
-                      <TileView key={tile.id} tile={tile} disabled />
+                      <TileView
+                        key={tile.id}
+                        tile={tile}
+                        winning={tile.id === game.winSummary?.winningTileId}
+                        disabled
+                      />
                     ))}
                   </div>
                 </div>

@@ -16,6 +16,7 @@ export type GameClientCallbacks = {
   onSeatAssigned?: (playerIndex: number) => void;
   onActionRejected?: (reason: string) => void;
   onDisconnected?: () => void;
+  onPlayerTakenOver?: (playerIndex: number) => void;
 };
 
 export class GameClient {
@@ -190,6 +191,9 @@ export class GameClient {
 
     if (message.type === "player-disconnected") {
       console.log(`Player ${message.playerIndex} disconnected`);
+      if (message.aiTakeover) {
+        this.callbacks.onPlayerTakenOver?.(message.playerIndex);
+      }
     }
 
     if (message.type === "system") {

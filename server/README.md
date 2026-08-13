@@ -38,6 +38,8 @@ npm run dev
 - action validation and execution
 - authoritative game state broadcasting
 - disconnection handling
+- 30-second reconnect grace period with AI takeover
+- server-owned next-hand readiness, score carryover, and dealer rotation
 - AI turns only for seats without a connected human
 
 ## Lobby Seat Availability

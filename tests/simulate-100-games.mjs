@@ -136,7 +136,7 @@ function removeCodes(hand, codes) {
 }
 
 function drawReplacement(state, playerIndex) {
-  while (state.wall.length > 8) {
+  while (state.wall.length > 16) {
     const tile = state.wall.shift();
     if (tile.startsWith("F")) state.players[playerIndex].flowers.push(tile);
     else {
@@ -188,7 +188,7 @@ function playGame(gameIndex) {
     while (player.hand.length < target && drawReplacement(state, index)) {}
   });
 
-  while (state.wall.length > 8 && state.turns < 400) {
+  while (state.wall.length > 16 && state.turns < 400) {
     state.turns += 1;
     const player = state.players[state.turn];
     if (isWin(player.hand, player.melds.length)) {
@@ -264,7 +264,10 @@ const summary = {
 console.log(JSON.stringify(summary, null, 2));
 
 assert.equal(summary.games, gameCount);
-assert.ok(summary.wins >= Math.floor(gameCount * 0.55), "Bots should finish a healthy majority of hands");
+assert.ok(
+  summary.wins >= Math.floor(gameCount * 0.45),
+  "Bots should finish a substantial share of hands before the 16-tile wall cutoff",
+);
 assert.ok(Math.max(...summary.winsBySeat) - Math.min(...summary.winsBySeat) <= Math.ceil(gameCount * 0.18), "No seat should dominate the sample");
 assert.ok(summary.maxMelds >= 3, "The simulation should exercise crowded meld layouts");
 assert.ok(summary.maxDiscards >= 40, "The simulation should exercise long discard histories");

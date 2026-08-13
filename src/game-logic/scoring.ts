@@ -386,6 +386,10 @@ export function scoreRound(
 ) {
   const next = structuredCloneGame(game);
   const player = next.players[winner];
+  const winningTileId =
+    source === "self-draw"
+      ? next.drawnTileId
+      : next.pendingAddedGong?.tile.id ?? next.lastDiscard?.tile.id;
   if (source === "discard" && next.robbingGong && next.pendingAddedGong) {
     const robbed = next.pendingAddedGong;
     next.players[robbed.player].hand = next.players[robbed.player].hand.filter(
@@ -465,7 +469,8 @@ export function scoreRound(
   };
   next.winSummary = {
     winner,
-    title: winner === 0 ? "You win" : `${player.name} wins`,
+    winningTileId,
+    title: `${player.name} wins`,
     detail:
       source === "self-draw"
         ? `${player.name} wins by self draw for ${points} points from each player.`
@@ -498,7 +503,7 @@ export function finishExhaustedHand(game: Game) {
   next.activity = { player: next.dealer, text: next.message };
   next.winSummary = {
     title: "No tiles remaining",
-    detail: `Eight dead-wall tiles remain. ${next.players[next.dealer].name} continues as dealer with a +${nextStreak * 2} consecutive-dealer bonus next hand.`,
+    detail: `Sixteen tiles remain. ${next.players[next.dealer].name} continues as dealer with a +${nextStreak * 2} consecutive-dealer bonus next hand.`,
     points: 0,
     total: 0,
     lineItems: ["Wall exhausted: no score payment"],

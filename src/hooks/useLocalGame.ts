@@ -48,6 +48,7 @@ type UseLocalGameReturn = {
   newHand: (dealer?: number, resetGame?: boolean) => void;
   leaveRoom: () => void;
   readyNextHand: () => void;
+  aiTakeoverSeat?: number;
   playerIndex: number;
   isConnected?: boolean;
   error?: string | null;
@@ -317,6 +318,7 @@ export function useLocalGame(
     newHand,
     leaveRoom: () => undefined,
     readyNextHand,
+    aiTakeoverSeat: undefined,
     playerIndex: 0,
     isConnected: true,
     error: null,

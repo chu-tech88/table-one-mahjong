@@ -29,6 +29,7 @@ type UseNetworkedGameReturn = {
   newHand: (dealer?: number, resetGame?: boolean) => void;
   leaveRoom: () => void;
   readyNextHand: () => void;
+  aiTakeoverSeat?: number;
 };
 
 /**
@@ -57,6 +58,7 @@ export function useNetworkedGame(
   const [error, setError] = useState<string | null>(null);
   const [selectedTileId, setSelectedTileId] = useState<string | undefined>();
   const [playerIndex, setPlayerIndex] = useState(preferredPlayerIndex ?? -1);
+  const [aiTakeoverSeat, setAiTakeoverSeat] = useState<number>();
   const playerIndexRef = useRef(preferredPlayerIndex ?? -1);
   const clientRef = useRef<GameClient | null>(null);
 
@@ -116,6 +118,13 @@ export function useNetworkedGame(
           setIsConnected(false);
           setError("Reconnecting to your table...");
           scheduleReconnect();
+        },
+        onPlayerTakenOver: (takenOverPlayerIndex) => {
+          if (!isMounted || client !== activeClient) return;
+          setAiTakeoverSeat(takenOverPlayerIndex);
+          window.setTimeout(() => {
+            if (isMounted) setAiTakeoverSeat(undefined);
+          }, 6000);
         },
       });
 
@@ -305,5 +314,6 @@ export function useNetworkedGame(
     newHand,
     leaveRoom,
     readyNextHand,
+    aiTakeoverSeat,
   };
 }

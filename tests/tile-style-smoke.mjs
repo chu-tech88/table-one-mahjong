@@ -61,6 +61,36 @@ assert.match(
   "Numbered bamboo must render as Safari-safe inline SVG artwork",
 );
 assert.match(
+  app,
+  /7:\s*\[\s*\[50, 18\][\s\S]*\[23, 50\][\s\S]*\[77, 82\]/,
+  "Seven bamboo must use the traditional 1-3-3 arrangement",
+);
+assert.match(
+  app,
+  /function FlowerFace[\s\S]*flower-illustration-face[\s\S]*<svg viewBox="0 0 100 120"/,
+  "Flower tiles must use botanical artwork instead of character-only faces",
+);
+assert.match(
+  app,
+  /game\.winSummary\.winner === SELF[\s\S]*?"You win"[\s\S]*?seatName\(game\.winSummary\.winner\)/,
+  "The hand-complete title must be relative to the viewer's assigned seat",
+);
+assert.match(
+  app,
+  /AudioContext[\s\S]*?navigator\.vibrate/,
+  "A turn transition must provide audible and mobile haptic feedback",
+);
+assert.match(
+  css,
+  /\.tile\.winning-tile\s*\{[^}]*border-color:\s*#c92f39;[^}]*box-shadow:/s,
+  "The winning tile must be clearly highlighted in the hand summary",
+);
+assert.match(
+  css,
+  /\.opponent\.turn-active \.seat-heading\s*\{[^}]*box-shadow:[^}]*rgba\(255, 218, 67/s,
+  "The active opponent must have a strong visible turn highlight",
+);
+assert.match(
   css,
   /\.discard-lane-0\s*\{[^}]*width:\s*var\(--info-zone-width\);/s,
   "The human discard pile must share the opponent information width",
@@ -79,6 +109,11 @@ assert.match(
   server,
   /visible\.pendingClaim = undefined;[\s\S]*?is waiting to discard\./,
   "Other players must not receive the active player's claim options",
+);
+assert.match(
+  server,
+  /DISCONNECT_GRACE_MS[\s\S]*?"30000"[\s\S]*?seatPresence\[playerIndex\] = "reconnecting"/,
+  "Disconnected multiplayer seats must receive a 30-second reconnecting grace period",
 );
 assert.match(
   app,

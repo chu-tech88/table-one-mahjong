@@ -81,7 +81,11 @@ function startServer(port) {
       ["--import", "tsx", "server/game-server.ts"],
       {
         cwd: process.cwd(),
-        env: { ...process.env, WS_PORT: String(port) },
+        env: {
+          ...process.env,
+          WS_PORT: String(port),
+          DISCONNECT_GRACE_MS: "300",
+        },
         stdio: ["ignore", "pipe", "pipe"],
       },
     );
@@ -288,8 +292,33 @@ async function main() {
       "Discard update should broadcast to all joined clients",
     );
 
-    ws0.close();
+    const reconnectingStatePromise = waitForMessage(
+      ws0,
+      (msg) =>
+        msg.type === "game-state-update" &&
+        msg.game.seatPresence?.[1] === "reconnecting" &&
+        msg.game.players[1].controller === "human",
+    );
+    const takeoverNoticePromise = waitForMessage(
+      ws0,
+      (msg) =>
+        msg.type === "player-disconnected" &&
+        msg.playerIndex === 1 &&
+        msg.aiTakeover === true,
+    );
+    const takeoverStatePromise = waitForMessage(
+      ws0,
+      (msg) =>
+        msg.type === "game-state-update" &&
+        msg.game.seatPresence?.[1] === "ai" &&
+        msg.game.players[1].controller === "ai",
+    );
     ws1.close();
+    await reconnectingStatePromise;
+    await takeoverNoticePromise;
+    await takeoverStatePromise;
+
+    ws0.close();
     await delay(120);
     wsResume = await connectClient(url);
     send(wsResume, {
@@ -303,8 +332,8 @@ async function main() {
       (msg) => msg.type === "game-state-update",
     );
     assert.ok(
-      resumed.game.actionSeq < post0.game.actionSeq,
-      "A room with no remaining human players should reset to a fresh hand on rejoin",
+      resumed.game.actionSeq >= post0.game.actionSeq,
+      "An unexpected disconnect must preserve room scores and round progress for reconnection",
     );
     assert.equal(resumed.game.rules.baseWin, 7);
 

@@ -3,7 +3,7 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { createReadStream, existsSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
-import { Game } from "../src/game-logic/types";
+import { Game, SeatPresence } from "../src/game-logic/types";
 import { dealRound } from "../src/game-logic/deck";
 import {
   discardTile,
@@ -28,6 +28,11 @@ import {
   structuredCloneGame,
 } from "../src/game-logic/helpers";
 import { ClientMessage, ServerMessage } from "../src/network/messages";
+import {
+  markReadyForNextHand,
+  prepareNextHandReadiness,
+  removeRequiredSeat,
+} from "../src/game-logic/round";
 
 // Types
 interface GameRoom {
@@ -36,11 +41,16 @@ interface GameRoom {
   created: number;
   lastActivity: number;
   autoPlayAI: Map<number, NodeJS.Timeout>; // Track AI turn timers
+  disconnectTimers: Map<number, NodeJS.Timeout>;
+  seatPresence: SeatPresence[];
 }
 
 // Storage
 const rooms = new Map<string, GameRoom>();
 const ROOM_RETENTION_MS = 24 * 60 * 60 * 1000;
+const DISCONNECT_GRACE_MS = Number(
+  process.env.DISCONNECT_GRACE_MS ?? "30000",
+);
 const PORT = Number(process.env.PORT ?? process.env.WS_PORT ?? "8080");
 const DIST_DIR = resolve(process.cwd(), "dist");
 
@@ -63,7 +73,7 @@ function isOpenSocket(socket: WebSocket | null): socket is WebSocket {
 }
 
 function isHumanSeat(room: GameRoom, index: number) {
-  return isOpenSocket(room.players[index] ?? null);
+  return room.seatPresence[index] !== "ai";
 }
 
 function cleanPlayerName(value: unknown) {
@@ -77,8 +87,9 @@ function cleanPlayerName(value: unknown) {
 
 function syncControllers(room: GameRoom) {
   room.game.players.forEach((player, index) => {
-    player.controller = isHumanSeat(room, index) ? "human" : "ai";
+    player.controller = room.seatPresence[index] === "ai" ? "ai" : "human";
   });
+  room.game.seatPresence = [...room.seatPresence];
 }
 
 function resetRoomForNewSession(room: GameRoom) {
@@ -98,12 +109,21 @@ function resetRoomForNewSession(room: GameRoom) {
   room.lastActivity = Date.now();
   room.autoPlayAI.forEach((timer) => clearTimeout(timer));
   room.autoPlayAI.clear();
+  room.disconnectTimers.forEach((timer) => clearTimeout(timer));
+  room.disconnectTimers.clear();
+  room.seatPresence = ["ai", "ai", "ai", "ai"];
   syncControllers(room);
 }
 
 function connectedSeats(room: GameRoom) {
   return room.players
     .map((player, index) => (isOpenSocket(player ?? null) ? index : -1))
+    .filter((index) => index >= 0);
+}
+
+function activeHumanSeats(room: GameRoom) {
+  return room.seatPresence
+    .map((presence, index) => (presence === "ai" ? -1 : index))
     .filter((index) => index >= 0);
 }
 
@@ -142,41 +162,6 @@ function broadcastGame(room: GameRoom) {
   room.players.forEach((player, index) => {
     if (isOpenSocket(player)) sendGameState(player, room.game, index);
   });
-}
-
-function dealNextHand(game: Game) {
-  const dealer = nextDealerForRound(game);
-  return dealRound(
-    dealer,
-    game.players.map((player) => player.score),
-    nextRoundNumber(game),
-    game.players,
-    game.tableId,
-    game.rules,
-    game.houseRules,
-    nextDealerStreak(game),
-  );
-}
-
-function markReadyForNextHand(room: GameRoom, readyPlayer: number) {
-  const required = connectedSeats(room);
-  const ready = Array.from(
-    new Set([...(room.game.nextHandReady ?? []), readyPlayer]),
-  ).filter((index) => required.includes(index));
-
-  if (required.length > 0 && required.every((index) => ready.includes(index))) {
-    return dealNextHand(room.game);
-  }
-
-  const next = structuredCloneGame(room.game);
-  next.nextHandReady = ready;
-  next.nextHandRequired = required;
-  next.message = "Waiting for all players to continue.";
-  next.activity = {
-    player: readyPlayer,
-    text: "Waiting for all players to continue.",
-  };
-  return next;
 }
 
 function getMimeType(filePath: string) {
@@ -458,6 +443,8 @@ wss.on("connection", (socket) => {
             created: Date.now(),
             lastActivity: Date.now(),
             autoPlayAI: new Map(),
+            disconnectTimers: new Map(),
+            seatPresence: ["ai", "ai", "ai", "ai"],
           });
           console.log(`[Room] Created room ${requestedRoomId}`);
         }
@@ -465,7 +452,11 @@ wss.on("connection", (socket) => {
         const room = rooms.get(requestedRoomId)!;
         room.lastActivity = Date.now();
         const availableSeats = room.players
-          .map((player, index) => !isOpenSocket(player ?? null) ? index : -1)
+          .map((player, index) =>
+            !isOpenSocket(player ?? null) && room.seatPresence[index] === "ai"
+              ? index
+              : -1,
+          )
           .filter((index) => index >= 0);
         if (requestedPlayerIndex !== undefined) {
           const existing = room.players[requestedPlayerIndex];
@@ -490,7 +481,11 @@ wss.on("connection", (socket) => {
         roomId = requestedRoomId;
         playerIndex = requestedPlayerIndex ??
           availableSeats[Math.floor(Math.random() * availableSeats.length)];
+        const disconnectTimer = room.disconnectTimers.get(playerIndex);
+        if (disconnectTimer) clearTimeout(disconnectTimer);
+        room.disconnectTimers.delete(playerIndex);
         room.players[playerIndex] = socket;
+        room.seatPresence[playerIndex] = "connected";
         room.game.players[playerIndex].name = cleanPlayerName(msg.playerName);
         syncControllers(room);
 
@@ -514,10 +509,8 @@ wss.on("connection", (socket) => {
       if (msg.type === "request-room-seats") {
         const room = rooms.get(msg.roomId);
         const occupiedSeats = room
-          ? room.players
-              .map((player, index) =>
-                isOpenSocket(player ?? null) ? index : -1,
-              )
+          ? room.seatPresence
+              .map((presence, index) => presence !== "ai" ? index : -1)
               .filter((index) => index >= 0)
           : [];
         socket.send(
@@ -548,6 +541,12 @@ wss.on("connection", (socket) => {
         if (playerIndex >= 0 && room.players[playerIndex] === socket) {
           room.players[playerIndex] = null;
         }
+
+        room.seatPresence[playerIndex] = "ai";
+        const disconnectTimer = room.disconnectTimers.get(playerIndex);
+        if (disconnectTimer) clearTimeout(disconnectTimer);
+        room.disconnectTimers.delete(playerIndex);
+        room.game = removeRequiredSeat(room.game, playerIndex);
 
         syncControllers(room);
 
@@ -926,7 +925,7 @@ wss.on("connection", (socket) => {
             }
           }
           if (action.type === "ready-next-hand") {
-            nextGame = markReadyForNextHand(room, playerIndex);
+            nextGame = markReadyForNextHand(room.game, playerIndex);
           }
 
           if (!nextGame) {
@@ -934,7 +933,17 @@ wss.on("connection", (socket) => {
           }
 
           // -------- UPDATE ROOM STATE --------
+          if (
+            nextGame.phase === "round-over" &&
+            room.game.phase !== "round-over"
+          ) {
+            nextGame = prepareNextHandReadiness(
+              nextGame,
+              activeHumanSeats(room),
+            );
+          }
           room.game = nextGame;
+          syncControllers(room);
 
           // -------- BROADCAST TO ALL PLAYERS --------
           broadcastGame(room);
@@ -984,40 +993,11 @@ wss.on("connection", (socket) => {
       const room = rooms.get(roomId);
       if (room) {
         room.lastActivity = Date.now();
-        room.players[playerIndex] = null;
-        syncControllers(room);
-
-        if (room.game.phase === "round-over" && room.game.nextHandReady) {
-          const required = connectedSeats(room);
-          const ready = room.game.nextHandReady.filter((index) =>
-            required.includes(index),
-          );
-          if (
-            required.length > 0 &&
-            required.every((index) => ready.includes(index))
-          ) {
-            room.game = dealNextHand(room.game);
-          } else {
-            room.game = {
-              ...room.game,
-              nextHandReady: ready,
-              nextHandRequired: required,
-            };
-          }
+        if (room.players[playerIndex] === socket) {
+          room.players[playerIndex] = null;
         }
-
-        // Broadcast disconnection to others
-        room.players.forEach((player) => {
-          if (isOpenSocket(player)) {
-            // 1 = OPEN
-            player.send(
-              JSON.stringify({
-                type: "player-disconnected",
-                playerIndex,
-              } as ServerMessage),
-            );
-          }
-        });
+        room.seatPresence[playerIndex] = "reconnecting";
+        syncControllers(room);
         broadcastGame(room);
 
         // Clean up AI timers for this player
@@ -1026,18 +1006,37 @@ wss.on("connection", (socket) => {
           room.autoPlayAI.delete(playerIndex);
         }
 
-        const hasRemainingHumanPlayers = room.players.some((player) =>
-          isOpenSocket(player ?? null),
-        );
-        if (!hasRemainingHumanPlayers) {
-          resetRoomForNewSession(room);
-          console.log(
-            `[Room] Reset room ${roomId} after last human disconnected`,
-          );
-        } else {
-          // If a seat disconnects during its turn/claim, allow AI fallback progression.
+        const existingTimer = room.disconnectTimers.get(playerIndex);
+        if (existingTimer) clearTimeout(existingTimer);
+        const disconnectTimer = setTimeout(() => {
+          const currentRoom = rooms.get(roomId);
+          if (
+            !currentRoom ||
+            isOpenSocket(currentRoom.players[playerIndex] ?? null) ||
+            currentRoom.seatPresence[playerIndex] !== "reconnecting"
+          ) {
+            return;
+          }
+
+          currentRoom.disconnectTimers.delete(playerIndex);
+          currentRoom.seatPresence[playerIndex] = "ai";
+          currentRoom.game = removeRequiredSeat(currentRoom.game, playerIndex);
+          syncControllers(currentRoom);
+          currentRoom.players.forEach((player) => {
+            if (isOpenSocket(player)) {
+              player.send(
+                JSON.stringify({
+                  type: "player-disconnected",
+                  playerIndex,
+                  aiTakeover: true,
+                } as ServerMessage),
+              );
+            }
+          });
+          broadcastGame(currentRoom);
           setTimeout(() => playAITurnIfNeeded(roomId), 50);
-        }
+        }, DISCONNECT_GRACE_MS);
+        room.disconnectTimers.set(playerIndex, disconnectTimer);
       }
     }
   });
@@ -1126,6 +1125,7 @@ const roomCleanupTimer = setInterval(
         room.players.every((player) => player === null)
       ) {
         room.autoPlayAI.forEach((timer) => clearTimeout(timer));
+        room.disconnectTimers.forEach((timer) => clearTimeout(timer));
         rooms.delete(id);
         console.log(`[Room] Expired inactive room ${id}`);
       }

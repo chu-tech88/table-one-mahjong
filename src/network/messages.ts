@@ -89,6 +89,7 @@ export type ActionRejectedMessage = {
 export type PlayerDisconnectedMessage = {
   type: "player-disconnected";
   playerIndex: number;
+  aiTakeover: boolean;
 };
 
 export type SystemMessage = {

@@ -110,7 +110,7 @@ export function makeDeck() {
   return shuffle(deck);
 }
 
-export const DEAD_WALL_TILES = 8;
+export const DEAD_WALL_TILES = 16;
 
 export function drawNonFlower(
   game: Game,

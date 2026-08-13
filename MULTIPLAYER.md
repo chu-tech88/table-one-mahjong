@@ -58,6 +58,11 @@ Key multiplayer messages:
 
 The lobby uses `request-room-seats` / `room-seats-update` before joining to detect a full room. The server confirms the assigned seat with `room-joined`.
 
+At hand end, every active human player must confirm **Next Hand**. Scores and
+dealer state are carried forward by the server after the full readiness quorum
+is reached. A dropped connection reserves its seat for 30 seconds; after that
+grace period, the server announces an AI takeover and play resumes.
+
 ## Real 4-Player Behavior
 
 - Any of seats 0, 1, 2, 3 can be human-controlled.

@@ -164,6 +164,7 @@ export type HouseRuleDraft = {
 
 export type WinSummary = {
   winner?: number;
+  winningTileId?: string;
   title: string;
   detail: string;
   points: number;
@@ -176,6 +177,8 @@ export type WinSummary = {
     multiplier: number;
   }>;
 };
+
+export type SeatPresence = "connected" | "reconnecting" | "ai";
 
 export type Activity = {
   player: number;
@@ -212,6 +215,7 @@ export type Game = {
   winSummary?: WinSummary;
   nextHandReady?: number[];
   nextHandRequired?: number[];
+  seatPresence?: SeatPresence[];
   rules: Rules;
   houseRules: HouseRule[];
 };

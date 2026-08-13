@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { dealRound, makeDeck } from "../src/game-logic/deck";
+import { DEAD_WALL_TILES, dealRound, makeDeck } from "../src/game-logic/deck";
 import {
   advanceAfterDiscard,
   applyKong,
@@ -26,8 +26,13 @@ import {
 import { StandardRuleKey } from "../src/game-logic/types";
 import { chooseDiscard, highValueHandPotential } from "../src/game-logic/ai";
 import { waitingSupportTileIds } from "../src/game-logic/validation";
+import {
+  markReadyForNextHand,
+  prepareNextHandReadiness,
+} from "../src/game-logic/round";
 
 let fixtureTileId = 0;
+assert.equal(DEAD_WALL_TILES, 16, "A hand must end with 16 wall tiles remaining");
 function tiles(codes: string[]) {
   return codes.map((code) => ({
     ...tilePrototypeFromCode(code),
@@ -350,7 +355,7 @@ assert.deepEqual(
 );
 
 const exhausted = dealRound();
-exhausted.wall = exhausted.wall.slice(0, 8);
+exhausted.wall = exhausted.wall.slice(0, DEAD_WALL_TILES);
 const drawnHand = startTurn(
   exhausted,
   1,
@@ -379,6 +384,29 @@ assert.equal(
 );
 assert.equal(nextDealerStreak(dealerLossResult), 0);
 
+const multiplayerRound = dealRound();
+multiplayerRound.players[0].score = 225;
+multiplayerRound.players[1].score = 275;
+multiplayerRound.winner = 1;
+multiplayerRound.handResult = "win";
+multiplayerRound.phase = "round-over";
+const waitingForFour = prepareNextHandReadiness(multiplayerRound, [0, 1, 2, 3]);
+const afterThreeReady = [0, 1, 2].reduce(
+  (current, seat) => markReadyForNextHand(current, seat),
+  waitingForFour,
+);
+assert.equal(afterThreeReady.phase, "round-over");
+assert.deepEqual(afterThreeReady.nextHandReady, [0, 1, 2]);
+const advancedMultiplayerRound = markReadyForNextHand(afterThreeReady, 3);
+assert.equal(advancedMultiplayerRound.phase, "discard");
+assert.equal(advancedMultiplayerRound.dealer, 1);
+assert.equal(advancedMultiplayerRound.round, multiplayerRound.round + 1);
+assert.deepEqual(
+  advancedMultiplayerRound.players.map((player) => player.score),
+  [225, 275, 250, 250],
+  "Scores must carry into the next multiplayer hand",
+);
+
 const dealerLoss = dealRound();
 dealerLoss.dealer = 0;
 dealerLoss.dealerStreak = 2;
@@ -400,6 +428,11 @@ assert.deepEqual(
 assert.equal(
   dealerPaid.winSummary?.scoreItems.find((item) => item.name === "Dealer loss")?.points,
   5,
+);
+assert.equal(
+  dealerPaid.winSummary?.winningTileId,
+  dealerLoss.drawnTileId,
+  "A self-drawn winning tile must be recorded for the hand summary",
 );
 
 const patternHand = tiles([
