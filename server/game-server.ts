@@ -38,6 +38,7 @@ import {
 interface GameRoom {
   game: Game;
   players: (WebSocket | null)[];
+  chatSubscribers: Set<WebSocket>;
   created: number;
   lastActivity: number;
   autoPlayAI: Map<number, NodeJS.Timeout>; // Track AI turn timers
@@ -106,6 +107,7 @@ function resetRoomForNewSession(room: GameRoom) {
     0,
   );
   room.players = [null, null, null, null];
+  room.chatSubscribers.clear();
   room.lastActivity = Date.now();
   room.autoPlayAI.forEach((timer) => clearTimeout(timer));
   room.autoPlayAI.clear();
@@ -113,6 +115,35 @@ function resetRoomForNewSession(room: GameRoom) {
   room.disconnectTimers.clear();
   room.seatPresence = ["ai", "ai", "ai", "ai"];
   syncControllers(room);
+
+  room.chatSubscribers.forEach((subscriber) => {
+    if (isOpenSocket(subscriber)) {
+      subscriber.send(
+        JSON.stringify({
+          type: "system",
+          message: "Room reset: chat cleared",
+        } as ServerMessage),
+      );
+    }
+  });
+}
+
+function removeRoomIfEmpty(roomId: string, room: GameRoom) {
+  const hasHumanSeats = room.players.some((player) =>
+    isOpenSocket(player ?? null),
+  );
+  if (!hasHumanSeats) {
+    rooms.delete(roomId);
+    room.autoPlayAI.forEach((timer) => clearTimeout(timer));
+    room.autoPlayAI.clear();
+    room.disconnectTimers.forEach((timer) => clearTimeout(timer));
+    room.disconnectTimers.clear();
+    room.chatSubscribers.clear();
+  }
+}
+
+function shouldPreserveRoom(room: GameRoom) {
+  return room.players.some((player) => isOpenSocket(player ?? null));
 }
 
 function connectedSeats(room: GameRoom) {
@@ -203,6 +234,7 @@ async function createTrelloCard(req: IncomingMessage, res: ServerResponse) {
       null,
       2,
     );
+    const screenshotDataUrl = String(payload?.screenshot ?? "").trim();
     const summaryDescription = [
       description || "Automated gameplay scenario export",
       "",
@@ -275,35 +307,53 @@ async function createTrelloCard(req: IncomingMessage, res: ServerResponse) {
       name?: string;
     };
 
-    const attachmentName = `${title.replace(/\s+/g, "-").toLowerCase() || "bug-report"}-${Date.now()}.json`;
-    const attachmentForm = new FormData();
-    attachmentForm.append(
-      "file",
-      new Blob([serialized], { type: "application/json" }),
-      attachmentName,
-    );
-
-    console.log("[Trello] Uploading attachment", {
-      cardId: cardData.id,
-      attachmentName,
-    });
-
-    const attachmentResponse = await fetch(
-      `https://api.trello.com/1/cards/${cardData.id}/attachments?key=${trelloApiKey}&token=${trelloToken}`,
+    const attachments = [
       {
-        method: "POST",
-        body: attachmentForm,
+        name: `${title.replace(/\s+/g, "-").toLowerCase() || "bug-report"}-${Date.now()}.json`,
+        data: new Blob([serialized], { type: "application/json" }),
       },
-    );
+    ];
 
-    if (!attachmentResponse.ok) {
-      const attachmentText = await attachmentResponse.text();
-      console.error("[Trello] Attachment creation failed", {
-        status: attachmentResponse.status,
-        body: attachmentText,
+    if (screenshotDataUrl.startsWith("data:image/")) {
+      const base64 = screenshotDataUrl.split(",")[1] ?? "";
+      const screenshotBuffer = Buffer.from(base64, "base64");
+      attachments.push({
+        name: `${title.replace(/\s+/g, "-").toLowerCase() || "bug-report"}-${Date.now()}.png`,
+        data: new Blob([screenshotBuffer], { type: "image/png" }),
       });
-    } else {
-      console.log("[Trello] Attachment uploaded", { cardId: cardData.id });
+    }
+
+    let attachmentResponse: Response | null = null;
+    for (const attachment of attachments) {
+      const attachmentForm = new FormData();
+      attachmentForm.append("file", attachment.data, attachment.name);
+
+      console.log("[Trello] Uploading attachment", {
+        cardId: cardData.id,
+        attachmentName: attachment.name,
+      });
+
+      attachmentResponse = await fetch(
+        `https://api.trello.com/1/cards/${cardData.id}/attachments?key=${trelloApiKey}&token=${trelloToken}`,
+        {
+          method: "POST",
+          body: attachmentForm,
+        },
+      );
+
+      if (!attachmentResponse.ok) {
+        const attachmentText = await attachmentResponse.text();
+        console.error("[Trello] Attachment creation failed", {
+          status: attachmentResponse.status,
+          body: attachmentText,
+          attachmentName: attachment.name,
+        });
+      } else {
+        console.log("[Trello] Attachment uploaded", {
+          cardId: cardData.id,
+          attachmentName: attachment.name,
+        });
+      }
     }
 
     res.statusCode = 200;
@@ -421,11 +471,12 @@ wss.on("connection", (socket) => {
         const requestedRoomId = msg.roomId;
         const requestedPlayerIndex = msg.playerIndex;
 
-        if (requestedPlayerIndex !== undefined && (
-          !Number.isInteger(requestedPlayerIndex) ||
-          requestedPlayerIndex < 0 ||
-          requestedPlayerIndex > 3
-        )) {
+        if (
+          requestedPlayerIndex !== undefined &&
+          (!Number.isInteger(requestedPlayerIndex) ||
+            requestedPlayerIndex < 0 ||
+            requestedPlayerIndex > 3)
+        ) {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
@@ -440,6 +491,7 @@ wss.on("connection", (socket) => {
           rooms.set(requestedRoomId, {
             game: dealRound(),
             players: [null, null, null, null],
+            chatSubscribers: new Set<WebSocket>(),
             created: Date.now(),
             lastActivity: Date.now(),
             autoPlayAI: new Map(),
@@ -522,6 +574,60 @@ wss.on("connection", (socket) => {
         );
       }
 
+      if (msg.type === "join-lobby-chat") {
+        const room = rooms.get(msg.roomId);
+        if (!room) {
+          socket.send(
+            JSON.stringify({
+              type: "action-rejected",
+              reason: "Room not found",
+            } as ServerMessage),
+          );
+          return;
+        }
+
+        roomId = msg.roomId;
+        playerIndex = msg.playerIndex;
+        room.chatSubscribers.add(socket);
+        room.lastActivity = Date.now();
+        return;
+      }
+
+      if (msg.type === "lobby-chat") {
+        const room = rooms.get(msg.roomId);
+        if (!room || !room.chatSubscribers.has(socket)) {
+          socket.send(
+            JSON.stringify({
+              type: "action-rejected",
+              reason: "Not joined to lobby chat",
+            } as ServerMessage),
+          );
+          return;
+        }
+
+        const normalizedText = String(msg.text ?? "")
+          .trim()
+          .slice(0, 140);
+        if (!normalizedText) return;
+
+        const payload = {
+          type: "lobby-chat-message",
+          message: {
+            id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            playerIndex: msg.playerIndex,
+            playerName: cleanPlayerName(msg.playerName),
+            text: normalizedText,
+            createdAt: Date.now(),
+          },
+        } as ServerMessage;
+
+        room.chatSubscribers.forEach((subscriber) => {
+          if (isOpenSocket(subscriber)) {
+            subscriber.send(JSON.stringify(payload));
+          }
+        });
+      }
+
       // ============ LEAVE ROOM ============
       if (msg.type === "leave-room") {
         const room = rooms.get(roomId);
@@ -538,6 +644,8 @@ wss.on("connection", (socket) => {
         room.lastActivity = Date.now();
         isLeavingRoom = true;
 
+        room.chatSubscribers.delete(socket);
+
         if (playerIndex >= 0 && room.players[playerIndex] === socket) {
           room.players[playerIndex] = null;
         }
@@ -550,9 +658,7 @@ wss.on("connection", (socket) => {
 
         syncControllers(room);
 
-        const remainingHumanPlayers = room.players.some((player) =>
-          isOpenSocket(player ?? null),
-        );
+        const remainingHumanPlayers = shouldPreserveRoom(room);
         if (remainingHumanPlayers) {
           room.players.forEach((player) => {
             if (isOpenSocket(player)) {
@@ -566,6 +672,7 @@ wss.on("connection", (socket) => {
           });
         } else {
           resetRoomForNewSession(room);
+          removeRoomIfEmpty(roomId, room);
           console.log(`[Room] Reset room ${roomId} after last human left`);
         }
 
@@ -1059,9 +1166,9 @@ function playAITurnIfNeeded(roomId: string) {
   if (game.phase === "claim" && game.pendingClaim && game.lastDiscard) {
     const activeClaimant = game.pendingClaim.claimer;
     if (!isHumanSeat(room, activeClaimant)) {
-      const nextGame = passClaim(
+      const nextGame = startTurn(
         game,
-        activeClaimant,
+        (game.lastDiscard.by + 1) % 4,
         game.rules,
         game.houseRules,
         (index) => isHumanSeat(room, index),

@@ -40,6 +40,13 @@ import {
   saveScenarioSnapshot,
   type ScenarioSnapshot,
 } from "./game-logic/snapshot";
+import {
+  clearLobbyChatHistory,
+  getStoredLobbyMessages,
+  saveLobbyMessages,
+  type StoredLobbyChatMessage,
+} from "./game-logic/lobbyChatStorage";
+import html2canvas from "html2canvas";
 import oneBambooBird from "./assets/one-bamboo-bird.png";
 
 // Component rendering stays exactly the same
@@ -665,13 +672,6 @@ type SavedSession = {
   savedAt: number;
 };
 
-type ConnectionState = {
-  roomId: string;
-  playerIndex?: number;
-  playerName: string;
-  joined: boolean;
-};
-
 const ACTIVE_SESSION_KEY = "table-one-mahjong-active-session-v2";
 
 function parseSavedSession(raw: string | null) {
@@ -710,7 +710,7 @@ function MahjongApp() {
   const [playMode, setPlayMode] = useState<"solo" | "online">(
     restoredActiveSession?.playMode ?? "solo",
   );
-  const [connection, setConnection] = useState<ConnectionState>(() => ({
+  const [connection, setConnection] = useState(() => ({
     roomId: restoredActiveSession?.roomId ?? createSoloRoomId(),
     playerIndex: restoredActiveSession?.playerIndex ?? 0,
     playerName: restoredActiveSession?.playerName ?? "",
@@ -723,6 +723,22 @@ function MahjongApp() {
   );
   const [scenarioFeedback, setScenarioFeedback] = useState<string | null>(null);
   const scenarioFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!connection.joined) {
+      window.sessionStorage.removeItem(ACTIVE_SESSION_KEY);
+      return;
+    }
+    const snapshot: SavedSession = {
+      playMode,
+      roomId: connection.roomId,
+      playerIndex: connection.playerIndex,
+      playerName: connection.playerName,
+      savedAt: Date.now(),
+    };
+    window.sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(snapshot));
+  }, [connection, playMode]);
 
   const isLocalReplay = Boolean(activeScenario) || playMode === "solo";
   const gameHook = useGame({
@@ -796,6 +812,14 @@ function MahjongApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inspectedSeat, setInspectedSeat] = useState<number | undefined>();
   const [choosingChi, setChoosingChi] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const chatSocketRef = useRef<WebSocket | null>(null);
+  const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatMessages, setChatMessages] = useState<StoredLobbyChatMessage[]>(
+    [],
+  );
+  const activeChatRoomRef = useRef<string | null>(null);
   const [choosingKong, setChoosingKong] = useState(false);
   const [selectedKongCode, setSelectedKongCode] = useState<
     string | undefined
@@ -913,6 +937,25 @@ function MahjongApp() {
   }, [game?.phase, game?.turn, SELF, humanKongs.join("|")]);
 
   useEffect(() => {
+    if (!chatOpen) return;
+    chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatOpen, chatMessages.length]);
+
+  useEffect(() => {
+    if (playMode !== "online" || !connection.joined || !connection.roomId) {
+      activeChatRoomRef.current = null;
+      return;
+    }
+
+    if (activeChatRoomRef.current === connection.roomId) {
+      return;
+    }
+
+    setChatMessages([]);
+    activeChatRoomRef.current = connection.roomId;
+  }, [playMode, connection.joined, connection.roomId]);
+
+  useEffect(() => {
     if (!game || !human) {
       setUiSelectedTileId(undefined);
       return;
@@ -929,6 +972,98 @@ function MahjongApp() {
       setUiSelectedTileId(undefined);
     }
   }, [game?.turn, game?.phase, human, uiSelectedTileId]);
+
+  useEffect(() => {
+    if (playMode !== "online" || !connection.joined) {
+      chatSocketRef.current?.close();
+      chatSocketRef.current = null;
+      setChatDraft("");
+      activeChatRoomRef.current = null;
+      return;
+    }
+
+    const socket = new WebSocket(DEFAULT_SERVER_URL);
+    chatSocketRef.current = socket;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (typeof event.data !== "string") return;
+      try {
+        const payload = JSON.parse(event.data) as {
+          type?: string;
+          message?: unknown;
+        };
+        if (
+          payload.type === "lobby-chat-message" &&
+          typeof payload.message === "object" &&
+          payload.message !== null
+        ) {
+          const messagePayload = payload.message as {
+            id?: string;
+            playerIndex?: number;
+            playerName?: string;
+            text?: string;
+            createdAt?: number;
+          };
+          const normalizedMessage = {
+            id:
+              messagePayload.id ??
+              `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            playerIndex: messagePayload.playerIndex ?? -1,
+            playerName: messagePayload.playerName ?? "Player",
+            text: messagePayload.text ?? "",
+            createdAt: messagePayload.createdAt ?? Date.now(),
+          };
+          setChatMessages((current) => {
+            const next = [...current, normalizedMessage].slice(-50);
+            saveLobbyMessages(connection.roomId, next);
+            return next;
+          });
+        }
+
+        if (
+          payload.type === "system" &&
+          typeof payload.message === "string" &&
+          payload.message === "Room reset: chat cleared"
+        ) {
+          clearLobbyChatHistory(connection.roomId);
+          activeChatRoomRef.current = null;
+          setChatMessages([]);
+        }
+      } catch {
+        // Ignore malformed chat payloads.
+      }
+    };
+
+    socket.addEventListener("open", () => {
+      socket.send(
+        JSON.stringify({
+          type: "join-lobby-chat",
+          roomId: connection.roomId,
+          playerIndex: connection.playerIndex,
+          playerName: connection.playerName.trim() || "Player",
+        }),
+      );
+    });
+    socket.addEventListener("message", handleMessage);
+    socket.addEventListener("close", () => {
+      if (chatSocketRef.current === socket) {
+        chatSocketRef.current = null;
+      }
+    });
+
+    return () => {
+      socket.close();
+      if (chatSocketRef.current === socket) {
+        chatSocketRef.current = null;
+      }
+    };
+  }, [
+    playMode,
+    connection.joined,
+    connection.roomId,
+    connection.playerIndex,
+    connection.playerName,
+  ]);
 
   const nextDealer = game ? nextDealerForRound(game) : SELF;
   const dealerStatus = game
@@ -1004,6 +1139,22 @@ function MahjongApp() {
     saveScenarioSnapshot(snapshot);
     setActiveScenario(snapshot);
 
+    let screenshotDataUrl: string | undefined;
+    try {
+      const screenshotTarget = document.querySelector(
+        ".table",
+      ) as HTMLElement | null;
+      const canvas = await html2canvas(screenshotTarget ?? document.body, {
+        backgroundColor: "#0f172a",
+        logging: false,
+        scale: 1.5,
+        useCORS: true,
+      });
+      screenshotDataUrl = canvas.toDataURL("image/png");
+    } catch {
+      screenshotDataUrl = undefined;
+    }
+
     const reportPayload = {
       title: `Bug report: ${snapshot.label}`,
       description: [
@@ -1012,6 +1163,7 @@ function MahjongApp() {
         "The attached JSON contains the game state and action history needed to replay this issue.",
       ].join("\n"),
       snapshot,
+      screenshot: screenshotDataUrl,
       metadata: {
         createdAt: snapshot.createdAt,
         mode: snapshot.metadata.mode,
@@ -1100,11 +1252,36 @@ function MahjongApp() {
     if (!file) return;
     try {
       const text = await file.text();
-      const parsed = JSON.parse(text) as ScenarioSnapshot;
-      if (!parsed?.game) {
+      const parsed = JSON.parse(text) as Partial<ScenarioSnapshot> & {
+        snapshot?: Partial<ScenarioSnapshot>;
+        metadata?: Partial<ScenarioSnapshot["metadata"]>;
+        title?: string;
+        description?: string;
+      };
+
+      const snapshotCandidate = parsed.snapshot?.game
+        ? (parsed.snapshot as ScenarioSnapshot)
+        : parsed.game
+          ? (parsed as ScenarioSnapshot)
+          : null;
+
+      if (!snapshotCandidate?.game) {
         throw new Error("Invalid snapshot format");
       }
-      const restored = restoreScenarioSnapshot(parsed);
+
+      const restored = restoreScenarioSnapshot({
+        ...snapshotCandidate,
+        label: snapshotCandidate.label || parsed.title || "Imported scenario",
+        metadata: {
+          ...(snapshotCandidate.metadata ?? {}),
+          ...(parsed.metadata ?? {}),
+          mode:
+            snapshotCandidate.metadata?.mode ??
+            parsed.metadata?.mode ??
+            "local",
+        },
+      });
+
       saveScenarioSnapshot(restored);
       setActiveScenario(restored);
       setConnection((current) => ({
@@ -1180,9 +1357,59 @@ function MahjongApp() {
     };
   }, [connection.joined, connection.roomId]);
 
-  const openSeatCount = 4 - occupiedSeats.length;
+  useEffect(() => {
+    if (connection.joined) return;
+    if (!occupiedSeats.includes(connection.playerIndex)) return;
+    if (playMode !== "online") return;
+
+    const firstOpenSeat = [0, 1, 2, 3].find(
+      (seat) => !occupiedSeats.includes(seat),
+    );
+    if (firstOpenSeat !== undefined) {
+      setConnection((current) => ({ ...current, playerIndex: firstOpenSeat }));
+    }
+  }, [connection.joined, connection.playerIndex, occupiedSeats, playMode]);
+
+  const seatOptions = [
+    { value: 0, label: "East (seat 0)" },
+    { value: 1, label: "South (seat 1)" },
+    { value: 2, label: "West (seat 2)" },
+    { value: 3, label: "North (seat 3)" },
+  ].filter((option) => {
+    if (playMode !== "online") return true;
+    return !occupiedSeats.includes(option.value);
+  });
+
+  const availableSeatOptions =
+    seatOptions.length > 0
+      ? seatOptions
+      : [
+          {
+            value: connection.playerIndex,
+            label: `Seat ${connection.playerIndex + 1}`,
+          },
+        ];
+
+  const hasOtherHumanPlayers = Boolean(
+    game?.players.some(
+      (player, index) => index !== SELF && player.controller === "human",
+    ),
+  );
+  const shouldConfirmLeave =
+    playMode === "solo" ||
+    (playMode === "online" && connection.joined && !hasOtherHumanPlayers);
 
   const leaveCurrentGame = () => {
+    if (shouldConfirmLeave) {
+      const message =
+        playMode === "solo"
+          ? "Leaving this game will lose your current progress. Continue?"
+          : "You are the last human in this room. Leaving will reset the room and you’ll lose your current progress. Continue?";
+      if (!window.confirm(message)) {
+        return;
+      }
+    }
+
     if (playMode === "online" && connection.joined) {
       leaveRoom();
     }
@@ -1192,6 +1419,8 @@ function MahjongApp() {
     setChoosingKong(false);
     setSelectedKongCode(undefined);
     setUiSelectedTileId(undefined);
+    setActiveScenario(null);
+    setScenarioFeedback(null);
     setConnection((current) => ({ ...current, joined: false }));
   };
 
@@ -1202,7 +1431,7 @@ function MahjongApp() {
           <h1>Table One Mahjong</h1>
           <div className="round-status">
             <span>Multiplayer</span>
-            <strong>Choose a room</strong>
+            <strong>Choose a room to join</strong>
           </div>
         </header>
         <section className="game-layout lobby-layout">
@@ -1231,7 +1460,6 @@ function MahjongApp() {
                   setConnection((current) => ({
                     ...current,
                     roomId: "table-one",
-                    playerIndex: undefined,
                   }));
                 }}
               >
@@ -1268,13 +1496,11 @@ function MahjongApp() {
                           roomId: event.target.value.replace(/\s+/g, "-"),
                         }))
                       }
-                      placeholder="Enter a table name"
                     />
                   </label>
-                  <div className="solo-table-summary">
-                    <span>Your seat</span>
-                    <strong>Assigned randomly when you join</strong>
-                  </div>
+                  <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>
+                    Seat is assigned automatically when you join.
+                  </p>
                 </>
               ) : (
                 <div className="solo-table-summary">
@@ -1288,7 +1514,7 @@ function MahjongApp() {
                 {lobbySeatError}
               </p>
             ) : null}
-            {openSeatCount === 0 ? (
+            {playMode === "online" && seatOptions.length === 0 ? (
               <p style={{ fontSize: "0.9rem", color: "#666" }}>
                 All seats in this room are currently occupied.
               </p>
@@ -1298,12 +1524,15 @@ function MahjongApp() {
               type="button"
               disabled={
                 (playMode === "online" &&
-                  (openSeatCount === 0 || !connection.roomId.trim())) ||
+                  seatOptions.length === 0 &&
+                  occupiedSeats.length >= 4) ||
                 !connection.playerName.trim()
               }
-              onClick={() =>
-                setConnection((current) => ({ ...current, joined: true }))
-              }
+              onClick={() => {
+                setActiveScenario(null);
+                setScenarioFeedback(null);
+                setConnection((current) => ({ ...current, joined: true }));
+              }}
             >
               {playMode === "solo" ? "Start game" : "Join room"}
             </button>
@@ -1362,6 +1591,36 @@ function MahjongApp() {
       </main>
     );
   }
+
+  const clearLobbyChatForCurrentRoom = () => {
+    if (!connection.roomId) return;
+    clearLobbyChatHistory(connection.roomId);
+    setChatMessages([]);
+  };
+
+  const submitLobbyChat = () => {
+    const trimmed = chatDraft.trim();
+    const socket = chatSocketRef.current;
+    if (!trimmed || playMode !== "online") {
+      return;
+    }
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setChatDraft("");
+      return;
+    }
+
+    socket.send(
+      JSON.stringify({
+        type: "lobby-chat",
+        roomId: connection.roomId,
+        playerIndex: connection.playerIndex,
+        playerName: connection.playerName.trim() || "Player",
+        text: trimmed,
+      }),
+    );
+    setChatDraft("");
+  };
 
   const claimActions =
     game.phase === "claim" && game.pendingClaim?.claimer === SELF ? (
@@ -1492,6 +1751,10 @@ function MahjongApp() {
     ) : null;
 
   const actionControls = game.phase === "claim" ? claimActions : defaultActions;
+  const chatPreviewText =
+    chatMessages.length > 0
+      ? `${chatMessages[chatMessages.length - 1].playerName}: ${chatMessages[chatMessages.length - 1].text}`
+      : "No messages yet";
 
   const kongChoiceControls =
     choosingKong &&
@@ -1766,6 +2029,54 @@ function MahjongApp() {
               ) : null}
             </div>
           </div>
+          {playMode === "online" ? (
+            <div className="lobby-chat-panel" aria-label="Lobby chat">
+              <button
+                className="lobby-chat-toggle"
+                type="button"
+                onClick={() => setChatOpen((current) => !current)}
+              >
+                <span>Chat</span>
+                <strong>{chatPreviewText}</strong>
+              </button>
+              {chatOpen ? (
+                <div className="lobby-chat-card">
+                  <div className="lobby-chat-messages" aria-live="polite">
+                    {chatMessages.length === 0 ? (
+                      <p className="lobby-chat-empty">No chat yet.</p>
+                    ) : (
+                      [...chatMessages].slice(-5).map((message) => (
+                        <div key={message.id} className="lobby-chat-message">
+                          <strong>{message.playerName}</strong>
+                          <span>{message.text}</span>
+                        </div>
+                      ))
+                    )}
+                    <div ref={chatMessagesEndRef} />
+                  </div>
+                  <div className="lobby-chat-input-row">
+                    <input
+                      aria-label="Lobby chat input"
+                      maxLength={140}
+                      placeholder="Type a message"
+                      type="text"
+                      value={chatDraft}
+                      onChange={(event) => setChatDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          submitLobbyChat();
+                        }
+                      }}
+                    />
+                    <button type="button" onClick={submitLobbyChat}>
+                      Send
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <Opponent
             player={{ ...game.players[rightSeat], name: seatName(rightSeat) }}
             active={game.turn === rightSeat}
@@ -2051,6 +2362,7 @@ function MahjongApp() {
               type="button"
               onClick={() => {
                 newHand(nextDealer, false);
+                clearLobbyChatForCurrentRoom();
                 setSettingsOpen(false);
               }}
             >
@@ -2171,6 +2483,7 @@ function MahjongApp() {
                 } else {
                   newHand(nextDealer, false);
                 }
+                clearLobbyChatForCurrentRoom();
               }}
             >
               {playMode === "online" &&

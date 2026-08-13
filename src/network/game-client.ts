@@ -12,8 +12,8 @@ import { ClientMessage, ServerMessage, PlayerAction } from "./messages";
  */
 
 export type GameClientCallbacks = {
-  onGameStateUpdate?: (game: Game) => void;
   onSeatAssigned?: (playerIndex: number) => void;
+  onGameStateUpdate?: (game: Game) => void;
   onActionRejected?: (reason: string) => void;
   onDisconnected?: () => void;
   onPlayerTakenOver?: (playerIndex: number) => void;
@@ -71,7 +71,7 @@ export class GameClient {
           this.sendMessage({
             type: "join-room",
             roomId,
-            ...(playerIndex === undefined ? {} : { playerIndex }),
+            playerIndex,
             playerName,
           });
 
@@ -166,6 +166,10 @@ export class GameClient {
       this.callbacks.onSeatAssigned?.(message.playerIndex);
     }
 
+    if (message.type === "lobby-chat-message") {
+      return;
+    }
+
     if (message.type === "action-rejected") {
       console.warn("Server rejected action:", message.reason);
       this.callbacks.onActionRejected?.(message.reason);
@@ -173,7 +177,7 @@ export class GameClient {
         this.sendMessage({
           type: "join-room",
           roomId: this.roomId,
-          ...(this.playerIndex < 0 ? {} : { playerIndex: this.playerIndex }),
+          playerIndex: this.playerIndex,
           playerName: this.playerName,
         });
       }
@@ -322,10 +326,6 @@ export class GameClient {
       dealer,
       resetGame,
     });
-  }
-
-  readyNextHand() {
-    this.sendAction({ type: "ready-next-hand" });
   }
 
   kong(code: string, concealed: boolean) {

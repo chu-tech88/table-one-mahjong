@@ -396,7 +396,6 @@ async function main() {
     wsResume?.close();
     wsAutoClients.forEach((client) => client.close());
     wsAutoFull?.close();
-
     if (server) {
       server.kill("SIGTERM");
       await delay(150);

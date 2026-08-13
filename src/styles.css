@@ -29,9 +29,7 @@ body {
   width: 100%;
   height: 100%;
   margin: 0;
-  background:
-    radial-gradient(circle at 50% 52%, rgba(81, 144, 79, 0.32), transparent 46vw),
-    linear-gradient(180deg, #0b2114, #12331e 48%, #07190f);
+  background: #0b2114;
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
   overflow: hidden;
@@ -229,24 +227,22 @@ textarea {
     ". top ."
     "left center right"
     "human human human";
-  grid-template-columns: minmax(74px, 0.16fr) minmax(360px, 1fr) minmax(74px, 0.16fr);
-  grid-template-rows: clamp(48px, 6svh, 72px) clamp(72px, 11svh, 112px) minmax(170px, 1fr) clamp(190px, 31svh, 286px);
+  grid-template-columns: minmax(74px, 0.16fr) minmax(360px, 1fr) minmax(
+      74px,
+      0.16fr
+    );
+  grid-template-rows:
+    clamp(48px, 6svh, 72px) clamp(72px, 11svh, 112px) minmax(170px, 1fr)
+    clamp(190px, 31svh, 286px);
   gap: clamp(4px, 0.55vw, 9px);
   height: 100svh;
   min-height: 0;
-  padding: clamp(8px, 1vw, 18px) clamp(16px, 3vw, 64px) clamp(18px, 2.5svh, 32px);
+  padding: clamp(8px, 1vw, 18px) clamp(16px, 3vw, 64px)
+    clamp(18px, 2.5svh, 32px);
   border: 0;
   border-radius: 0;
-  background:
-    radial-gradient(circle at 50% 57%, rgba(94, 151, 75, 0.38), transparent 35%),
-    radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.08), transparent 32%),
-    linear-gradient(90deg, rgba(4, 28, 13, 0.68), transparent 15%, transparent 85%, rgba(4, 28, 13, 0.68)),
-    linear-gradient(180deg, rgba(2, 18, 8, 0.62), transparent 14%, transparent 86%, rgba(2, 18, 8, 0.72)),
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 6px),
-    #20723f;
-  box-shadow:
-    inset 0 0 60px rgba(0, 0, 0, 0.36),
-    inset 0 0 8px rgba(0, 0, 0, 0.32);
+  background: #20723f;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.2);
   overflow: hidden;
 }
 
@@ -309,8 +305,11 @@ textarea {
 .gear-button {
   border: 1px solid rgba(208, 189, 51, 0.2);
   border-radius: 6px;
-  background:
-    linear-gradient(180deg, rgba(23, 65, 21, 0.96), rgba(7, 32, 11, 0.96));
+  background: linear-gradient(
+    180deg,
+    rgba(23, 65, 21, 0.96),
+    rgba(7, 32, 11, 0.96)
+  );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     0 6px 12px rgba(0, 0, 0, 0.28);
@@ -368,8 +367,7 @@ textarea {
   border: 1px solid rgba(49, 89, 60, 0.48);
   border-radius: 3px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 48%),
-    #d9ead2;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 48%), #d9ead2;
   box-shadow: 0 2px 0 #7aa06a;
 }
 
@@ -409,8 +407,11 @@ textarea {
   height: clamp(46px, 4.2vw, 66px);
   border: 1px solid rgba(208, 189, 51, 0.2);
   border-radius: 6px;
-  background:
-    linear-gradient(180deg, rgba(23, 65, 21, 0.96), rgba(7, 32, 11, 0.96));
+  background: linear-gradient(
+    180deg,
+    rgba(23, 65, 21, 0.96),
+    rgba(7, 32, 11, 0.96)
+  );
   color: #d7a519;
   font-size: clamp(1.35rem, 2vw, 2rem);
   font-weight: 900;
@@ -667,7 +668,142 @@ textarea {
   padding: 0;
   position: relative;
   background: transparent;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.lobby-chat-panel {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 8;
+  display: grid;
+  gap: 8px;
+  width: min(280px, calc(100% - 24px));
+  max-width: calc(100% - 24px);
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.lobby-chat-toggle {
+  display: grid;
+  gap: 2px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 204, 75, 0.4);
+  border-radius: 10px;
+  background: rgba(10, 38, 18, 0.95);
+  color: #fff2b7;
+  font: inherit;
+  text-align: left;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.16);
+  min-height: 46px;
+  pointer-events: auto;
+}
+
+.lobby-chat-toggle span {
+  color: #f5d860;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lobby-chat-toggle strong {
+  color: #ffffff;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.lobby-chat-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 2px solid rgba(255, 204, 75, 0.55);
+  border-radius: 10px;
+  background: rgba(6, 26, 12, 0.24);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+.lobby-chat-messages {
+  display: grid;
+  gap: 6px;
+  max-height: min(44svh, 280px);
+  padding-right: 4px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+.lobby-chat-empty {
+  margin: 0;
+  color: #cde2d0;
+  font-size: 0.82rem;
+}
+
+.lobby-chat-message {
+  display: grid;
+  gap: 2px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  width: 100%;
+  box-sizing: border-box;
+  align-self: center;
+}
+
+.lobby-chat-message strong {
+  color: #ffe68d;
+  font-size: 0.78rem;
+}
+
+.lobby-chat-message span {
+  color: #f8f8f2;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.lobby-chat-input-row {
+  display: flex;
+  gap: 6px;
+  padding-top: 2px;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.lobby-chat-input-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.lobby-chat-input-row button {
+  flex: 0 0 auto;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: #f0c84a;
+  color: #17240d;
+  font-weight: 800;
+  pointer-events: auto;
+  align-self: stretch;
 }
 
 .center-table::before {
@@ -691,8 +827,11 @@ textarea {
   padding: 10px;
   border: 1px solid rgba(244, 213, 56, 0.24);
   border-radius: 6px;
-  background:
-    linear-gradient(180deg, rgba(32, 75, 28, 0.96), rgba(10, 42, 17, 0.96));
+  background: linear-gradient(
+    180deg,
+    rgba(32, 75, 28, 0.96),
+    rgba(10, 42, 17, 0.96)
+  );
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.13),
     0 10px 24px rgba(0, 0, 0, 0.24);
@@ -925,7 +1064,9 @@ textarea {
   grid-area: human;
   position: relative;
   display: grid;
-  grid-template-rows: auto auto clamp(32px, 5.8svh, 52px) minmax(clamp(84px, 13svh, 124px), 1fr) auto;
+  grid-template-rows:
+    auto auto clamp(32px, 5.8svh, 52px) minmax(clamp(84px, 13svh, 124px), 1fr)
+    auto;
   align-content: stretch;
   justify-items: center;
   gap: clamp(3px, 0.45vw, 6px);
@@ -1045,8 +1186,18 @@ textarea {
   border-bottom: 5px solid #aaa083;
   border-radius: 7px;
   background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.1), transparent 9%, transparent 91%, rgba(0, 0, 0, 0.08)),
-    radial-gradient(circle at 30% 14%, rgba(255, 255, 255, 0.94), transparent 24px),
+    linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.1),
+      transparent 9%,
+      transparent 91%,
+      rgba(0, 0, 0, 0.08)
+    ),
+    radial-gradient(
+      circle at 30% 14%,
+      rgba(255, 255, 255, 0.94),
+      transparent 24px
+    ),
     linear-gradient(180deg, #fffef7 0%, #efeada 88%, #d8d0ba 100%);
   box-shadow:
     inset 0 2px 0 rgba(255, 255, 255, 0.84),
@@ -1127,8 +1278,18 @@ textarea {
   border-bottom-color: #f2f0d8;
   background:
     linear-gradient(180deg, #f7f5df 0 13%, transparent 13%),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.22), transparent 11%, transparent 88%, rgba(0, 0, 0, 0.2)),
-    radial-gradient(circle at 28% 18%, rgba(190, 255, 61, 0.7), transparent 26px),
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.22),
+      transparent 11%,
+      transparent 88%,
+      rgba(0, 0, 0, 0.2)
+    ),
+    radial-gradient(
+      circle at 28% 18%,
+      rgba(190, 255, 61, 0.7),
+      transparent 26px
+    ),
     linear-gradient(180deg, #92dc00 0%, #58a800 48%, #35750b 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.38),
@@ -1344,7 +1505,11 @@ textarea {
   border: 3px solid #087947;
   border-radius: 55% 48% 50% 44%;
   background:
-    radial-gradient(ellipse at 52% 68%, rgba(16, 136, 79, 0.2) 0 28%, transparent 30%),
+    radial-gradient(
+      ellipse at 52% 68%,
+      rgba(16, 136, 79, 0.2) 0 28%,
+      transparent 30%
+    ),
     #fffef8;
   transform: rotate(-3deg);
 }
@@ -1400,7 +1565,12 @@ textarea {
   height: 31%;
   border: 3px solid #23428f;
   background:
-    repeating-linear-gradient(125deg, transparent 0 7px, rgba(35, 66, 143, 0.9) 8px 10px, transparent 11px 16px),
+    repeating-linear-gradient(
+      125deg,
+      transparent 0 7px,
+      rgba(35, 66, 143, 0.9) 8px 10px,
+      transparent 11px 16px
+    ),
     #fffef8;
 }
 
@@ -1423,8 +1593,14 @@ textarea {
   height: 29%;
   border-left: 3px solid #087947;
   border-right: 3px solid #c52d32;
-  background:
-    linear-gradient(90deg, transparent 27%, #087947 28% 36%, transparent 37% 57%, #23428f 58% 66%, transparent 67%);
+  background: linear-gradient(
+    90deg,
+    transparent 27%,
+    #087947 28% 36%,
+    transparent 37% 57%,
+    #23428f 58% 66%,
+    transparent 67%
+  );
   transform: skewX(-10deg);
 }
 
@@ -1434,7 +1610,12 @@ textarea {
   height: 14px;
   border-radius: 999px;
   background:
-    linear-gradient(90deg, transparent 42%, rgba(255, 255, 255, 0.62) 45% 56%, transparent 59%),
+    linear-gradient(
+      90deg,
+      transparent 42%,
+      rgba(255, 255, 255, 0.62) 45% 56%,
+      transparent 59%
+    ),
     linear-gradient(180deg, #147d5b 0 44%, #e0473d 45% 55%, #147d5b 56% 100%);
   box-shadow: 0 0 0 1px rgba(8, 83, 58, 0.2);
 }
@@ -1807,7 +1988,10 @@ textarea {
 }
 
 .house-rule-form {
-  grid-template-columns: minmax(140px, 0.65fr) minmax(220px, 1fr) auto minmax(134px, auto);
+  grid-template-columns: minmax(140px, 0.65fr) minmax(220px, 1fr) auto minmax(
+      134px,
+      auto
+    );
   align-items: end;
   margin-top: 12px;
   padding-top: 12px;
@@ -1875,7 +2059,9 @@ textarea {
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, 4px);
-  transition: opacity 120ms ease, transform 120ms ease;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
 }
 
 .score-item:hover small,
@@ -2124,9 +2310,12 @@ textarea {
     minmax(520px, 560px)
     clamp(210px, 18vw, 260px)
     minmax(0, 1fr);
-  grid-template-rows: clamp(54px, 6.5svh, 68px) clamp(74px, 9svh, 102px) minmax(0, 1fr) clamp(214px, 28svh, 306px);
+  grid-template-rows:
+    clamp(54px, 6.5svh, 68px) clamp(74px, 9svh, 102px) minmax(0, 1fr)
+    clamp(214px, 28svh, 306px);
   gap: clamp(3px, 0.45vw, 8px);
-  padding: clamp(7px, 0.8vw, 14px) clamp(10px, 1.4vw, 26px) clamp(10px, 1.4svh, 18px);
+  padding: clamp(7px, 0.8vw, 14px) clamp(10px, 1.4vw, 26px)
+    clamp(10px, 1.4svh, 18px);
 }
 
 .table-hand-label {
@@ -2318,7 +2507,11 @@ textarea {
   flex-wrap: nowrap;
 }
 
-.opponent .seat-badges span:not(.dealer-badge):not(.ready-badge):not(.identity-badge):not(.score-badge) {
+.opponent
+  .seat-badges
+  span:not(.dealer-badge):not(.ready-badge):not(.identity-badge):not(
+    .score-badge
+  ) {
   display: none;
 }
 
@@ -2468,7 +2661,9 @@ textarea {
   border: 1px solid rgba(218, 239, 224, 0.16);
   border-radius: 6px;
   background: rgba(4, 42, 18, 0.58);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 12px rgba(0, 0, 0, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.12);
   overflow: hidden;
 }
 
@@ -2569,10 +2764,10 @@ textarea {
 }
 
 .human-seat {
-  grid-template-rows: 32px clamp(34px, 5.2svh, 48px) minmax(72px, 1fr) 42px;
+  grid-template-rows: auto auto minmax(72px, 1fr) auto;
   gap: 3px;
   padding-bottom: 2px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .human-profile {
@@ -2636,9 +2831,14 @@ textarea {
 .human-seat .seat-sets-row {
   width: min(1180px, 100%);
   max-height: none;
-  height: 100%;
+  height: auto;
+  min-height: clamp(34px, 5.2svh, 48px);
   justify-content: center;
   margin-inline: auto;
+  padding: 4px 8px;
+  border: 1px solid rgba(241, 205, 69, 0.16);
+  border-radius: 8px;
+  background: rgba(6, 38, 15, 0.24);
 }
 
 .human-seat .flower-row,
@@ -2656,6 +2856,7 @@ textarea {
 .human-hand {
   align-items: end;
   width: min(1360px, 100%);
+  min-height: 0;
   height: 100%;
   gap: clamp(1px, 0.25vw, 4px);
   padding: 9px 2px 1px;
@@ -2933,7 +3134,11 @@ textarea {
       "left . right"
       "human human human";
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: 44px 54px minmax(0, 1fr) 176px clamp(202px, 27svh, 228px);
+    grid-template-rows: 44px 54px minmax(0, 1fr) 176px clamp(
+        202px,
+        27svh,
+        228px
+      );
     gap: 3px;
     padding: 5px 5px 8px;
   }
@@ -3239,7 +3444,12 @@ textarea {
   margin: 12% 0;
   border-radius: 999px;
   background:
-    linear-gradient(90deg, transparent 42%, rgba(255, 255, 255, 0.62) 45% 56%, transparent 59%),
+    linear-gradient(
+      90deg,
+      transparent 42%,
+      rgba(255, 255, 255, 0.62) 45% 56%,
+      transparent 59%
+    ),
     linear-gradient(180deg, #147d5b 0 44%, #e0473d 45% 55%, #147d5b 56% 100%);
   box-shadow: 0 0 0 1px rgba(8, 83, 58, 0.2);
 }
