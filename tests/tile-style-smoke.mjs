@@ -72,6 +72,16 @@ assert.match(
 );
 assert.match(
   app,
+  /function FlowerArtwork[\s\S]*rank === 1[\s\S]*rank === 2[\s\S]*rank === 3[\s\S]*rank === 4[\s\S]*rank === 5[\s\S]*rank === 6[\s\S]*rank === 7[\s\S]*winter-artwork/,
+  "All eight flower and season tiles must have distinct traditional artwork",
+);
+assert.match(
+  css,
+  /\.lobby-chat-panel\s*\{[^}]*top:\s*clamp\([^;]+;[^}]*right:\s*clamp\(/s,
+  "Multiplayer chat must be anchored beneath the upper-right toolbar",
+);
+assert.match(
+  app,
   /game\.winSummary\.winner === SELF[\s\S]*?"You win"[\s\S]*?seatName\(game\.winSummary\.winner\)/,
   "The hand-complete title must be relative to the viewer's assigned seat",
 );

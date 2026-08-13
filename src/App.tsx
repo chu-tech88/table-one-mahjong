@@ -182,37 +182,157 @@ function BambooFace({ rank }: { rank: number }) {
   );
 }
 
-const flowerPalettes = [
-  ["#b62d48", "#ef8ca0"],
-  ["#7350a6", "#b69bd8"],
-  ["#c98918", "#f0ca54"],
-  ["#167d59", "#62b884"],
-  ["#b62d48", "#f2a0ad"],
-  ["#c75d24", "#f2b04f"],
-  ["#9a4b31", "#d9915d"],
-  ["#315d9c", "#88a8d2"],
-] as const;
+function FlowerPetals({
+  x,
+  y,
+  count,
+  color,
+  center,
+  scale = 1,
+}: {
+  x: number;
+  y: number;
+  count: number;
+  color: string;
+  center: string;
+  scale?: number;
+}) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`}>
+      {Array.from({ length: count }, (_, index) => (
+        <ellipse
+          key={index}
+          cx="0"
+          cy="-10"
+          rx="5"
+          ry="11"
+          fill={color}
+          transform={`rotate(${(360 / count) * index})`}
+        />
+      ))}
+      <circle r="4.5" fill={center} />
+    </g>
+  );
+}
+
+function FlowerArtwork({ rank }: { rank: number }) {
+  if (rank === 1) {
+    return (
+      <g className="flower-artwork plum-artwork">
+        <path d="M22 106 C32 84 44 72 70 54 C78 48 82 37 84 24" />
+        <path d="M43 75 C35 61 27 54 17 50 M62 60 C58 43 49 35 39 31" />
+        <FlowerPetals x={18} y={49} count={5} color="#de4668" center="#f2bd45" scale={0.72} />
+        <FlowerPetals x={40} y={31} count={5} color="#ee718a" center="#f2bd45" scale={0.74} />
+        <FlowerPetals x={84} y={23} count={5} color="#d92f59" center="#f2bd45" scale={0.82} />
+        <FlowerPetals x={52} y={67} count={5} color="#f18ca0" center="#f2bd45" scale={0.62} />
+      </g>
+    );
+  }
+
+  if (rank === 2) {
+    return (
+      <g className="flower-artwork orchid-artwork">
+        <path d="M48 108 C39 80 25 59 18 35 M49 108 C57 75 70 51 85 31 M47 108 C47 72 46 43 51 18" />
+        <path d="M44 91 C30 81 21 80 14 84 C25 90 34 94 45 98 M55 73 C68 62 79 61 88 65 C76 73 66 78 55 82" />
+        <FlowerPetals x={50} y={22} count={5} color="#8556a7" center="#efc34f" scale={0.88} />
+        <FlowerPetals x={25} y={43} count={5} color="#ae7ac5" center="#efc34f" scale={0.68} />
+        <FlowerPetals x={76} y={42} count={5} color="#6e4797" center="#efc34f" scale={0.65} />
+      </g>
+    );
+  }
+
+  if (rank === 3) {
+    return (
+      <g className="flower-artwork chrysanthemum-artwork">
+        <path d="M50 109 C49 86 51 65 52 48 M49 85 C35 75 25 75 17 81 C30 85 39 91 49 96" />
+        {Array.from({ length: 14 }, (_, index) => (
+          <ellipse
+            key={index}
+            cx="52"
+            cy="29"
+            rx="4.2"
+            ry="19"
+            fill={index % 2 ? "#e5a927" : "#f4ca4b"}
+            transform={`rotate(${index * 25.7} 52 29)`}
+          />
+        ))}
+        <circle cx="52" cy="29" r="8" fill="#ad6d13" />
+      </g>
+    );
+  }
+
+  if (rank === 4) {
+    return (
+      <g className="flower-artwork bamboo-flower-artwork">
+        <path d="M36 109 L42 18 M58 108 L63 28 M42 43 H38 M40 70 H35 M63 53 H58 M61 80 H56" />
+        <path d="M40 38 C24 24 16 25 10 30 C20 40 29 44 39 46 M41 57 C55 43 67 42 76 46 C64 56 54 61 41 64 M61 44 C72 31 82 30 89 34 C81 43 72 49 61 51 M59 72 C45 62 35 63 27 68 C38 75 48 80 59 81" />
+      </g>
+    );
+  }
+
+  if (rank === 5) {
+    return (
+      <g className="flower-artwork spring-artwork">
+        <path d="M49 109 C45 83 46 61 53 38 M46 86 C31 74 21 75 14 81 C28 87 37 92 47 96 M53 63 C68 52 79 53 87 59 C74 66 64 71 53 73" />
+        <FlowerPetals x={52} y={30} count={8} color="#e34875" center="#f3c545" scale={1.15} />
+        <FlowerPetals x={31} y={57} count={7} color="#ef7998" center="#f3c545" scale={0.65} />
+        <circle cx="77" cy="49" r="5" fill="#e34875" />
+      </g>
+    );
+  }
+
+  if (rank === 6) {
+    return (
+      <g className="flower-artwork summer-artwork">
+        <path d="M50 108 C49 80 50 58 51 42 M48 88 C32 78 20 80 13 88 C28 92 39 96 49 99" />
+        <path d="M15 91 C27 78 43 77 52 91 C39 104 27 104 15 91 Z" fill="#4b9a67" stroke="none" />
+        {Array.from({ length: 8 }, (_, index) => (
+          <ellipse
+            key={index}
+            cx="51"
+            cy="34"
+            rx="8"
+            ry="21"
+            fill={index % 2 ? "#ef7090" : "#f39aaf"}
+            transform={`rotate(${index * 45} 51 34)`}
+          />
+        ))}
+        <circle cx="51" cy="34" r="7" fill="#efc742" />
+      </g>
+    );
+  }
+
+  if (rank === 7) {
+    return (
+      <g className="flower-artwork autumn-artwork">
+        <path d="M48 109 C48 87 51 61 57 33 M53 68 C39 58 28 58 18 64 M55 52 C70 43 80 43 89 49" />
+        <path d="M18 64 L10 55 L19 54 L17 44 L27 50 L31 40 L35 51 L45 47 L40 58 L48 63 L37 68 L39 79 L29 72 L22 81 L23 70 Z" fill="#c7522b" stroke="none" />
+        <path d="M68 48 L62 39 L70 39 L69 30 L78 36 L82 27 L86 38 L94 36 L90 46 L97 52 L87 56 L88 66 L79 60 L72 68 L73 57 Z" fill="#df8a2c" stroke="none" />
+        <circle cx="52" cy="79" r="7" fill="#df7c25" stroke="none" />
+        <circle cx="65" cy="84" r="7" fill="#bf472d" stroke="none" />
+      </g>
+    );
+  }
+
+  return (
+    <g className="flower-artwork winter-artwork">
+      <path d="M49 109 C48 83 42 61 35 39 M51 109 C57 82 64 62 72 42 M48 90 C35 80 24 80 16 86 C29 91 39 96 49 100" />
+      <FlowerPetals x={34} y={34} count={6} color="#f3f1dd" center="#e8b62f" scale={0.88} />
+      <FlowerPetals x={72} y={40} count={6} color="#fffbea" center="#e8b62f" scale={0.78} />
+      <FlowerPetals x={51} y={61} count={6} color="#e9eef1" center="#d99b24" scale={0.62} />
+      <path d="M25 25 C39 17 54 16 68 21" fill="none" stroke="#a8c4d2" strokeWidth="3" opacity="0.8" />
+    </g>
+  );
+}
 
 function FlowerFace({ tile }: { tile: Tile }) {
-  const [primary, secondary] = flowerPalettes[tile.rank - 1];
   return (
-    <span className="tile-face flower-illustration-face" aria-hidden="true">
+    <span
+      className={`tile-face flower-illustration-face flower-${tile.rank}`}
+      aria-hidden="true"
+    >
       <svg viewBox="0 0 100 120" preserveAspectRatio="xMidYMid meet">
-        <path d="M48 111 C45 83 51 60 64 30" fill="none" stroke="#247049" strokeWidth="5" strokeLinecap="round" />
-        <path d="M49 82 C33 72 24 72 17 78 C30 83 39 88 49 91" fill="#4d9567" />
-        <path d="M56 60 C70 50 79 50 85 56 C74 62 66 67 57 70" fill="#4d9567" />
-        <g transform="translate(65 28)">
-          {[0, 72, 144, 216, 288].map((rotation) => (
-            <ellipse key={rotation} cx="0" cy="-13" rx="8" ry="15" fill={secondary} transform={`rotate(${rotation})`} />
-          ))}
-          <circle r="7" fill={primary} />
-        </g>
-        <g transform="translate(38 60) scale(.72)">
-          {[0, 72, 144, 216, 288].map((rotation) => (
-            <ellipse key={rotation} cx="0" cy="-13" rx="8" ry="15" fill={secondary} transform={`rotate(${rotation})`} />
-          ))}
-          <circle r="7" fill={primary} />
-        </g>
+        <FlowerArtwork rank={tile.rank} />
       </svg>
       <b>{flowerCharacters[tile.code] ?? tile.short}</b>
       <em>{tile.rank}</em>
