@@ -377,10 +377,12 @@ function DiscardRiver({ player }: { player: Player }) {
 function TableDiscardGrid({
   players,
   selfIndex,
+  activePlayerIndex,
   onInspect,
 }: {
   players: Player[];
   selfIndex: number;
+  activePlayerIndex: number;
   onInspect: (index: number) => void;
 }) {
   return (
@@ -409,22 +411,26 @@ function TableDiscardGrid({
             </div>
             {!isSelf ? (
               <div
-                className="opponent-table-zone opponent-revealed-zone"
-                aria-label={`${player.name} revealed tiles`}
+                className={`turn-bar-anchor ${activePlayerIndex === index ? "turn-active" : ""}`}
               >
-                <button
-                  className="opponent-zone-header"
-                  type="button"
-                  onClick={() => onInspect(index)}
+                <div
+                  className="opponent-table-zone opponent-revealed-zone"
+                  aria-label={`${player.name} revealed tiles`}
                 >
-                  <span>Revealed</span>
-                  <small>{player.flowers.length + player.melds.length}</small>
-                </button>
-                {player.flowers.length > 0 || player.melds.length > 0 ? (
-                  <SeatSets flowers={player.flowers} melds={player.melds} />
-                ) : (
-                  <span className="opponent-zone-empty">No open tiles</span>
-                )}
+                  <button
+                    className="opponent-zone-header"
+                    type="button"
+                    onClick={() => onInspect(index)}
+                  >
+                    <span>Revealed</span>
+                    <small>{player.flowers.length + player.melds.length}</small>
+                  </button>
+                  {player.flowers.length > 0 || player.melds.length > 0 ? (
+                    <SeatSets flowers={player.flowers} melds={player.melds} />
+                  ) : (
+                    <span className="opponent-zone-empty">No open tiles</span>
+                  )}
+                </div>
               </div>
             ) : null}
           </section>
@@ -528,23 +534,25 @@ function Opponent({
             </button>
             <DiscardRiver player={player} />
           </div>
-          <div
-            className="opponent-table-zone opponent-revealed-zone"
-            aria-label={`${player.name} revealed tiles`}
-          >
-            <button
-              className="opponent-zone-header"
-              type="button"
-              onClick={onInspect}
+          <div className={`turn-bar-anchor ${active ? "turn-active" : ""}`}>
+            <div
+              className="opponent-table-zone opponent-revealed-zone"
+              aria-label={`${player.name} revealed tiles`}
             >
-              <span>Revealed</span>
-              <small>{revealedCount}</small>
-            </button>
-            {revealedCount > 0 ? (
-              <SeatSets flowers={player.flowers} melds={player.melds} />
-            ) : (
-              <span className="opponent-zone-empty">No open tiles</span>
-            )}
+              <button
+                className="opponent-zone-header"
+                type="button"
+                onClick={onInspect}
+              >
+                <span>Revealed</span>
+                <small>{revealedCount}</small>
+              </button>
+              {revealedCount > 0 ? (
+                <SeatSets flowers={player.flowers} melds={player.melds} />
+              ) : (
+                <span className="opponent-zone-empty">No open tiles</span>
+              )}
+            </div>
           </div>
         </div>
       ) : null}
@@ -1920,7 +1928,11 @@ function MahjongApp() {
                 <span>{human.hand.length} in hand</span>
               </div>
             </div>
-            <SeatSets flowers={human.flowers} melds={human.melds} />
+            <div
+              className={`turn-bar-anchor human-revealed-frame ${game.turn === SELF ? "turn-active" : ""}`}
+            >
+              <SeatSets flowers={human.flowers} melds={human.melds} />
+            </div>
             {choosingChi && humanChiOptions.length > 1 ? (
               <div
                 className="chi-choice-panel"
@@ -2013,6 +2025,7 @@ function MahjongApp() {
             <TableDiscardGrid
               players={game.players}
               selfIndex={SELF}
+              activePlayerIndex={game.turn}
               onInspect={setInspectedSeat}
             />
             <div className="table-center-core">

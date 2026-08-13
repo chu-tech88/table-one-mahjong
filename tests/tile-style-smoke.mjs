@@ -87,8 +87,13 @@ assert.match(
 );
 assert.match(
   css,
-  /\.opponent\.turn-active \.seat-heading\s*\{[^}]*box-shadow:[^}]*rgba\(255, 218, 67/s,
-  "The active opponent must have a strong visible turn highlight",
+  /\.turn-bar-anchor\.turn-active::before\s*\{[^}]*height:\s*6px;[^}]*background:\s*#ffdc45;/s,
+  "Every active seat must use the same thick yellow turn bar",
+);
+assert.doesNotMatch(
+  css,
+  /\.human-seat\.turn-active\s*\{[^}]*box-shadow:/s,
+  "The human turn indicator must not cast a glow across the player's tiles",
 );
 assert.match(
   css,
