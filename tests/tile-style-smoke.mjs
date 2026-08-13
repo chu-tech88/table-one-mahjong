@@ -31,6 +31,16 @@ assert.match(
   "The human player's revealed sets must remain centered",
 );
 assert.match(
+  app,
+  /className="human-revealed-shelf"[\s\S]*?<SeatSets flowers=\{human\.flowers\} melds=\{human\.melds\}/,
+  "The human player's revealed tiles must use a dedicated shelf",
+);
+assert.match(
+  css,
+  /\.human-revealed-shelf\s*\{[^}]*overflow:\s*hidden;[^}]*contain:\s*layout paint;/s,
+  "The revealed shelf must not overlap the playable hand",
+);
+assert.match(
   css,
   /\.table\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*minmax\(520px, 560px\)[^}]*minmax\(0, 1fr\)/s,
   "Wide tables must keep the play area centered within flexible outer margins",

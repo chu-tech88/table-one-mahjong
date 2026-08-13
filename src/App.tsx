@@ -2098,7 +2098,12 @@ function MahjongApp() {
                 <span>{human.hand.length} in hand</span>
               </div>
             </div>
-            <SeatSets flowers={human.flowers} melds={human.melds} />
+            <div
+              className="human-revealed-shelf"
+              aria-label="Your revealed tiles"
+            >
+              <SeatSets flowers={human.flowers} melds={human.melds} />
+            </div>
             {choosingChi && humanChiOptions.length > 1 ? (
               <div
                 className="chi-choice-panel"

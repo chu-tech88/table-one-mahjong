@@ -286,7 +286,8 @@ export function useNetworkedGame(
     clientRef.current?.leaveRoom();
   }, []);
   const readyNextHand = useCallback(() => {
-    clientRef.current?.newHand(undefined, true);
+    clientRef.current?.readyNextHand();
+    setSelectedTileId(undefined);
   }, []);
 
   return {
