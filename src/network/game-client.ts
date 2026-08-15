@@ -14,7 +14,14 @@ import { ClientMessage, ServerMessage, PlayerAction } from "./messages";
 export type GameClientCallbacks = {
   onSeatAssigned?: (playerIndex: number) => void;
   onGameStateUpdate?: (game: Game) => void;
-  onRoomListUpdate?: (rooms: Array<{ roomId: string; occupiedSeats: number[]; playerCount: number; isFull: boolean }>) => void;
+  onRoomListUpdate?: (
+    rooms: Array<{
+      roomId: string;
+      occupiedSeats: number[];
+      playerCount: number;
+      isFull: boolean;
+    }>,
+  ) => void;
   onActionRejected?: (reason: string) => void;
   onDisconnected?: () => void;
   onPlayerTakenOver?: (playerIndex: number) => void;

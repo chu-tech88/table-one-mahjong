@@ -4,7 +4,9 @@ import { GameClient } from "../src/network/game-client";
 describe("GameClient", () => {
   it("uses the score-preserving readiness action for the next hand", () => {
     const client = new GameClient();
-    const sendAction = vi.spyOn(client, "sendAction").mockImplementation(() => {});
+    const sendAction = vi
+      .spyOn(client, "sendAction")
+      .mockImplementation(() => {});
 
     client.readyNextHand();
 
@@ -14,7 +16,9 @@ describe("GameClient", () => {
 
   it("requests a list of active rooms from the server", () => {
     const client = new GameClient();
-    const sendMessage = vi.spyOn(client as any, "sendMessage").mockImplementation(() => {});
+    const sendMessage = vi
+      .spyOn(client as any, "sendMessage")
+      .mockImplementation(() => {});
 
     client.requestRoomList();
 

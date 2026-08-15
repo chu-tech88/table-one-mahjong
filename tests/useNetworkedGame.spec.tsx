@@ -41,12 +41,7 @@ describe("useNetworkedGame", () => {
 
   it("uses readiness instead of resetting scores between multiplayer hands", async () => {
     const { result, unmount } = renderHook(() =>
-      useNetworkedGame(
-        "ws://localhost:8080",
-        "score-preservation",
-        0,
-        "Eric",
-      ),
+      useNetworkedGame("ws://localhost:8080", "score-preservation", 0, "Eric"),
     );
 
     await waitFor(() => expect(result.current.isConnected).toBe(true));

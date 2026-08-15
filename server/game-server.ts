@@ -49,9 +49,7 @@ interface GameRoom {
 // Storage
 const rooms = new Map<string, GameRoom>();
 const ROOM_RETENTION_MS = 24 * 60 * 60 * 1000;
-const DISCONNECT_GRACE_MS = Number(
-  process.env.DISCONNECT_GRACE_MS ?? "30000",
-);
+const DISCONNECT_GRACE_MS = Number(process.env.DISCONNECT_GRACE_MS ?? "30000");
 const PORT = Number(process.env.PORT ?? process.env.WS_PORT ?? "8080");
 const DIST_DIR = resolve(process.cwd(), "dist");
 
@@ -545,7 +543,8 @@ wss.on("connection", (socket) => {
           return;
         }
         roomId = normalizedRoomId;
-        playerIndex = requestedPlayerIndex ??
+        playerIndex =
+          requestedPlayerIndex ??
           availableSeats[Math.floor(Math.random() * availableSeats.length)];
         const disconnectTimer = room.disconnectTimers.get(playerIndex);
         if (disconnectTimer) clearTimeout(disconnectTimer);
@@ -576,7 +575,7 @@ wss.on("connection", (socket) => {
         const room = rooms.get(msg.roomId);
         const occupiedSeats = room
           ? room.seatPresence
-              .map((presence, index) => presence !== "ai" ? index : -1)
+              .map((presence, index) => (presence !== "ai" ? index : -1))
               .filter((index) => index >= 0)
           : [];
         socket.send(
@@ -590,10 +589,12 @@ wss.on("connection", (socket) => {
 
       if (msg.type === "request-room-list") {
         const visibleRooms = [...rooms.entries()]
-          .filter(([, room]) => room.players.some((player) => isOpenSocket(player ?? null)))
+          .filter(([, room]) =>
+            room.players.some((player) => isOpenSocket(player ?? null)),
+          )
           .map(([roomId, room]) => {
             const occupiedSeats = room.seatPresence
-              .map((presence, index) => presence !== "ai" ? index : -1)
+              .map((presence, index) => (presence !== "ai" ? index : -1))
               .filter((index) => index >= 0);
             return {
               roomId,
@@ -804,7 +805,8 @@ wss.on("connection", (socket) => {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
-                reason: "A ready declaration is not available for that discard.",
+                reason:
+                  "A ready declaration is not available for that discard.",
               } as ServerMessage),
             );
             return;
@@ -1099,7 +1101,10 @@ wss.on("connection", (socket) => {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason: error instanceof Error ? error.message : "An unknown error occurred.",
+              reason:
+                error instanceof Error
+                  ? error.message
+                  : "An unknown error occurred.",
             } as ServerMessage),
           );
         }
