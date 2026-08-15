@@ -47,7 +47,7 @@ assert.match(
 );
 assert.match(
   css,
-  /\.table\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*minmax\(520px, 560px\)[^}]*minmax\(0, 1fr\)/s,
+  /\.table\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)[^}]*clamp\(600px, 48vw, 900px\)[^}]*minmax\(0, 1fr\)/s,
   "Wide tables must keep the play area centered within flexible outer margins",
 );
 assert.match(
@@ -152,7 +152,7 @@ assert.doesNotMatch(
 );
 assert.match(
   css,
-  /\.discard-lane-0,\s*\.discard-lane-2\s*\{[^}]*width:\s*min\(360px, 100%\);/s,
+  /\.discard-lane-0,\s*\.discard-lane-2\s*\{[^}]*width:\s*min\(680px, 92%\);/s,
   "Opposing discard lanes must share consistent center-field sizing",
 );
 assert.match(
@@ -224,6 +224,16 @@ assert.match(
   css,
   /@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)[\s\S]*?grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"left center right"\s*"human human human";/,
   "Short landscape screens must keep the player hand in the visible table grid",
+);
+assert.match(
+  css,
+  /\.table-discard-grid\s*\{[^}]*grid-template-areas:\s*"top top top"\s*"left \. right"\s*"bottom bottom bottom";/s,
+  "North and south discard lanes must expand across the available center field",
+);
+assert.match(
+  css,
+  /\.table\s*\{[^}]*--side-wall-width:\s*clamp\(20px, 1\.35vw, 28px\);[^}]*--side-wall-height:\s*clamp\(12px, 1vw, 18px\);/s,
+  "Side walls must scale up responsively on laptop and desktop screens",
 );
 assert.doesNotMatch(
   app,

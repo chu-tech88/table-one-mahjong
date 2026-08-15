@@ -2459,9 +2459,9 @@ textarea {
     "human human human human human";
   grid-template-columns:
     minmax(0, 1fr)
-    clamp(210px, 18vw, 260px)
-    minmax(520px, 560px)
-    clamp(210px, 18vw, 260px)
+    clamp(220px, 16vw, 300px)
+    clamp(600px, 48vw, 900px)
+    clamp(220px, 16vw, 300px)
     minmax(0, 1fr);
   grid-template-rows:
     clamp(54px, 6.5svh, 68px) clamp(74px, 9svh, 102px) minmax(0, 1fr)
@@ -3279,9 +3279,9 @@ textarea {
       "human human human human human";
     grid-template-columns:
       minmax(0, 1fr)
-      clamp(142px, 20vw, 210px)
-      minmax(440px, 560px)
-      clamp(142px, 20vw, 210px)
+      clamp(150px, 20vw, 220px)
+      clamp(430px, 50vw, 620px)
+      clamp(150px, 20vw, 220px)
       minmax(0, 1fr);
     grid-template-rows: 54px 72px minmax(0, 1fr) clamp(202px, 29svh, 244px);
     padding-inline: 10px;
@@ -4037,9 +4037,9 @@ textarea {
 .table-discard-grid {
   inset: clamp(10px, 1.4vw, 24px);
   grid-template-areas:
-    ". top ."
+    "top top top"
     "left . right"
-    ". bottom .";
+    "bottom bottom bottom";
   grid-template-columns: minmax(0, 1fr) clamp(158px, 19vw, 260px) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) clamp(104px, 15svh, 154px) minmax(0, 1fr);
   gap: clamp(5px, 0.75vw, 10px);
@@ -4066,7 +4066,7 @@ textarea {
 .discard-lane-0,
 .discard-lane-2 {
   justify-self: center;
-  width: min(360px, 100%);
+  width: min(680px, 92%);
 }
 
 .discard-lane-0 {
@@ -4573,6 +4573,8 @@ textarea {
 
 /* Seat rails: keep every wall visible without covering the table or hand. */
 .table {
+  --side-wall-width: clamp(20px, 1.35vw, 28px);
+  --side-wall-height: clamp(12px, 1vw, 18px);
   grid-template-rows:
     clamp(54px, 6.5svh, 68px) clamp(102px, 12svh, 128px) minmax(0, 1fr)
     clamp(214px, 28svh, 306px);
@@ -4595,7 +4597,7 @@ textarea {
 
 .opponent-left .opponent-rack,
 .opponent-right .opponent-rack {
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: calc(var(--side-wall-width) + 4px) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   align-items: center;
   gap: 4px;
@@ -4604,7 +4606,7 @@ textarea {
 }
 
 .opponent-right .opponent-rack {
-  grid-template-columns: minmax(0, 1fr) 18px;
+  grid-template-columns: minmax(0, 1fr) calc(var(--side-wall-width) + 4px);
 }
 
 .opponent-left .opponent-wall-row,
@@ -4612,8 +4614,8 @@ textarea {
   grid-row: 1;
   flex-direction: column;
   align-self: stretch;
-  gap: 2px;
-  width: 14px;
+  gap: 1px;
+  width: var(--side-wall-width);
   height: 100%;
   overflow: hidden;
 }
@@ -4628,11 +4630,12 @@ textarea {
 
 .opponent-left .opponent-wall-row i,
 .opponent-right .opponent-wall-row i {
-  flex: 1 1 8px;
-  width: 14px;
-  height: auto;
-  min-width: 14px;
-  min-height: 3px;
+  flex: 1 1 var(--side-wall-height);
+  width: var(--side-wall-width);
+  height: var(--side-wall-height);
+  min-width: var(--side-wall-width);
+  min-height: 6px;
+  max-height: var(--side-wall-height);
   box-shadow: 2px 0 0 #7aa06a;
 }
 
@@ -4717,12 +4720,21 @@ textarea {
 
 @media (max-width: 1199px) {
   .table {
+    --side-wall-width: clamp(17px, 1.9vw, 22px);
+    --side-wall-height: clamp(10px, 1.35vw, 15px);
     grid-template-rows: 54px 100px minmax(0, 1fr) clamp(202px, 29svh, 244px);
+  }
+
+  .discard-lane-0,
+  .discard-lane-2 {
+    width: min(560px, 94%);
   }
 }
 
 @media (max-width: 900px) {
   .table {
+    --side-wall-width: 14px;
+    --side-wall-height: 10px;
     grid-template-rows:
       44px 88px minmax(112px, 1fr) 132px clamp(232px, 32svh, 270px);
   }
@@ -4739,6 +4751,11 @@ textarea {
 
   .human-hand {
     padding-top: 11px;
+  }
+
+  .discard-lane-0,
+  .discard-lane-2 {
+    width: min(260px, 94%);
   }
 }
 
