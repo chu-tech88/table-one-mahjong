@@ -157,8 +157,23 @@ assert.match(
 );
 assert.match(
   css,
-  /@media \(max-width: 900px\)[\s\S]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"center center center"\s*"left \. right"/,
-  "Tablet and mobile side opponents must use the compact table geometry",
+  /@media \(max-width: 900px\)[\s\S]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"left \. right"\s*"center center center"/,
+  "Narrow layouts must place side opponents before the discard field",
+);
+assert.match(
+  css,
+  /\.opponent-top \.opponent-wall-row\s*\{[^}]*justify-self:\s*center;[^}]*justify-content:\s*center;[^}]*width:\s*min\(400px, 90%\);/s,
+  "The opposing wall must remain centered and compact in narrow layouts",
+);
+assert.match(
+  css,
+  /\.hand-actions\s*\{[^}]*padding:[^}]*env\(safe-area-inset-bottom, 0px\)/s,
+  "Compact action controls must leave space for mobile system gestures",
+);
+assert.doesNotMatch(
+  app,
+  /<span>\{human\.(?:flowers|hand)\.length\} (?:flowers|in hand)<\/span>/,
+  "The human profile should show score without redundant flower and hand counters",
 );
 assert.doesNotMatch(
   app,

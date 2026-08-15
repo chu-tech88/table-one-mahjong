@@ -3328,11 +3328,11 @@ textarea {
     grid-template-areas:
       "toolbar toolbar toolbar"
       "top top top"
-      "center center center"
       "left . right"
+      "center center center"
       "human human human";
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: 44px 54px minmax(0, 1fr) 176px clamp(
+    grid-template-rows: 44px 54px 176px minmax(0, 1fr) clamp(
         202px,
         27svh,
         228px
@@ -4270,12 +4270,12 @@ textarea {
     grid-template-areas:
       "toolbar toolbar toolbar"
       "top top top"
-      "center center center"
       "left . right"
+      "center center center"
       "human human human";
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-rows:
-      44px 84px minmax(112px, 1fr) 132px clamp(232px, 32svh, 270px);
+      44px 84px 132px minmax(112px, 1fr) clamp(232px, 32svh, 270px);
     gap: 3px;
     padding: 5px 5px 8px;
   }
@@ -4736,7 +4736,33 @@ textarea {
     --side-wall-width: 14px;
     --side-wall-height: 10px;
     grid-template-rows:
-      44px 88px minmax(112px, 1fr) 132px clamp(232px, 32svh, 270px);
+      44px 88px 132px minmax(112px, 1fr) clamp(232px, 32svh, 270px);
+  }
+
+  .opponent-top {
+    place-self: start center;
+    width: min(440px, calc(100vw - 20px));
+    margin-inline: auto;
+  }
+
+  .opponent-top .seat-heading,
+  .opponent-top .opponent-rack {
+    margin-inline: auto;
+  }
+
+  .opponent-top .opponent-wall-row {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: center;
+    justify-content: center;
+    width: min(400px, 90%);
+    overflow: visible;
+  }
+
+  .opponent-top .opponent-wall-row i {
+    flex: 0 1 clamp(18px, 4.4vw, 24px);
+    width: clamp(18px, 4.4vw, 24px);
+    min-width: 12px;
   }
 
   .opponent-left .opponent-rack,
@@ -4751,6 +4777,15 @@ textarea {
 
   .human-hand {
     padding-top: 11px;
+  }
+
+  .human-seat {
+    grid-template-rows: 28px 34px 36px minmax(68px, 1fr) auto;
+  }
+
+  .hand-actions {
+    min-height: 46px;
+    padding: 2px 2px max(14px, calc(env(safe-area-inset-bottom, 0px) + 8px));
   }
 
   .discard-lane-0,
@@ -4820,7 +4855,7 @@ textarea {
   }
 
   .human-seat {
-    grid-template-rows: 24px 26px auto minmax(44px, 1fr) 30px;
+    grid-template-rows: 24px 26px auto minmax(44px, 1fr) auto;
     gap: 2px;
   }
 
@@ -4851,8 +4886,8 @@ textarea {
   }
 
   .hand-actions {
-    min-height: 30px;
-    padding-block: 1px 2px;
+    min-height: 36px;
+    padding: 1px 2px max(8px, calc(env(safe-area-inset-bottom, 0px) + 4px));
   }
 
   .action-bar button {

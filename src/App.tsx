@@ -2156,8 +2156,6 @@ function MahjongApp() {
               </div>
               <div className="seat-meta">
                 <span>{human.score} pts</span>
-                <span>{human.flowers.length} flowers</span>
-                <span>{human.hand.length} in hand</span>
               </div>
             </div>
             <button
