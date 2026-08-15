@@ -16,14 +16,19 @@ assert.match(
   "Tile faces must exclude the raised tile base from their centering area",
 );
 assert.match(
-  css,
-  /\.opponent-discard-zone \.discard-river\s*\{[^}]*flex-wrap:\s*nowrap;/s,
-  "Opponent discard rivers must stay in one scrollable row",
+  app,
+  /players\.map\(\(player, index\)[\s\S]*?discard-lane-\$\{relativeSeat\}[\s\S]*?<DiscardRiver player=\{player\}/,
+  "All four players must render into the shared center discard field",
+);
+assert.doesNotMatch(
+  app,
+  /side-opponent-stack|opponent-table-zone opponent-discard-zone/,
+  "Opponent discards and reveals must not use independent framed panels",
 );
 assert.match(
-  css,
-  /\.side-opponent-stack\s*\{[^}]*grid-template-rows:[^}]*minmax\([^}]*minmax\(/s,
-  "Side opponents must stack discard and revealed zones vertically",
+  app,
+  /className="opponent-rack"[\s\S]*?className="opponent-wall-row"[\s\S]*?className="opponent-revealed-strip"/,
+  "Opponent walls and revealed sets must share one compact seat rack",
 );
 assert.match(
   css,
@@ -97,8 +102,8 @@ assert.match(
 );
 assert.match(
   css,
-  /@media \(max-width: 760px\)[\s\S]*\.discard-river \.tile:nth-of-type\(n \+ 5\)[\s\S]*\.discard-overflow-count\s*\{\s*display:\s*grid;/,
-  "Mobile rivers must prioritize the four newest discards",
+  /@media \(max-width: 900px\)[\s\S]*\.table-discard-lane \.discard-river \.tile:nth-of-type\(n \+ 5\)[\s\S]*\.discard-overflow-count\s*\{\s*display:\s*grid;/,
+  "Tablet and mobile rivers must prioritize the four newest discards",
 );
 assert.match(
   css,
@@ -117,8 +122,18 @@ assert.match(
 );
 assert.match(
   app,
-  /AudioContext[\s\S]*?navigator\.vibrate/,
-  "A turn transition must provide audible and mobile haptic feedback",
+  /soundPatterns:[\s\S]*discard:[\s\S]*chi:[\s\S]*pong:[\s\S]*gong:[\s\S]*hu:[\s\S]*turn:[\s\S]*navigator\.vibrate/,
+  "Discard, Chi, Pong, Gong, Hu, and turn transitions need distinct audio cues",
+);
+assert.match(
+  app,
+  /turn:[\s\S]*volume:\s*0\.105[\s\S]*playGameSound\("turn"\)/,
+  "The player's turn cue must be the most prominent sound",
+);
+assert.match(
+  app,
+  /SOUND_SETTING_KEY[\s\S]*checked=\{soundEnabled\}[\s\S]*setSoundEnabled/,
+  "Players must be able to disable game sounds",
 );
 assert.match(
   css,
@@ -137,13 +152,13 @@ assert.doesNotMatch(
 );
 assert.match(
   css,
-  /\.discard-lane-0\s*\{[^}]*width:\s*var\(--info-zone-width\);/s,
-  "The human discard pile must share the opponent information width",
+  /\.discard-lane-0,\s*\.discard-lane-2\s*\{[^}]*width:\s*min\(360px, 100%\);/s,
+  "Opposing discard lanes must share consistent center-field sizing",
 );
 assert.match(
   css,
-  /@media \(max-width: 760px\)[\s\S]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"center center center"\s*"left \. right"/,
-  "Mobile side opponents must appear below the top opponent information",
+  /@media \(max-width: 900px\)[\s\S]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"center center center"\s*"left \. right"/,
+  "Tablet and mobile side opponents must use the compact table geometry",
 );
 assert.doesNotMatch(
   app,
@@ -167,8 +182,18 @@ assert.match(
 );
 assert.match(
   css,
-  /\.opponent-revealed-zone \.seat-sets-row\s*\{[^}]*align-items:\s*flex-end;/s,
+  /\.opponent-revealed-strip \.seat-sets-row,[\s\S]*?align-items:\s*flex-end;/s,
   "Opponent flowers and melds must share a common tile baseline",
+);
+assert.match(
+  app,
+  /className=\{`mobile-activity-ribbon[\s\S]*?centerStatusLabel[\s\S]*?activityText/,
+  "Compact layouts must retain the table activity status near the player's hand",
+);
+assert.match(
+  app,
+  /setActivityHistoryOpen\(true\)[\s\S]*?activity-history-panel[\s\S]*?game\.actionLog[\s\S]*?slice\(-20\)/,
+  "The activity hub must provide recent table history on demand",
 );
 assert.match(
   css,

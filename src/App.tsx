@@ -49,7 +49,79 @@ import {
 import html2canvas from "html2canvas";
 import oneBambooBird from "./assets/one-bamboo-bird.png";
 
-// Component rendering stays exactly the same
+const SOUND_SETTING_KEY = "table-one-sound-enabled";
+type GameSound = "discard" | "chi" | "pong" | "gong" | "hu" | "turn";
+
+const soundPatterns: Record<
+  GameSound,
+  Array<{
+    frequency: number;
+    endFrequency?: number;
+    offset: number;
+    duration: number;
+    volume: number;
+    wave: OscillatorType;
+  }>
+> = {
+  discard: [
+    {
+      frequency: 210,
+      endFrequency: 135,
+      offset: 0,
+      duration: 0.09,
+      volume: 0.025,
+      wave: "triangle",
+    },
+  ],
+  chi: [
+    { frequency: 392, offset: 0, duration: 0.1, volume: 0.022, wave: "sine" },
+    { frequency: 523.25, offset: 0.09, duration: 0.13, volume: 0.025, wave: "sine" },
+  ],
+  pong: [
+    { frequency: 196, offset: 0, duration: 0.1, volume: 0.03, wave: "triangle" },
+    { frequency: 196, offset: 0.1, duration: 0.12, volume: 0.03, wave: "triangle" },
+  ],
+  gong: [
+    { frequency: 130.81, offset: 0, duration: 0.58, volume: 0.04, wave: "sine" },
+    { frequency: 261.63, offset: 0.02, duration: 0.4, volume: 0.018, wave: "triangle" },
+  ],
+  hu: [
+    { frequency: 523.25, offset: 0, duration: 0.18, volume: 0.04, wave: "sine" },
+    { frequency: 659.25, offset: 0.12, duration: 0.2, volume: 0.045, wave: "sine" },
+    { frequency: 783.99, offset: 0.24, duration: 0.32, volume: 0.05, wave: "sine" },
+  ],
+  turn: [
+    { frequency: 659.25, offset: 0, duration: 0.28, volume: 0.09, wave: "sine" },
+    { frequency: 880, offset: 0.14, duration: 0.34, volume: 0.105, wave: "sine" },
+    { frequency: 987.77, offset: 0.3, duration: 0.42, volume: 0.08, wave: "sine" },
+  ],
+};
+
+function playSynthSound(context: AudioContext, sound: GameSound) {
+  const start = context.currentTime + 0.01;
+  soundPatterns[sound].forEach((note) => {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const noteStart = start + note.offset;
+    const noteEnd = noteStart + note.duration;
+    oscillator.type = note.wave;
+    oscillator.frequency.setValueAtTime(note.frequency, noteStart);
+    if (note.endFrequency) {
+      oscillator.frequency.exponentialRampToValueAtTime(
+        note.endFrequency,
+        noteEnd,
+      );
+    }
+    gain.gain.setValueAtTime(0.0001, noteStart);
+    gain.gain.exponentialRampToValueAtTime(note.volume, noteStart + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, noteEnd);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(noteStart);
+    oscillator.stop(noteEnd + 0.02);
+  });
+}
+
 const DEFAULT_SERVER_URL =
   import.meta.env.VITE_WS_URL ||
   (import.meta.env.DEV && typeof window !== "undefined"
@@ -525,45 +597,21 @@ function TableDiscardGrid({
       {players.map((player, index) => {
         const relativeSeat = (index - selfIndex + 4) % 4;
         const isSelf = index === selfIndex;
-        if (relativeSeat === 1 || relativeSeat === 3) return null;
         return (
           <section
             className={`table-discard-lane discard-lane-${relativeSeat}`}
             key={`${player.name}-${index}`}
           >
-            <div className="opponent-table-zone opponent-discard-zone">
-              <button
-                className="opponent-zone-header"
-                type="button"
-                onClick={() => onInspect(index)}
-              >
-                <span>
-                  {isSelf ? "Your discards" : `${player.wind} discards`}
-                </span>
-                <small>{player.discards.length}</small>
-              </button>
-              <DiscardRiver player={player} />
-            </div>
-            {!isSelf ? (
-              <div
-                className="opponent-table-zone opponent-revealed-zone"
-                aria-label={`${player.name} revealed tiles`}
-              >
-                <button
-                  className="opponent-zone-header"
-                  type="button"
-                  onClick={() => onInspect(index)}
-                >
-                  <span>Revealed</span>
-                  <small>{player.flowers.length + player.melds.length}</small>
-                </button>
-                {player.flowers.length > 0 || player.melds.length > 0 ? (
-                  <SeatSets flowers={player.flowers} melds={player.melds} />
-                ) : (
-                  <span className="opponent-zone-empty">No open tiles</span>
-                )}
-              </div>
-            ) : null}
+            <button
+              className="discard-lane-label"
+              type="button"
+              aria-label={`Inspect ${isSelf ? "your" : player.name} discard history, ${player.discards.length} tiles`}
+              onClick={() => onInspect(index)}
+            >
+              <span>{isSelf ? "You" : player.name}</span>
+              <small>{player.discards.length}</small>
+            </button>
+            <DiscardRiver player={player} />
           </section>
         );
       })}
@@ -620,8 +668,8 @@ function Opponent({
   presence?: "connected" | "reconnecting" | "ai";
   onInspect: () => void;
 }) {
-  const isSideSeat = position === "left" || position === "right";
   const revealedCount = player.flowers.length + player.melds.length;
+  const wallTileCount = Math.min(player.hand.length, 18);
   return (
     <section
       className={`opponent opponent-${position} ${active ? "turn-active" : ""} ${dealer ? "dealer-seat" : ""}`}
@@ -648,9 +696,7 @@ function Opponent({
           <span className="identity-badge">
             {player.controller === "human" ? "Human" : "AI"}
           </span>
-          {isSideSeat ? (
-            <span className="score-badge">{player.score} pts</span>
-          ) : null}
+          <span className="score-badge">{player.score} pts</span>
           <span>{player.wind}</span>
         </div>
       </button>
@@ -658,39 +704,24 @@ function Opponent({
         <span>{difficulties[player.difficulty]}</span>
         <span>{player.score} pts</span>
       </div>
-      {isSideSeat ? (
-        <div className="side-opponent-stack">
-          <div className="opponent-table-zone opponent-discard-zone">
-            <button
-              className="opponent-zone-header"
-              type="button"
-              onClick={onInspect}
-            >
-              <span>Discards</span>
-              <small>{player.discards.length}</small>
-            </button>
-            <DiscardRiver player={player} />
-          </div>
+      <div className="opponent-rack">
+        <div
+          className="opponent-wall-row"
+          aria-label={`${player.name} has ${player.hand.length} concealed tiles`}
+        >
+          {Array.from({ length: wallTileCount }, (_, index) => (
+            <i key={index} />
+          ))}
+        </div>
+        {revealedCount > 0 ? (
           <div
-            className="opponent-table-zone opponent-revealed-zone"
+            className="opponent-revealed-strip"
             aria-label={`${player.name} revealed tiles`}
           >
-            <button
-              className="opponent-zone-header"
-              type="button"
-              onClick={onInspect}
-            >
-              <span>Revealed</span>
-              <small>{revealedCount}</small>
-            </button>
-            {revealedCount > 0 ? (
-              <SeatSets flowers={player.flowers} melds={player.melds} />
-            ) : (
-              <span className="opponent-zone-empty">No open tiles</span>
-            )}
+            <SeatSets flowers={player.flowers} melds={player.melds} />
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
       {reveal ? (
         <div
           className="compact-hand revealed-hand"
@@ -953,6 +984,7 @@ function MahjongApp() {
   };
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activityHistoryOpen, setActivityHistoryOpen] = useState(false);
   const [inspectedSeat, setInspectedSeat] = useState<number | undefined>();
   const [choosingChi, setChoosingChi] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -968,20 +1000,80 @@ function MahjongApp() {
   const [selectedKongCode, setSelectedKongCode] = useState<
     string | undefined
   >();
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem(SOUND_SETTING_KEY) !== "false";
+  });
   const previousTurnWasMine = useRef(false);
+  const previousActionSeq = useRef<number | undefined>(undefined);
+  const previousSoundRound = useRef<number | undefined>(undefined);
   const audioUnlocked = useRef(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const getAudioContext = () => {
+    if (!soundEnabled || !audioUnlocked.current) return null;
+    if (!audioContextRef.current) {
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as typeof window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      if (!AudioContextClass) return null;
+      audioContextRef.current = new AudioContextClass();
+    }
+    if (audioContextRef.current.state === "suspended") {
+      void audioContextRef.current.resume();
+    }
+    return audioContextRef.current;
+  };
+
+  const playGameSound = (sound: GameSound) => {
+    const context = getAudioContext();
+    if (context) playSynthSound(context, sound);
+  };
 
   useEffect(() => {
     const unlockAudio = () => {
       audioUnlocked.current = true;
+      getAudioContext();
     };
     window.addEventListener("pointerdown", unlockAudio, { once: true });
     window.addEventListener("keydown", unlockAudio, { once: true });
     return () => {
       window.removeEventListener("pointerdown", unlockAudio);
       window.removeEventListener("keydown", unlockAudio);
+      if (audioContextRef.current) {
+        void audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
     };
-  }, []);
+  }, [soundEnabled]);
+
+  useEffect(() => {
+    window.localStorage.setItem(SOUND_SETTING_KEY, String(soundEnabled));
+  }, [soundEnabled]);
+
+  useEffect(() => {
+    const latestAction = game?.actionLog.at(-1);
+    if (!latestAction) return;
+    if (
+      previousActionSeq.current === undefined ||
+      previousSoundRound.current !== game?.round
+    ) {
+      previousActionSeq.current = latestAction.seq;
+      previousSoundRound.current = game?.round;
+      return;
+    }
+    if (latestAction.seq <= previousActionSeq.current) return;
+    previousActionSeq.current = latestAction.seq;
+    if (latestAction.type === "discard") playGameSound("discard");
+    if (latestAction.type === "kong") playGameSound("gong");
+    if (latestAction.type === "score-round") playGameSound("hu");
+    if (latestAction.type === "claim") {
+      if (/gong/i.test(latestAction.description)) playGameSound("gong");
+      else if (/pong/i.test(latestAction.description)) playGameSound("pong");
+      else if (/chi/i.test(latestAction.description)) playGameSound("chi");
+    }
+  }, [game?.actionSeq, game?.round, soundEnabled]);
 
   useEffect(() => {
     const turnIsMine = Boolean(
@@ -990,32 +1082,17 @@ function MahjongApp() {
         ((game.phase === "discard" && game.turn === SELF) ||
           (game.phase === "claim" && game.pendingClaim?.claimer === SELF)),
     );
-    if (turnIsMine && !previousTurnWasMine.current && audioUnlocked.current) {
-      const AudioContextClass =
-        window.AudioContext ||
-        (window as typeof window & { webkitAudioContext?: typeof AudioContext })
-          .webkitAudioContext;
-      if (AudioContextClass) {
-        const context = new AudioContextClass();
-        const gain = context.createGain();
-        gain.gain.setValueAtTime(0.0001, context.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.48);
-        gain.connect(context.destination);
-        [659.25, 880].forEach((frequency, index) => {
-          const oscillator = context.createOscillator();
-          oscillator.type = "sine";
-          oscillator.frequency.value = frequency;
-          oscillator.connect(gain);
-          oscillator.start(context.currentTime + index * 0.12);
-          oscillator.stop(context.currentTime + 0.42 + index * 0.12);
-        });
-        window.setTimeout(() => void context.close(), 750);
-      }
-      navigator.vibrate?.(80);
+    if (
+      turnIsMine &&
+      !previousTurnWasMine.current &&
+      audioUnlocked.current &&
+      soundEnabled
+    ) {
+      playGameSound("turn");
+      navigator.vibrate?.([100, 45, 130]);
     }
     previousTurnWasMine.current = turnIsMine;
-  }, [game?.phase, game?.turn, game?.pendingClaim?.claimer, SELF]);
+  }, [game?.phase, game?.turn, game?.pendingClaim?.claimer, SELF, soundEnabled]);
   const [uiSelectedTileId, setUiSelectedTileId] = useState<string | undefined>(
     undefined,
   );
@@ -2035,21 +2112,6 @@ function MahjongApp() {
               <small>AI has taken over this seat.</small>
             </div>
           ) : null}
-          <div className="table-wall wall-top" aria-hidden="true">
-            {Array.from({ length: 18 }, (_, index) => (
-              <i key={index} />
-            ))}
-          </div>
-          <div className="table-wall wall-left" aria-hidden="true">
-            {Array.from({ length: 13 }, (_, index) => (
-              <i key={index} />
-            ))}
-          </div>
-          <div className="table-wall wall-right" aria-hidden="true">
-            {Array.from({ length: 13 }, (_, index) => (
-              <i key={index} />
-            ))}
-          </div>
           <Opponent
             player={{ ...game.players[topSeat], name: seatName(topSeat) }}
             active={game.turn === topSeat}
@@ -2098,6 +2160,23 @@ function MahjongApp() {
                 <span>{human.hand.length} in hand</span>
               </div>
             </div>
+            <button
+              className={`mobile-activity-ribbon notice-${activityNoticeTone}`}
+              aria-live="polite"
+              type="button"
+              onClick={() => setActivityHistoryOpen(true)}
+            >
+              <span>{centerStatusLabel}</span>
+              <strong>{activityText}</strong>
+              {activity.tile ? (
+                <span
+                  className={`tile mobile-activity-tile ${activity.tile.suit}`}
+                  aria-label={activity.tile.label}
+                >
+                  <TileFace tile={activity.tile} />
+                </span>
+              ) : null}
+            </button>
             <div
               className="human-revealed-shelf"
               aria-label="Your revealed tiles"
@@ -2199,15 +2278,17 @@ function MahjongApp() {
               onInspect={setInspectedSeat}
             />
             <div className="table-center-core">
-              <div
+              <button
                 className={`center-activity table-notice table-notice-center notice-${activityNoticeTone}`}
                 aria-live="polite"
+                type="button"
+                onClick={() => setActivityHistoryOpen(true)}
               >
                 <span>
                   Round {game.round} · {centerStatusLabel}
                 </span>
                 <strong>{activityText}</strong>
-              </div>
+              </button>
               {activity.tile ? (
                 <div className="last-discard">
                   <TileView tile={activity.tile} large disabled />
@@ -2296,6 +2377,43 @@ function MahjongApp() {
         />
       ) : null}
 
+      {activityHistoryOpen ? (
+        <div className="modal-backdrop activity-history-backdrop" role="presentation">
+          <section
+            className="activity-history-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="activity-history-title"
+          >
+            <div className="modal-header">
+              <div>
+                <p className="eyebrow">Table activity</p>
+                <h2 id="activity-history-title">Recent actions</h2>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                aria-label="Close activity history"
+                onClick={() => setActivityHistoryOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <ol className="activity-history-list">
+              {[...game.actionLog]
+                .slice(-20)
+                .reverse()
+                .map((entry) => (
+                  <li key={entry.seq}>
+                    <span>{entry.type.replaceAll("-", " ")}</span>
+                    <strong>{entry.description}</strong>
+                  </li>
+                ))}
+            </ol>
+          </section>
+        </div>
+      ) : null}
+
       {settingsOpen ? (
         <div className="modal-backdrop" role="presentation">
           <section
@@ -2362,6 +2480,14 @@ function MahjongApp() {
                     )}
                   </div>
                 ))}
+                <label className="sound-setting">
+                  <strong>Game sounds</strong>
+                  <input
+                    type="checkbox"
+                    checked={soundEnabled}
+                    onChange={(event) => setSoundEnabled(event.target.checked)}
+                  />
+                </label>
               </section>
 
               <section className="panel-block settings-section">
