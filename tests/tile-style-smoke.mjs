@@ -205,6 +205,26 @@ assert.match(
   /\.human-seat \.seat-sets-row\s*\{[^}]*width:\s*max-content;[^}]*max-width:\s*100%;[^}]*background:\s*transparent;/s,
   "The human revealed tray should remain compact and centered",
 );
+assert.match(
+  css,
+  /\.opponent-left \.opponent-revealed-strip \.flower-row,[\s\S]*?\.opponent-right \.opponent-revealed-strip \.meld div\s*\{[^}]*flex-direction:\s*column;/s,
+  "Side-seat flowers and melds must use space-saving vertical rails",
+);
+assert.match(
+  css,
+  /\.center-activity\.table-notice\s*\{[^}]*box-shadow:\s*none;/s,
+  "The table activity control must not show an inconsistent inset accent",
+);
+assert.match(
+  css,
+  /\.human-hand\s*\{[^}]*padding-top:\s*14px;[^}]*overflow:\s*visible;/s,
+  "The playable hand must reserve visible clearance for raised tiles",
+);
+assert.match(
+  css,
+  /@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)[\s\S]*?grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"left center right"\s*"human human human";/,
+  "Short landscape screens must keep the player hand in the visible table grid",
+);
 assert.doesNotMatch(
   app,
   /event\.target\.value\.replace\([^\n]+\)\s*\|\|\s*"table-one"/,

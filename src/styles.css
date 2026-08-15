@@ -4570,3 +4570,275 @@ textarea {
     gap: 8px;
   }
 }
+
+/* Seat rails: keep every wall visible without covering the table or hand. */
+.table {
+  grid-template-rows:
+    clamp(54px, 6.5svh, 68px) clamp(102px, 12svh, 128px) minmax(0, 1fr)
+    clamp(214px, 28svh, 306px);
+}
+
+.opponent-top {
+  justify-content: flex-start;
+}
+
+.opponent-top .opponent-rack {
+  overflow: visible;
+}
+
+.opponent-top .opponent-revealed-strip {
+  max-height: 52px;
+  padding-bottom: 3px;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.opponent-left .opponent-rack,
+.opponent-right .opponent-rack {
+  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  overflow: visible;
+}
+
+.opponent-right .opponent-rack {
+  grid-template-columns: minmax(0, 1fr) 18px;
+}
+
+.opponent-left .opponent-wall-row,
+.opponent-right .opponent-wall-row {
+  grid-row: 1;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 2px;
+  width: 14px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.opponent-left .opponent-wall-row {
+  grid-column: 1;
+}
+
+.opponent-right .opponent-wall-row {
+  grid-column: 2;
+}
+
+.opponent-left .opponent-wall-row i,
+.opponent-right .opponent-wall-row i {
+  flex: 1 1 8px;
+  width: 14px;
+  height: auto;
+  min-width: 14px;
+  min-height: 3px;
+  box-shadow: 2px 0 0 #7aa06a;
+}
+
+.opponent-left .opponent-revealed-strip,
+.opponent-right .opponent-revealed-strip {
+  grid-row: 1;
+  align-self: stretch;
+  justify-content: center;
+  width: 100%;
+  max-height: 100%;
+  padding: 2px 3px;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.opponent-left .opponent-revealed-strip {
+  grid-column: 2;
+}
+
+.opponent-right .opponent-revealed-strip {
+  grid-column: 1;
+}
+
+.opponent-left .opponent-revealed-strip .seat-sets-row,
+.opponent-right .opponent-revealed-strip .seat-sets-row {
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  width: max-content;
+  max-width: none;
+  max-height: none;
+}
+
+.opponent-left .opponent-revealed-strip .flower-row,
+.opponent-right .opponent-revealed-strip .flower-row,
+.opponent-left .opponent-revealed-strip .meld,
+.opponent-right .opponent-revealed-strip .meld,
+.opponent-left .opponent-revealed-strip .meld div,
+.opponent-right .opponent-revealed-strip .meld div {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.opponent-left .opponent-revealed-strip .meld-row,
+.opponent-right .opponent-revealed-strip .meld-row {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+.opponent-left .opponent-revealed-strip .flower-row .tile,
+.opponent-right .opponent-revealed-strip .flower-row .tile,
+.opponent-left .opponent-revealed-strip .meld .tile,
+.opponent-right .opponent-revealed-strip .meld .tile {
+  width: clamp(19px, 2vw, 24px);
+  height: clamp(27px, 2.7vw, 33px);
+}
+
+.center-activity.table-notice {
+  box-shadow: none;
+}
+
+.human-revealed-shelf {
+  position: relative;
+  z-index: 1;
+}
+
+.human-hand {
+  z-index: 2;
+  justify-content: center;
+  padding-top: 14px;
+  overflow: visible;
+}
+
+.human-hand .tile {
+  flex: 1 1 0;
+  width: auto;
+  max-width: var(--hand-tile-w);
+  min-width: 0;
+}
+
+@media (max-width: 1199px) {
+  .table {
+    grid-template-rows: 54px 100px minmax(0, 1fr) clamp(202px, 29svh, 244px);
+  }
+}
+
+@media (max-width: 900px) {
+  .table {
+    grid-template-rows:
+      44px 88px minmax(112px, 1fr) 132px clamp(232px, 32svh, 270px);
+  }
+
+  .opponent-left .opponent-rack,
+  .opponent-right .opponent-rack {
+    height: calc(100% - 26px);
+  }
+
+  .opponent-left .opponent-revealed-strip .meld > span,
+  .opponent-right .opponent-revealed-strip .meld > span {
+    display: none;
+  }
+
+  .human-hand {
+    padding-top: 11px;
+  }
+}
+
+@media (max-width: 1100px) and (max-height: 600px) and (orientation: landscape) {
+  .table {
+    --hand-tile-w: clamp(24px, 5vw, 46px);
+    --hand-tile-h: clamp(34px, 12svh, 50px);
+    grid-template-areas:
+      "toolbar toolbar toolbar"
+      "top top top"
+      "left center right"
+      "human human human";
+    grid-template-columns:
+      clamp(92px, 20vw, 150px) minmax(240px, 1fr) clamp(92px, 20vw, 150px);
+    grid-template-rows: 36px 62px minmax(58px, 1fr) minmax(138px, 44svh);
+    gap: 3px;
+    padding: 4px 6px 6px;
+  }
+
+  .board-toolbar {
+    grid-template-rows: 32px;
+  }
+
+  .table-brand span,
+  .online-status {
+    display: none;
+  }
+
+  .tiles-remaining,
+  .gear-button,
+  .lobby-chat-toggle {
+    height: 30px;
+    min-height: 30px;
+  }
+
+  .opponent-top {
+    width: min(430px, 76%);
+  }
+
+  .opponent-top .seat-meta {
+    display: none;
+  }
+
+  .opponent .seat-heading,
+  .opponent-top .seat-heading,
+  .opponent-left .seat-heading,
+  .opponent-right .seat-heading {
+    min-height: 22px;
+    padding-block: 2px;
+  }
+
+  .opponent-top .opponent-revealed-strip .flower-row .tile,
+  .opponent-top .opponent-revealed-strip .meld .tile {
+    width: 17px;
+    height: 23px;
+    border-bottom-width: 2px;
+  }
+
+  .opponent-left .opponent-rack,
+  .opponent-right .opponent-rack {
+    height: calc(100% - 24px);
+  }
+
+  .human-seat {
+    grid-template-rows: 24px 26px auto minmax(44px, 1fr) 30px;
+    gap: 2px;
+  }
+
+  .human-name {
+    min-height: 22px;
+    padding-block: 1px;
+  }
+
+  .mobile-activity-ribbon {
+    height: 26px;
+  }
+
+  .human-revealed-shelf {
+    height: 27px;
+    min-height: 0;
+    padding-bottom: 2px;
+  }
+
+  .human-seat .meld .tile,
+  .human-seat .flower-row .tile {
+    width: 17px;
+    height: 23px;
+    border-bottom-width: 2px;
+  }
+
+  .human-hand {
+    padding: 9px 1px 0;
+  }
+
+  .hand-actions {
+    min-height: 30px;
+    padding-block: 1px 2px;
+  }
+
+  .action-bar button {
+    min-height: 28px;
+  }
+}
