@@ -52,6 +52,46 @@ import oneBambooBird from "./assets/one-bamboo-bird.png";
 const SOUND_SETTING_KEY = "table-one-sound-enabled";
 type GameSound = "discard" | "chi" | "pong" | "gong" | "hu" | "turn";
 
+type TileFlight = {
+  id: string;
+  tile: Tile;
+  kind: "discard" | "claim" | "reveal";
+  from: number;
+  to?: number;
+};
+
+function relativeSeat(seat: number, self: number) {
+  return (seat - self + 4) % 4;
+}
+
+function prefersReducedMotion() {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function claimedTileBetween(previous: Game, current: Game, actor: number) {
+  const previousMeldIds = new Set(
+    previous.players[actor]?.melds.flatMap((meld) =>
+      meld.tiles.map((tile) => tile.id),
+    ) ?? [],
+  );
+  const newMeld = [...(current.players[actor]?.melds ?? [])]
+    .reverse()
+    .find((meld) => meld.tiles.some((tile) => !previousMeldIds.has(tile.id)));
+  if (!newMeld || newMeld.from === undefined) return undefined;
+
+  const previousHandIds = new Set(
+    previous.players[actor]?.hand.map((tile) => tile.id) ?? [],
+  );
+  const tile =
+    newMeld.tiles.find((candidate) => !previousHandIds.has(candidate.id)) ??
+    newMeld.tiles.at(-1);
+  return tile ? { tile, from: newMeld.from } : undefined;
+}
+
 const soundPatterns: Record<
   GameSound,
   Array<{
@@ -559,15 +599,21 @@ function MeldView({ meld }: { meld: Meld }) {
   );
 }
 
-function DiscardRiver({ player }: { player: Player }) {
+function DiscardRiver({
+  player,
+  latestDiscardId,
+}: {
+  player: Player;
+  latestDiscardId?: string;
+}) {
   const discards = [...player.discards].reverse();
   return (
     <div className="discard-river" aria-label={`${player.name} discard pile`}>
-      {discards.map((tile, index) => (
+      {discards.map((tile) => (
         <TileView
           key={tile.id}
           tile={tile}
-          latest={index === 0}
+          latest={tile.id === latestDiscardId}
           disabled
         />
       ))}
@@ -586,10 +632,12 @@ function DiscardRiver({ player }: { player: Player }) {
 function TableDiscardGrid({
   players,
   selfIndex,
+  latestDiscardId,
   onInspect,
 }: {
   players: Player[];
   selfIndex: number;
+  latestDiscardId?: string;
   onInspect: (index: number) => void;
 }) {
   return (
@@ -611,7 +659,10 @@ function TableDiscardGrid({
               <span>{isSelf ? "You" : player.name}</span>
               <small>{player.discards.length}</small>
             </button>
-            <DiscardRiver player={player} />
+            <DiscardRiver
+              player={player}
+              latestDiscardId={latestDiscardId}
+            />
           </section>
         );
       })}
@@ -1009,6 +1060,13 @@ function MahjongApp() {
   const previousSoundRound = useRef<number | undefined>(undefined);
   const audioUnlocked = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const previousPresentationGame = useRef<Game | undefined>(undefined);
+  const winModalRef = useRef<HTMLElement | null>(null);
+  const [tileFlight, setTileFlight] = useState<TileFlight | undefined>();
+  const [showWinModal, setShowWinModal] = useState(false);
+  const [winStage, setWinStage] = useState<0 | 1 | 2>(0);
+  const [scoreDeltas, setScoreDeltas] = useState<number[]>([0, 0, 0, 0]);
+  const [animatedWinTotal, setAnimatedWinTotal] = useState(0);
 
   const getAudioContext = () => {
     if (!soundEnabled || !audioUnlocked.current) return null;
@@ -1074,6 +1132,148 @@ function MahjongApp() {
       else if (/chi/i.test(latestAction.description)) playGameSound("chi");
     }
   }, [game?.actionSeq, game?.round, soundEnabled]);
+
+  useEffect(() => {
+    const previous = previousPresentationGame.current;
+    previousPresentationGame.current = game ?? undefined;
+    if (!game) return;
+
+    const reduceMotion = prefersReducedMotion();
+    const timers: number[] = [];
+    const schedule = (callback: () => void, delay: number) => {
+      timers.push(window.setTimeout(callback, delay));
+    };
+
+    if (game.winSummary && !previous?.winSummary) {
+      setScoreDeltas(
+        game.players.map(
+          (player, index) =>
+            player.score - (previous?.players[index]?.score ?? player.score),
+        ),
+      );
+      setAnimatedWinTotal(0);
+      if (reduceMotion) {
+        setShowWinModal(true);
+        setWinStage(2);
+      } else {
+        setShowWinModal(false);
+        setWinStage(0);
+        schedule(() => setShowWinModal(true), 420);
+        schedule(() => setWinStage(1), 920);
+        schedule(() => setWinStage(2), 1420);
+      }
+    } else if (!game.winSummary) {
+      setShowWinModal(false);
+      setWinStage(0);
+      setScoreDeltas([0, 0, 0, 0]);
+      setAnimatedWinTotal(0);
+    }
+
+    if (
+      !previous ||
+      game.actionSeq <= previous.actionSeq ||
+      game.round !== previous.round
+    ) {
+      return () => timers.forEach((timer) => window.clearTimeout(timer));
+    }
+
+    const newActions = game.actionLog.filter(
+      (action) => action.seq > previous.actionSeq,
+    );
+    const claimAction = [...newActions]
+      .reverse()
+      .find((action) => action.type === "claim");
+    const discardAction = [...newActions]
+      .reverse()
+      .find((action) => action.type === "discard");
+    const gongAction = [...newActions]
+      .reverse()
+      .find((action) => action.type === "kong");
+
+    let nextFlight: TileFlight | undefined;
+    if (claimAction) {
+      const claimed = claimedTileBetween(previous, game, claimAction.actor);
+      if (claimed) {
+        nextFlight = {
+          id: `claim-${claimAction.seq}-${claimed.tile.id}`,
+          tile: claimed.tile,
+          kind: "claim",
+          from: claimed.from,
+          to: claimAction.actor,
+        };
+      }
+    } else if (discardAction) {
+      const winningTileId = game.winSummary?.winningTileId;
+      const tile =
+        game.lastDiscard?.tile ??
+        game.activity?.tile ??
+        game.players
+          .flatMap((player) => player.hand)
+          .find((candidate) => candidate.id === winningTileId);
+      if (tile) {
+        nextFlight = {
+          id: `discard-${discardAction.seq}-${tile.id}`,
+          tile,
+          kind: "discard",
+          from: discardAction.actor,
+        };
+      }
+    } else if (gongAction) {
+      const previousMeldIds = new Set(
+        previous.players[gongAction.actor]?.melds.flatMap((meld) =>
+          meld.tiles.map((tile) => tile.id),
+        ) ?? [],
+      );
+      const tile = game.players[gongAction.actor]?.melds
+        .flatMap((meld) => meld.tiles)
+        .find((candidate) => !previousMeldIds.has(candidate.id));
+      if (tile) {
+        nextFlight = {
+          id: `reveal-${gongAction.seq}-${tile.id}`,
+          tile,
+          kind: "reveal",
+          from: gongAction.actor,
+          to: gongAction.actor,
+        };
+      }
+    }
+
+    if (nextFlight && !reduceMotion) {
+      setTileFlight(nextFlight);
+      schedule(() => setTileFlight(undefined), 560);
+    }
+
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [game?.actionSeq, game?.round, Boolean(game?.winSummary)]);
+
+  useEffect(() => {
+    if (!showWinModal) return;
+    const frame = window.requestAnimationFrame(() => winModalRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [showWinModal]);
+
+  useEffect(() => {
+    if (!game?.winSummary || winStage < 2) {
+      setAnimatedWinTotal(0);
+      return;
+    }
+    const target = game.winSummary.total;
+    if (target <= 0 || prefersReducedMotion()) {
+      setAnimatedWinTotal(target);
+      return;
+    }
+
+    const startedAt = window.performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / 620);
+      const eased = 1 - (1 - progress) ** 3;
+      setAnimatedWinTotal(Math.round(target * eased));
+      if (progress < 1) frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [game?.winSummary?.total, winStage]);
 
   useEffect(() => {
     const turnIsMine = Boolean(
@@ -2101,6 +2301,21 @@ function MahjongApp() {
               ⚙
             </button>
           </div>
+          {tileFlight ? (
+            <div
+              className={`tile-flight tile-flight-${tileFlight.kind} flight-from-${relativeSeat(tileFlight.from, SELF)} ${
+                tileFlight.kind === "discard"
+                  ? `flight-to-river-${relativeSeat(tileFlight.from, SELF)}`
+                  : `flight-to-seat-${relativeSeat(tileFlight.to ?? tileFlight.from, SELF)}`
+              }`}
+              key={tileFlight.id}
+              aria-hidden="true"
+            >
+              <div className={`tile ${tileFlight.tile.suit}`}>
+                <TileFace tile={tileFlight.tile} />
+              </div>
+            </div>
+          ) : null}
           {aiTakeoverSeat !== undefined ? (
             <div
               className="table-notice table-notice-floating notice-warning"
@@ -2273,6 +2488,7 @@ function MahjongApp() {
             <TableDiscardGrid
               players={game.players}
               selfIndex={SELF}
+              latestDiscardId={game.lastDiscard?.tile.id}
               onInspect={setInspectedSeat}
             />
             <div className="table-center-core">
@@ -2694,24 +2910,35 @@ function MahjongApp() {
         </div>
       ) : null}
 
-      {game.winSummary ? (
+      {game.winSummary && showWinModal ? (
         <div className="modal-backdrop win-backdrop" role="presentation">
           <section
-            className="win-modal"
+            className={`win-modal win-stage-${winStage}`}
+            ref={winModalRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="win-title"
+            tabIndex={-1}
           >
-            <p className="eyebrow">Hand complete</p>
-            <h2 id="win-title">
-              {game.winSummary.winner === undefined
-                ? game.winSummary.title
-                : game.winSummary.winner === SELF
-                  ? "You win"
-                  : `${seatName(game.winSummary.winner)} wins`}
-            </h2>
-            <p>{game.winSummary.detail}</p>
-            {winningPlayer && game.winSummary.winner !== undefined ? (
+            <div className="win-announcement">
+              <span className="win-call" aria-hidden="true">
+                {winningPlayer ? "HU" : "DRAW"}
+              </span>
+              <div>
+                <p className="eyebrow">Hand complete</p>
+                <h2 id="win-title">
+                  {game.winSummary.winner === undefined
+                    ? game.winSummary.title
+                    : game.winSummary.winner === SELF
+                      ? "You win"
+                      : `${seatName(game.winSummary.winner)} wins`}
+                </h2>
+              </div>
+            </div>
+            <p className="win-detail">{game.winSummary.detail}</p>
+            {winStage >= 1 &&
+            winningPlayer &&
+            game.winSummary.winner !== undefined ? (
               <div
                 className="winning-hand-review"
                 aria-label={`${winningPlayer.name} revealed winning hand`}
@@ -2752,7 +2979,7 @@ function MahjongApp() {
                 ) : null}
               </div>
             ) : null}
-            {winningPlayer ? (
+            {winStage >= 2 && winningPlayer ? (
               <div className="score-breakdown">
                 <span
                   className="score-item"
@@ -2779,39 +3006,64 @@ function MahjongApp() {
                 ))}
               </div>
             ) : null}
-            {winningPlayer ? (
-              <div className="win-total">
-                <span>{game.winSummary.points} points</span>
-                <strong>+{game.winSummary.total} total</strong>
+            {winStage >= 2 && scoreDeltas.some((delta) => delta !== 0) ? (
+              <div className="score-transfers" aria-label="Point transfers">
+                <strong>Point transfer</strong>
+                <div>
+                  {scoreDeltas.map((delta, index) =>
+                    delta !== 0 ? (
+                      <span
+                        className={delta > 0 ? "score-gain" : "score-loss"}
+                        key={`${game.players[index].name}-${index}`}
+                      >
+                        <small>{seatName(index)}</small>
+                        <b>
+                          {delta > 0 ? "+" : ""}
+                          {delta}
+                        </b>
+                      </span>
+                    ) : null,
+                  )}
+                </div>
               </div>
             ) : null}
-            <button
-              className="full-width-button"
-              type="button"
-              disabled={
-                playMode === "online" &&
-                (game.nextHandReady?.includes(SELF) ?? false)
-              }
-              onClick={() => {
-                if (playMode === "online") {
-                  readyNextHand();
-                } else {
-                  newHand(nextDealer, false);
-                }
-                clearLobbyChatForCurrentRoom();
-              }}
-            >
-              {playMode === "online" &&
-              (game.nextHandReady?.includes(SELF) ?? false)
-                ? "Waiting for other players..."
-                : "Next Hand"}
-            </button>
-            {playMode === "online" ? (
-              <p className="next-hand-status" aria-live="polite">
-                {game.nextHandReady?.includes(SELF)
-                  ? `${game.nextHandReady.length} of ${game.nextHandRequired?.length ?? 1} player${(game.nextHandRequired?.length ?? 1) === 1 ? "" : "s"} ready. Waiting for everyone else to select Next Hand.`
-                  : "The next hand begins after every player selects Next Hand."}
-              </p>
+            {winStage >= 2 && winningPlayer ? (
+              <div className="win-total">
+                <span>{game.winSummary.points} points</span>
+                <strong>+{animatedWinTotal} total</strong>
+              </div>
+            ) : null}
+            {winStage >= 2 ? (
+              <>
+                <button
+                  className="full-width-button"
+                  type="button"
+                  disabled={
+                    playMode === "online" &&
+                    (game.nextHandReady?.includes(SELF) ?? false)
+                  }
+                  onClick={() => {
+                    if (playMode === "online") {
+                      readyNextHand();
+                    } else {
+                      newHand(nextDealer, false);
+                    }
+                    clearLobbyChatForCurrentRoom();
+                  }}
+                >
+                  {playMode === "online" &&
+                  (game.nextHandReady?.includes(SELF) ?? false)
+                    ? "Waiting for other players..."
+                    : "Next Hand"}
+                </button>
+                {playMode === "online" ? (
+                  <p className="next-hand-status" aria-live="polite">
+                    {game.nextHandReady?.includes(SELF)
+                      ? `${game.nextHandReady.length} of ${game.nextHandRequired?.length ?? 1} player${(game.nextHandRequired?.length ?? 1) === 1 ? "" : "s"} ready. Waiting for everyone else to select Next Hand.`
+                      : "The next hand begins after every player selects Next Hand."}
+                  </p>
+                ) : null}
+              </>
             ) : null}
           </section>
         </div>

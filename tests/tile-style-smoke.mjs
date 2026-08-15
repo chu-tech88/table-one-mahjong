@@ -17,7 +17,7 @@ assert.match(
 );
 assert.match(
   app,
-  /players\.map\(\(player, index\)[\s\S]*?discard-lane-\$\{relativeSeat\}[\s\S]*?<DiscardRiver player=\{player\}/,
+  /players\.map\(\(player, index\)[\s\S]*?discard-lane-\$\{relativeSeat\}[\s\S]*?<DiscardRiver[\s\S]*?player=\{player\}/,
   "All four players must render into the shared center discard field",
 );
 assert.doesNotMatch(
@@ -254,6 +254,36 @@ assert.doesNotMatch(
   app,
   /event\.target\.value\.replace\([^\n]+\)\s*\|\|\s*"table-one"/,
   "Clearing the room name should leave the field empty",
+);
+assert.match(
+  app,
+  /claimedTileBetween\(previous, game, claimAction\.actor\)[\s\S]*?tile-flight-\$\{tileFlight\.kind\}[\s\S]*?flight-to-river-/,
+  "Discard and claim movement must be derived from authoritative game snapshots",
+);
+assert.match(
+  app,
+  /latest=\{tile\.id === latestDiscardId\}/,
+  "Only the current table discard should receive the newest-discard emphasis",
+);
+assert.match(
+  css,
+  /\.tile-flight\s*\{[^}]*animation:\s*tile-flight-path[^}]*\}[\s\S]*@keyframes tile-flight-path/s,
+  "Tiles must visibly travel between seats, rivers, and revealed sets",
+);
+assert.match(
+  app,
+  /game\.winSummary && showWinModal[\s\S]*?win-stage-\$\{winStage\}[\s\S]*?winStage >= 1[\s\S]*?winStage >= 2/,
+  "The hand-complete experience must reveal the result in deliberate stages",
+);
+assert.match(
+  app,
+  /className="score-transfers"[\s\S]*?animatedWinTotal/,
+  "The hand-complete experience must show point transfers and a counting total",
+);
+assert.match(
+  css,
+  /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.tile-flight\s*\{\s*display:\s*none;[\s\S]*?\.win-modal,/,
+  "Motion polish must respect the player's reduced-motion preference",
 );
 
 const obsoleteContextOverrides = [
