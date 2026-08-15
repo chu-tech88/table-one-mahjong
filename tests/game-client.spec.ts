@@ -11,4 +11,14 @@ describe("GameClient", () => {
     expect(sendAction).toHaveBeenCalledOnce();
     expect(sendAction).toHaveBeenCalledWith({ type: "ready-next-hand" });
   });
+
+  it("requests a list of active rooms from the server", () => {
+    const client = new GameClient();
+    const sendMessage = vi.spyOn(client as any, "sendMessage").mockImplementation(() => {});
+
+    client.requestRoomList();
+
+    expect(sendMessage).toHaveBeenCalledOnce();
+    expect(sendMessage).toHaveBeenCalledWith({ type: "request-room-list" });
+  });
 });

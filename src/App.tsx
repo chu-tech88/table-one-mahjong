@@ -942,6 +942,7 @@ function MahjongApp() {
     joined: Boolean(restoredActiveSession),
   }));
   const [occupiedSeats, setOccupiedSeats] = useState<number[]>([]);
+  const [roomList, setRoomList] = useState<Array<{ roomId: string; occupiedSeats: number[]; playerCount: number; isFull: boolean }>>([]);
   const [lobbySeatError, setLobbySeatError] = useState<string | null>(null);
   const [activeScenario, setActiveScenario] = useState<ScenarioSnapshot | null>(
     null,
@@ -1758,6 +1759,11 @@ function MahjongApp() {
           roomId: connection.roomId,
         }),
       );
+      ws.send(
+        JSON.stringify({
+          type: "request-room-list",
+        }),
+      );
     };
 
     ws.onopen = () => {
@@ -1773,6 +1779,7 @@ function MahjongApp() {
           type?: string;
           roomId?: string;
           occupiedSeats?: number[];
+          rooms?: Array<{ roomId: string; occupiedSeats: number[]; playerCount: number; isFull: boolean }>;
         };
         if (
           msg.type === "room-seats-update" &&
@@ -1786,13 +1793,25 @@ function MahjongApp() {
           ].sort((a, b) => a - b);
           setOccupiedSeats(uniqueSorted);
         }
+        if (msg.type === "room-list-update" && Array.isArray(msg.rooms)) {
+          setRoomList(
+            msg.rooms
+              .map((room) => ({
+                ...room,
+                occupiedSeats: Array.isArray(room.occupiedSeats)
+                  ? room.occupiedSeats.filter((seat) => seat >= 0 && seat <= 3)
+                  : [],
+              }))
+              .sort((a, b) => a.roomId.localeCompare(b.roomId)),
+          );
+        }
       } catch {
         // Ignore malformed payloads.
       }
     };
 
     ws.onerror = () => {
-      setLobbySeatError("Could not check seat availability.");
+      setLobbySeatError("Could not check room availability.");
     };
 
     return () => {
@@ -1833,6 +1852,40 @@ function MahjongApp() {
             label: `Seat ${connection.playerIndex + 1}`,
           },
         ];
+
+  const joinOnlineRoom = (nextRoomId?: string) => {
+    const roomId = (nextRoomId ?? connection.roomId).trim();
+    if (!connection.playerName.trim()) {
+      setLobbySeatError("Name required before joining or creating a room.");
+      return;
+    }
+    if (!roomId) {
+      setLobbySeatError("Room ID required.");
+      return;
+    }
+
+    const roomInfo = roomList.find(
+      (room) => room.roomId.trim().toLowerCase() === roomId.toLowerCase(),
+    );
+    if (roomInfo?.isFull) {
+      setLobbySeatError("All seats in this room are currently occupied.");
+      return;
+    }
+
+    const nextSeat = roomInfo
+      ? [0, 1, 2, 3].find((seat) => !roomInfo.occupiedSeats.includes(seat)) ?? 0
+      : 0;
+
+    setLobbySeatError(null);
+    setActiveScenario(null);
+    setScenarioFeedback(null);
+    setConnection((current) => ({
+      ...current,
+      roomId,
+      playerIndex: nextSeat,
+      joined: true,
+    }));
+  };
 
   const hasOtherHumanPlayers = Boolean(
     game?.players.some(
@@ -1904,6 +1957,7 @@ function MahjongApp() {
                   setConnection((current) => ({
                     ...current,
                     roomId: "table-one",
+                    playerIndex: 0,
                   }));
                 }}
               >
@@ -1929,21 +1983,95 @@ function MahjongApp() {
               </label>
               {playMode === "online" ? (
                 <>
-                  <label>
-                    <span>Room ID</span>
-                    <input
-                      type="text"
-                      value={connection.roomId}
-                      onChange={(event) =>
+                  <div className="online-room-row" style={{ gridColumn: "span 2" }}>
+                    <label>
+                      <span>Room ID</span>
+                      <input
+                        type="text"
+                        value={connection.roomId}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            joinOnlineRoom();
+                          }
+                        }}
+                        onChange={(event) =>
+                          setConnection((current) => ({
+                            ...current,
+                            roomId: event.target.value.replace(/\s+/g, "-"),
+                          }))
+                        }
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={!connection.roomId.trim()}
+                      onClick={() => {
+                        if (!connection.playerName.trim()) {
+                          setLobbySeatError("Name required before joining or creating a room.");
+                          return;
+                        }
+
+                        const roomId = connection.roomId.trim();
+                        const exists = roomList.some(
+                          (room) =>
+                            room.roomId.trim().toLowerCase() === roomId.toLowerCase(),
+                        );
+
+                        if (exists) {
+                          setLobbySeatError(
+                            `Room "${roomId}" already exists. Join it instead or choose another room ID.`,
+                          );
+                          return;
+                        }
+
                         setConnection((current) => ({
                           ...current,
-                          roomId: event.target.value.replace(/\s+/g, "-"),
-                        }))
-                      }
-                    />
-                  </label>
+                          roomId,
+                          playerIndex: 0,
+                        }));
+                        joinOnlineRoom(roomId);
+                      }}
+                    >
+                      Create room
+                    </button>
+                  </div>
+                  <div style={{ gridColumn: "span 2" }}>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+                      <span style={{ fontSize: "0.74rem", fontWeight: 800, color: "#666" }}>Available rooms</span>
+                    </div>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {roomList.length > 0 ? (
+                        roomList.map((room) => (
+                          <button
+                            key={room.roomId}
+                            type="button"
+                            className="secondary-button"
+                            style={{
+                              justifyContent: "space-between",
+                              width: "100%",
+                              textAlign: "left",
+                              opacity: room.isFull ? 0.65 : 1,
+                              cursor: room.isFull ? "pointer" : "pointer",
+                            }}
+                            onClick={() => joinOnlineRoom(room.roomId)}
+                          >
+                            <span>{room.roomId}</span>
+                            <span style={{ fontSize: "0.8rem", color: room.isFull ? "#b74b38" : "#4b5a4a" }}>
+                              {room.playerCount}/4 seats
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <div style={{ color: "#666", fontSize: "0.85rem" }}>
+                          No active rooms right now. Create one to invite friends.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>
-                    Your seat is assigned automatically when you join.
+                    Press Enter or choose a room above to join.
                   </p>
                 </>
               ) : (
@@ -1958,28 +2086,20 @@ function MahjongApp() {
                 {lobbySeatError}
               </p>
             ) : null}
-            {playMode === "online" && seatOptions.length === 0 ? (
-              <p style={{ fontSize: "0.9rem", color: "#666" }}>
-                All seats in this room are currently occupied.
-              </p>
+            {playMode === "solo" ? (
+              <button
+                className="full-width-button"
+                type="button"
+                disabled={!connection.playerName.trim()}
+                onClick={() => {
+                  setActiveScenario(null);
+                  setScenarioFeedback(null);
+                  setConnection((current) => ({ ...current, joined: true }));
+                }}
+              >
+                Start game
+              </button>
             ) : null}
-            <button
-              className="full-width-button"
-              type="button"
-              disabled={
-                (playMode === "online" &&
-                  seatOptions.length === 0 &&
-                  occupiedSeats.length >= 4) ||
-                !connection.playerName.trim()
-              }
-              onClick={() => {
-                setActiveScenario(null);
-                setScenarioFeedback(null);
-                setConnection((current) => ({ ...current, joined: true }));
-              }}
-            >
-              {playMode === "solo" ? "Start game" : "Join room"}
-            </button>
           </div>
         </section>
       </main>

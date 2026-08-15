@@ -486,9 +486,23 @@ wss.on("connection", (socket) => {
           return;
         }
 
-        if (!rooms.has(requestedRoomId)) {
-          // Create new room
-          rooms.set(requestedRoomId, {
+        const normalizedRoomId = String(requestedRoomId ?? "")
+          .trim()
+          .replace(/\s+/g, "-")
+          .slice(0, 32);
+
+        if (!normalizedRoomId) {
+          socket.send(
+            JSON.stringify({
+              type: "action-rejected",
+              reason: "Room ID is required.",
+            } as ServerMessage),
+          );
+          return;
+        }
+
+        if (!rooms.has(normalizedRoomId)) {
+          rooms.set(normalizedRoomId, {
             game: dealRound(),
             players: [null, null, null, null],
             chatSubscribers: new Set<WebSocket>(),
@@ -498,10 +512,10 @@ wss.on("connection", (socket) => {
             disconnectTimers: new Map(),
             seatPresence: ["ai", "ai", "ai", "ai"],
           });
-          console.log(`[Room] Created room ${requestedRoomId}`);
+          console.log(`[Room] Created room ${normalizedRoomId}`);
         }
 
-        const room = rooms.get(requestedRoomId)!;
+        const room = rooms.get(normalizedRoomId)!;
         room.lastActivity = Date.now();
         const availableSeats = room.players
           .map((player, index) =>
@@ -516,7 +530,7 @@ wss.on("connection", (socket) => {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
-                reason: `Seat ${requestedPlayerIndex} is already taken in room ${requestedRoomId}`,
+                reason: `Seat ${requestedPlayerIndex} is already taken in room ${normalizedRoomId}`,
               } as ServerMessage),
             );
             return;
@@ -525,12 +539,12 @@ wss.on("connection", (socket) => {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason: `Room ${requestedRoomId} is full`,
+              reason: `Room ${normalizedRoomId} is full`,
             } as ServerMessage),
           );
           return;
         }
-        roomId = requestedRoomId;
+        roomId = normalizedRoomId;
         playerIndex = requestedPlayerIndex ??
           availableSeats[Math.floor(Math.random() * availableSeats.length)];
         const disconnectTimer = room.disconnectTimers.get(playerIndex);
@@ -570,6 +584,30 @@ wss.on("connection", (socket) => {
             type: "room-seats-update",
             roomId: msg.roomId,
             occupiedSeats,
+          } as ServerMessage),
+        );
+      }
+
+      if (msg.type === "request-room-list") {
+        const visibleRooms = [...rooms.entries()]
+          .filter(([, room]) => room.players.some((player) => isOpenSocket(player ?? null)))
+          .map(([roomId, room]) => {
+            const occupiedSeats = room.seatPresence
+              .map((presence, index) => presence !== "ai" ? index : -1)
+              .filter((index) => index >= 0);
+            return {
+              roomId,
+              occupiedSeats,
+              playerCount: occupiedSeats.length,
+              isFull: occupiedSeats.length >= 4,
+            };
+          })
+          .sort((a, b) => a.roomId.localeCompare(b.roomId));
+
+        socket.send(
+          JSON.stringify({
+            type: "room-list-update",
+            rooms: visibleRooms,
           } as ServerMessage),
         );
       }

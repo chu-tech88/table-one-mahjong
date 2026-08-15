@@ -3441,6 +3441,23 @@ textarea {
   min-width: 0;
 }
 
+.online-room-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.online-room-row label,
+.online-room-row button {
+  width: 100%;
+}
+
+.online-room-row button {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
 .solo-table-summary {
   grid-column: span 2;
   display: grid;

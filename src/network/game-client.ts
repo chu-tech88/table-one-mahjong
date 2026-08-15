@@ -14,6 +14,7 @@ import { ClientMessage, ServerMessage, PlayerAction } from "./messages";
 export type GameClientCallbacks = {
   onSeatAssigned?: (playerIndex: number) => void;
   onGameStateUpdate?: (game: Game) => void;
+  onRoomListUpdate?: (rooms: Array<{ roomId: string; occupiedSeats: number[]; playerCount: number; isFull: boolean }>) => void;
   onActionRejected?: (reason: string) => void;
   onDisconnected?: () => void;
   onPlayerTakenOver?: (playerIndex: number) => void;
@@ -144,6 +145,12 @@ export class GameClient {
     });
   }
 
+  requestRoomList() {
+    this.sendMessage({
+      type: "request-room-list",
+    });
+  }
+
   leaveRoom() {
     this.sendMessage({
       type: "leave-room",
@@ -164,6 +171,10 @@ export class GameClient {
     if (message.type === "room-joined") {
       this.playerIndex = message.playerIndex;
       this.callbacks.onSeatAssigned?.(message.playerIndex);
+    }
+
+    if (message.type === "room-list-update") {
+      this.callbacks.onRoomListUpdate?.(message.rooms);
     }
 
     if (message.type === "lobby-chat-message") {
