@@ -5110,6 +5110,12 @@ textarea {
   min-width: 0;
 }
 
+.human-hand .tile:disabled {
+  opacity: 1 !important;
+  filter: none !important;
+  -webkit-text-fill-color: currentColor;
+}
+
 @media (max-width: 1199px) {
   .table {
     --side-wall-width: clamp(17px, 1.9vw, 22px);
@@ -5620,6 +5626,30 @@ textarea {
   }
 }
 
+@media (max-width: 760px) and (orientation: portrait) {
+  .table {
+    --hand-tile-w: clamp(18px, 5.65vw, 23px);
+    --hand-tile-h: clamp(40px, 11.8vw, 50px);
+  }
+
+  .human-hand {
+    width: 100%;
+    gap: 0;
+    padding-inline: 2px;
+  }
+
+  .human-hand .tile {
+    flex: 0 0 var(--hand-tile-w);
+    width: var(--hand-tile-w);
+    max-width: var(--hand-tile-w);
+    height: var(--hand-tile-h);
+  }
+
+  .human-hand .tile + .tile {
+    margin-left: -1px;
+  }
+}
+
 @media (max-width: 360px) {
   .action-bar button {
     min-width: 54px;
@@ -5641,9 +5671,52 @@ textarea {
         20vw,
         150px
       );
-    grid-template-rows: 34px 48px minmax(44px, 1fr) minmax(184px, 54svh);
+    grid-template-rows: 28px 42px minmax(38px, 1fr) minmax(164px, 1.45fr);
     gap: 3px;
-    padding: 4px 6px 6px;
+    padding: 2px 6px max(6px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .table-discard-grid {
+    inset: 0 2px;
+    grid-template-areas:
+      "top top top"
+      "left . right";
+    grid-template-rows: minmax(50px, 1fr) minmax(38px, 0.8fr);
+    gap: 2px;
+  }
+
+  .discard-lane-0 {
+    display: none;
+  }
+
+  .discard-lane-2 {
+    align-self: start;
+    width: min(280px, 96%);
+    min-height: 48px;
+    overflow: visible;
+  }
+
+  .discard-lane-2 .discard-river {
+    min-height: 32px;
+    overflow: visible;
+  }
+
+  .discard-lane-2 .discard-river .tile {
+    width: 24px;
+    height: 32px;
+  }
+
+  .claim-decision-active .table-discard-grid .discard-river .tile {
+    opacity: 0.28;
+    filter: saturate(0.35);
+  }
+
+  .claim-decision-active
+    .table-discard-grid
+    .discard-river
+    .tile.discard-latest {
+    opacity: 1;
+    filter: none;
   }
 
   .opponent-rack,
@@ -5675,12 +5748,12 @@ textarea {
   }
 
   .human-seat {
-    grid-template-rows: 22px 24px 24px minmax(52px, 1fr) 52px;
+    grid-template-rows: 20px 24px 20px minmax(44px, 1fr) 48px;
     gap: 2px;
   }
 
   .human-name {
-    min-height: 22px;
+    min-height: 20px;
     padding-block: 1px;
   }
 
@@ -5691,25 +5764,34 @@ textarea {
   }
 
   .human-revealed-shelf {
-    height: 24px;
+    height: 20px;
     min-height: 0;
     padding-bottom: 1px;
   }
 
+  .human-seat .meld .tile,
+  .human-seat .flower-row .tile {
+    width: 14px;
+    height: 19px;
+    border-bottom-width: 2px;
+  }
+
   .human-hand {
-    padding: 5px 1px 0;
+    padding: 0 1px;
   }
 
   .hand-actions {
     position: relative;
     z-index: 4;
-    min-height: 52px;
-    padding: 2px 2px max(6px, env(safe-area-inset-bottom, 0px));
+    align-items: flex-start;
+    min-height: 48px;
+    padding: 2px 2px 8px;
     background: #20723f;
     overflow: visible;
   }
 
   .action-bar button {
-    min-height: 44px;
+    height: 38px;
+    min-height: 38px;
   }
 }

@@ -286,7 +286,7 @@ assert.match(
 );
 assert.match(
   css,
-  /Mobile play-and-inspect mode[\s\S]*@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)\s*\{\s*\.table\s*\{[^}]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"left center right"\s*"human human human";[^}]*grid-template-rows:[^;]*minmax\(184px, 54svh\);/,
+  /Mobile play-and-inspect mode[\s\S]*@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)\s*\{\s*\.table\s*\{[^}]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"left center right"\s*"human human human";[^}]*grid-template-rows:[^;]*minmax\(164px, 1\.45fr\);/,
   "The final mobile landscape override must explicitly reserve a visible player row",
 );
 assert.match(
@@ -306,6 +306,11 @@ assert.match(
 );
 assert.match(
   css,
+  /\.human-hand \.tile:disabled\s*\{[^}]*opacity:\s*1 !important;[^}]*filter:\s*none !important;/,
+  "Disabled interaction states must not fade the player's hand on mobile Safari",
+);
+assert.match(
+  css,
   /\.mobile-activity-ribbon\.is-expanded\s*\{[^}]*justify-items:\s*center;[^}]*text-align:\s*center;/,
   "Expanded mobile table activity must stay centered",
 );
@@ -313,6 +318,16 @@ assert.match(
   css,
   /@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)[\s\S]*?\.opponent-top \.seat-heading\s*\{[^}]*width:\s*clamp\(92px, 20vw, 150px\);/,
   "The top opponent nameplate must match the responsive side-seat width",
+);
+assert.match(
+  css,
+  /@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)[\s\S]*?\.discard-lane-0\s*\{[^}]*display:\s*none;[\s\S]*?\.discard-lane-2\s*\{[^}]*width:\s*min\(280px, 96%\);/,
+  "Short landscape screens must trade the player's discard lane for a visible top opponent river",
+);
+assert.match(
+  css,
+  /@media \(max-width: 760px\) and \(orientation: portrait\)[\s\S]*?--hand-tile-w:\s*clamp\(18px, 5\.65vw, 23px\);[\s\S]*?\.human-hand \.tile\s*\{[^}]*flex:\s*0 0 var\(--hand-tile-w\);/,
+  "Portrait phones must enlarge the playable hand without overflowing a drawn 18-tile hand",
 );
 assert.match(
   css,
