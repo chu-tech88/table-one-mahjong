@@ -267,6 +267,11 @@ assert.match(
 );
 assert.match(
   css,
+  /Mobile play-and-inspect mode[\s\S]*@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)\s*\{\s*\.table\s*\{[^}]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"left center right"\s*"human human human";[^}]*grid-template-rows:[^;]*minmax\(170px, 50svh\);/,
+  "The final mobile landscape override must explicitly reserve a visible player row",
+);
+assert.match(
+  css,
   /\.table-discard-grid\s*\{[^}]*grid-template-areas:\s*"top top top"\s*"left \. right"\s*"bottom bottom bottom";/s,
   "North and south discard lanes must expand across the available center field",
 );
