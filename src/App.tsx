@@ -1629,6 +1629,37 @@ function MahjongApp({
     undefined,
   );
   const human = game?.players[SELF];
+  const humanName = human?.name.trim();
+  const soloHumanName =
+    humanName && humanName.toLowerCase() !== "you"
+      ? humanName
+      : connection.playerName.trim() || "Player";
+  const humanDisplayName =
+    playMode === "solo" ? soloHumanName : `${humanName || "You"} (You)`;
+
+  useEffect(() => {
+    const requestedName = connection.playerName.trim();
+    if (
+      playMode !== "solo" ||
+      !connection.joined ||
+      activeScenario ||
+      !requestedName ||
+      !human ||
+      human.name.trim().toLowerCase() !== "you"
+    ) {
+      return;
+    }
+    updatePlayerName(SELF, requestedName);
+  }, [
+    SELF,
+    activeScenario,
+    connection.joined,
+    connection.playerName,
+    human,
+    playMode,
+    updatePlayerName,
+  ]);
+
   const effectiveSelectedTileId =
     uiSelectedTileId ?? selectedTileId ?? game?.selectedId;
   const concealedHumanKongs = human ? concealedKongOptions(human.hand) : [];
@@ -2736,7 +2767,7 @@ function MahjongApp({
                     Your turn
                   </span>
                 ) : null}
-                <strong>{human.name} (You)</strong>
+                <strong>{humanDisplayName}</strong>
               </button>
               <div className="seat-badges">
                 {game.dealer === SELF ? (

@@ -185,6 +185,11 @@ assert.doesNotMatch(
   /<span>\{human\.(?:flowers|hand)\.length\} (?:flowers|in hand)<\/span>/,
   "The human profile should show score without redundant flower and hand counters",
 );
+assert.match(
+  app,
+  /const humanDisplayName =\s*playMode === "solo" \? soloHumanName : `\$\{humanName \|\| "You"\} \(You\)`;[\s\S]*?<strong>\{humanDisplayName\}<\/strong>/,
+  "Solo nameplates must show the player's name without a duplicate You label",
+);
 assert.doesNotMatch(
   app,
   /<span>Seat<\/span>[\s\S]*?<select/,
