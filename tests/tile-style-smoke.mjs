@@ -267,7 +267,7 @@ assert.match(
 );
 assert.match(
   css,
-  /Mobile play-and-inspect mode[\s\S]*@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)\s*\{\s*\.table\s*\{[^}]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"left center right"\s*"human human human";[^}]*grid-template-rows:[^;]*minmax\(176px, 52svh\);/,
+  /Mobile play-and-inspect mode[\s\S]*@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)\s*\{\s*\.table\s*\{[^}]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"left center right"\s*"human human human";[^}]*grid-template-rows:[^;]*minmax\(184px, 54svh\);/,
   "The final mobile landscape override must explicitly reserve a visible player row",
 );
 assert.match(
@@ -282,8 +282,8 @@ assert.match(
 );
 assert.match(
   css,
-  /\.claim-decision-active \.human-hand > \.tile\s*\{[^}]*opacity:\s*0\.36;[^}]*filter:\s*saturate\(0\.45\);[^}]*\}[\s\S]*\.claim-decision-active \.mobile-activity-tile\s*\{[^}]*opacity:\s*1;[^}]*filter:\s*none;/,
-  "Claim decisions must soften the hand while preserving the offered tile",
+  /\.claim-decision-active \.table-discard-grid \.discard-river \.tile\s*\{[^}]*opacity:\s*0\.28;[^}]*filter:\s*saturate\(0\.35\);[\s\S]*?\.tile\.discard-latest\s*\{[^}]*opacity:\s*1;[^}]*filter:\s*none;/,
+  "Claim decisions must soften the discard field while preserving the offered tile",
 );
 assert.match(
   css,
@@ -294,6 +294,11 @@ assert.match(
   css,
   /@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)[\s\S]*?\.opponent-top \.seat-heading\s*\{[^}]*width:\s*clamp\(92px, 20vw, 150px\);/,
   "The top opponent nameplate must match the responsive side-seat width",
+);
+assert.match(
+  css,
+  /@media \(max-width: 1100px\)[\s\S]*?\.action-bar button\s*\{[^}]*flex:\s*0 0 clamp\(84px, 18vw, 112px\);[^}]*width:\s*clamp\(84px, 18vw, 112px\);/,
+  "Compact action buttons must use equal responsive dimensions",
 );
 assert.match(
   css,
