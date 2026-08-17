@@ -1636,6 +1636,12 @@ function MahjongApp({
       : connection.playerName.trim() || "Player";
   const humanDisplayName =
     playMode === "solo" ? soloHumanName : `${humanName || "You"} (You)`;
+  const humanHandDensity =
+    (human?.hand.length ?? 17) >= 16
+      ? "human-hand-density-compact"
+      : (human?.hand.length ?? 17) >= 13
+        ? "human-hand-density-standard"
+        : "human-hand-density-roomy";
 
   useEffect(() => {
     const requestedName = connection.playerName.trim();
@@ -2849,7 +2855,7 @@ function MahjongApp({
                 </div>
               </div>
             ) : null}
-            <div className="human-hand">
+            <div className={`human-hand ${humanHandDensity}`}>
               {human.hand.map((tile) => (
                 <TileView
                   key={tile.id}

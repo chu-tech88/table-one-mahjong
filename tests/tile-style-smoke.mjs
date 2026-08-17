@@ -240,6 +240,16 @@ assert.match(
   /@media \(max-width: 760px\) and \(orientation: portrait\)[\s\S]*grid-template-rows:\s*44px 70px 70px minmax\(140px, 1fr\)[\s\S]*\.opponent-hand-count\s*\{[^}]*display:\s*none;/s,
   "Portrait phones must trade opponent tile counts for more discard space",
 );
+assert.match(
+  css,
+  /@media \(max-width: 760px\) and \(orientation: portrait\)[\s\S]*\.opponent-left \.opponent-revealed-strip \.seat-sets-row,[\s\S]*?flex-direction:\s*row;[\s\S]*?\.human-hand-density-roomy \.tile\s*\{[^}]*max-width:\s*34px;[^}]*height:\s*48px;/s,
+  "Portrait side seats must use horizontal reveals while sparse hands grow larger",
+);
+assert.match(
+  app,
+  /humanHandDensity[\s\S]*human-hand-density-compact[\s\S]*human-hand-density-standard[\s\S]*human-hand-density-roomy[\s\S]*className=\{`human-hand \$\{humanHandDensity\}`\}/,
+  "The human hand must expose count-aware portrait sizing",
+);
 assert.doesNotMatch(
   app,
   /className="drawn-badge">New</,
@@ -357,8 +367,8 @@ assert.match(
 );
 assert.match(
   css,
-  /@media \(max-width: 760px\) and \(orientation: portrait\)[\s\S]*?--hand-tile-w:\s*clamp\(19px, 6vw, 25px\);[\s\S]*?--hand-tile-h:\s*clamp\(34px, 9\.8vw, 42px\);[\s\S]*?margin-left:\s*-3px;/,
-  "Portrait phones must use the available width without stretching the playable hand",
+  /@media \(max-width: 760px\) and \(orientation: portrait\)[\s\S]*?\.human-hand \.tile\s*\{[^}]*flex:\s*1 1 0;[^}]*width:\s*auto;[^}]*touch-action:\s*manipulation;[\s\S]*?\.human-hand \.tile \+ \.tile\s*\{[^}]*margin-left:\s*0;/,
+  "Portrait phones must expand the playable hand without overlapping touch targets",
 );
 assert.match(
   css,

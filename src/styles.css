@@ -5686,21 +5686,67 @@ textarea {
     grid-row: 1;
   }
 
+  .opponent-left .opponent-revealed-strip,
+  .opponent-right .opponent-revealed-strip {
+    align-self: start;
+    justify-content: center;
+    width: 100%;
+    max-height: 35px;
+    padding: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .opponent-left .opponent-revealed-strip .seat-sets-row,
+  .opponent-right .opponent-revealed-strip .seat-sets-row,
+  .opponent-left .opponent-revealed-strip .flower-row,
+  .opponent-right .opponent-revealed-strip .flower-row,
+  .opponent-left .opponent-revealed-strip .meld-row,
+  .opponent-right .opponent-revealed-strip .meld-row,
+  .opponent-left .opponent-revealed-strip .meld,
+  .opponent-right .opponent-revealed-strip .meld,
+  .opponent-left .opponent-revealed-strip .meld div,
+  .opponent-right .opponent-revealed-strip .meld div {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+  }
+
   .human-hand {
     width: 100%;
-    gap: 0;
-    padding-inline: 2px;
+    gap: 2px;
+    padding-inline: 4px;
   }
 
   .human-hand .tile {
-    flex: 0 0 var(--hand-tile-w);
-    width: var(--hand-tile-w);
-    max-width: var(--hand-tile-w);
-    height: var(--hand-tile-h);
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+    touch-action: manipulation;
   }
 
   .human-hand .tile + .tile {
-    margin-left: -3px;
+    margin-left: 0;
+  }
+
+  .human-hand-density-compact {
+    gap: 0;
+    padding-inline: 1px;
+  }
+
+  .human-hand-density-compact .tile {
+    max-width: 26px;
+    height: 40px;
+  }
+
+  .human-hand-density-standard .tile {
+    max-width: 30px;
+    height: 44px;
+  }
+
+  .human-hand-density-roomy .tile {
+    max-width: 34px;
+    height: 48px;
   }
 
   .drawn-badge {
