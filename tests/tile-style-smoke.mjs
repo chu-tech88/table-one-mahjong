@@ -267,8 +267,33 @@ assert.match(
 );
 assert.match(
   css,
-  /Mobile play-and-inspect mode[\s\S]*@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)\s*\{\s*\.table\s*\{[^}]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"left center right"\s*"human human human";[^}]*grid-template-rows:[^;]*minmax\(170px, 50svh\);/,
+  /Mobile play-and-inspect mode[\s\S]*@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)\s*\{\s*\.table\s*\{[^}]*grid-template-areas:\s*"toolbar toolbar toolbar"\s*"top top top"\s*"left center right"\s*"human human human";[^}]*grid-template-rows:[^;]*minmax\(176px, 52svh\);/,
   "The final mobile landscape override must explicitly reserve a visible player row",
+);
+assert.match(
+  app,
+  /className=\{`table \$\{isSelfClaimTurn \? "claim-decision-active" : ""\}`\}/,
+  "A human claim decision must expose a dedicated table focus state",
+);
+assert.match(
+  app,
+  /const focusedActivityTile = isSelfClaimTurn\s*\? game\?\.pendingClaim\?\.tile\s*:\s*activity\.tile;[\s\S]*?<TileFace tile=\{focusedActivityTile\}/,
+  "Claim prompts must feature the authoritative offered tile",
+);
+assert.match(
+  css,
+  /\.claim-decision-active \.human-hand > \.tile\s*\{[^}]*opacity:\s*0\.36;[^}]*filter:\s*saturate\(0\.45\);[^}]*\}[\s\S]*\.claim-decision-active \.mobile-activity-tile\s*\{[^}]*opacity:\s*1;[^}]*filter:\s*none;/,
+  "Claim decisions must soften the hand while preserving the offered tile",
+);
+assert.match(
+  css,
+  /\.mobile-activity-ribbon\.is-expanded\s*\{[^}]*justify-items:\s*center;[^}]*text-align:\s*center;/,
+  "Expanded mobile table activity must stay centered",
+);
+assert.match(
+  css,
+  /@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)[\s\S]*?\.opponent-top \.seat-heading\s*\{[^}]*width:\s*clamp\(92px, 20vw, 150px\);/,
+  "The top opponent nameplate must match the responsive side-seat width",
 );
 assert.match(
   css,

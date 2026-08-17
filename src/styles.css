@@ -5389,11 +5389,60 @@ textarea {
   }
 
   .mobile-activity-ribbon {
+    position: relative;
     min-height: 34px;
     transition:
       width 180ms ease,
       min-height 180ms ease,
       background-color 180ms ease;
+  }
+
+  .mobile-activity-ribbon.is-expanded {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    padding-inline: clamp(58px, 15vw, 112px);
+    text-align: center;
+  }
+
+  .mobile-activity-ribbon.is-expanded > span:first-child {
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    transform: translateY(-50%);
+  }
+
+  .mobile-activity-ribbon.is-expanded > strong {
+    grid-column: 1;
+    width: 100%;
+    text-align: center;
+  }
+
+  .mobile-activity-ribbon.is-expanded > .mobile-activity-tile {
+    position: absolute;
+    top: 50%;
+    right: 7px;
+    transform: translateY(-50%);
+  }
+
+  .claim-decision-active .human-hand > .tile {
+    opacity: 0.36;
+    filter: saturate(0.45);
+  }
+
+  .claim-decision-active .mobile-activity-ribbon.is-expanded {
+    z-index: 6;
+    border-color: rgba(255, 220, 69, 0.72);
+    background: rgba(4, 35, 15, 0.9);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+  }
+
+  .claim-decision-active .mobile-activity-tile {
+    opacity: 1;
+    filter: none;
+    box-shadow:
+      0 0 0 2px rgba(255, 220, 69, 0.76),
+      0 4px 10px rgba(0, 0, 0, 0.3);
+    transform: translateY(-50%) scale(1.12);
   }
 
   .mobile-activity-ribbon.is-compact {
@@ -5502,7 +5551,7 @@ textarea {
 @media (max-width: 1100px) and (max-height: 600px) and (orientation: landscape) {
   .table {
     --hand-tile-w: clamp(24px, 5vw, 46px);
-    --hand-tile-h: clamp(38px, 13svh, 48px);
+    --hand-tile-h: clamp(36px, 12svh, 44px);
     grid-template-areas:
       "toolbar toolbar toolbar"
       "top top top"
@@ -5513,7 +5562,7 @@ textarea {
         20vw,
         150px
       );
-    grid-template-rows: 34px 46px minmax(48px, 1fr) minmax(170px, 50svh);
+    grid-template-rows: 34px 48px minmax(48px, 1fr) minmax(176px, 52svh);
     gap: 3px;
     padding: 4px 6px 6px;
   }
@@ -5528,6 +5577,18 @@ textarea {
     display: none;
   }
 
+  .opponent .seat-heading,
+  .opponent-top .seat-heading,
+  .opponent-left .seat-heading,
+  .opponent-right .seat-heading {
+    min-height: 22px;
+    padding-block: 2px;
+  }
+
+  .opponent-top .seat-heading {
+    width: clamp(92px, 20vw, 150px);
+  }
+
   .opponent-revealed-strip,
   .opponent-left .opponent-revealed-strip,
   .opponent-right .opponent-revealed-strip {
@@ -5535,7 +5596,7 @@ textarea {
   }
 
   .human-seat {
-    grid-template-rows: 22px 24px 24px minmax(46px, 1fr) 44px;
+    grid-template-rows: 22px 24px 24px minmax(52px, 1fr) 44px;
     gap: 2px;
   }
 
@@ -5561,8 +5622,11 @@ textarea {
   }
 
   .hand-actions {
+    position: relative;
+    z-index: 4;
     min-height: 44px;
     padding: 0 2px max(3px, env(safe-area-inset-bottom, 0px));
+    background: #20723f;
   }
 
   .action-bar button {

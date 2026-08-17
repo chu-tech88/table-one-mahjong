@@ -1579,6 +1579,9 @@ function MahjongApp() {
   const currentClaimer = game?.pendingClaim?.claimer;
   const isSelfDiscardTurn = currentPhase === "discard" && currentTurn === SELF;
   const isSelfClaimTurn = currentPhase === "claim" && currentClaimer === SELF;
+  const focusedActivityTile = isSelfClaimTurn
+    ? game?.pendingClaim?.tile
+    : activity.tile;
   const activityIsTurnCall = /is taking a turn\.?$/i.test(activity.text);
   const activityIndicatesSelfAction =
     activity.player === SELF &&
@@ -2473,7 +2476,10 @@ function MahjongApp() {
       </header>
 
       <section className="game-layout">
-        <section className="table" aria-label="Mahjong table">
+        <section
+          className={`table ${isSelfClaimTurn ? "claim-decision-active" : ""}`}
+          aria-label="Mahjong table"
+        >
           <div className="board-toolbar">
             <div className="table-brand">
               <strong>Table One Mahjong</strong>
@@ -2582,12 +2588,12 @@ function MahjongApp() {
                 {mobileActivityExpanded ? centerStatusLabel : "Activity"}
               </span>
               <strong>{activityText}</strong>
-              {activity.tile ? (
+              {focusedActivityTile ? (
                 <span
-                  className={`tile mobile-activity-tile ${activity.tile.suit}`}
-                  aria-label={activity.tile.label}
+                  className={`tile mobile-activity-tile ${focusedActivityTile.suit}`}
+                  aria-label={focusedActivityTile.label}
                 >
-                  <TileFace tile={activity.tile} />
+                  <TileFace tile={focusedActivityTile} />
                 </span>
               ) : null}
               <i className="activity-open-mark" aria-hidden="true">
@@ -2707,9 +2713,9 @@ function MahjongApp() {
                 </span>
                 <strong>{activityText}</strong>
               </button>
-              {activity.tile ? (
+              {focusedActivityTile ? (
                 <div className="last-discard">
-                  <TileView tile={activity.tile} large disabled />
+                  <TileView tile={focusedActivityTile} large disabled />
                 </div>
               ) : null}
             </div>
