@@ -90,10 +90,10 @@ assert.match(
   /function FlowerArtwork[\s\S]*rank === 1[\s\S]*rank === 2[\s\S]*rank === 3[\s\S]*rank === 4[\s\S]*rank === 5[\s\S]*rank === 6[\s\S]*rank === 7[\s\S]*winter-artwork/,
   "All eight flower and season tiles must have distinct traditional artwork",
 );
-assert.match(
-  css,
-  /\.lobby-chat-panel\s*\{[^}]*top:\s*clamp\([^;]+;[^}]*right:\s*clamp\(/s,
-  "Multiplayer chat must be anchored beneath the upper-right toolbar",
+assert.doesNotMatch(
+  app,
+  /lobby-chat-panel|join-lobby-chat|submitLobbyChat|chatSocketRef/,
+  "Archived multiplayer chat must not connect or occupy the active game UI",
 );
 assert.match(
   app,
@@ -102,8 +102,8 @@ assert.match(
 );
 assert.match(
   css,
-  /@media \(max-width: 900px\)[\s\S]*\.table-discard-lane \.discard-river \.tile:nth-of-type\(n \+ 5\)[\s\S]*\.discard-overflow-count\s*\{\s*display:\s*grid;/,
-  "Tablet and mobile rivers must prioritize the four newest discards",
+  /@media \(max-width: 1100px\)[\s\S]*\.table-discard-lane \.discard-river \.tile:nth-of-type\(n \+ 4\)[\s\S]*\.discard-overflow-count\s*\{\s*display:\s*grid;/,
+  "Tablet and mobile rivers must prioritize the three newest discards",
 );
 assert.match(
   css,
@@ -112,8 +112,8 @@ assert.match(
 );
 assert.match(
   app,
-  /table-notice-floating notice-warning[\s\S]*notice-\$\{activityNoticeTone\}[\s\S]*notice-count/,
-  "Turn, claim, connection, score, and chat events must share one notification system",
+  /table-notice-floating notice-warning[\s\S]*notice-\$\{activityNoticeTone\}/,
+  "Turn, claim, connection, and score events must share one notification system",
 );
 assert.match(
   app,
@@ -204,6 +204,31 @@ assert.match(
   app,
   /className=\{`mobile-activity-ribbon[\s\S]*?centerStatusLabel[\s\S]*?activityText/,
   "Compact layouts must retain the table activity status near the player's hand",
+);
+assert.match(
+  app,
+  /mobileActivityExpanded[\s\S]*setTimeout[\s\S]*2600[\s\S]*is-compact/,
+  "Routine mobile activity must collapse after briefly surfacing the update",
+);
+assert.match(
+  app,
+  /className="opponent-hand-count"[\s\S]*player\.hand\.length[\s\S]*className="opponent-wall-row"/,
+  "Compact seats must replace decorative walls with a useful tile count",
+);
+assert.match(
+  css,
+  /@media \(max-width: 1100px\)[\s\S]*\.opponent-wall-row[\s\S]*display:\s*none;[\s\S]*\.opponent-hand-count\s*\{[\s\S]*display:\s*inline-flex;/,
+  "Small screens must hide decorative opponent walls and show tile counts",
+);
+assert.match(
+  css,
+  /@media \(max-width: 1100px\)[\s\S]*\.action-bar button\s*\{[^}]*min-height:\s*44px;/s,
+  "Mobile action buttons must meet a comfortable touch-target height",
+);
+assert.match(
+  app,
+  /function PlayerInspector[\s\S]*player\.discards\.map[\s\S]*<SeatSets flowers=\{player\.flowers\} melds=\{player\.melds\}/,
+  "The player inspector must retain complete discard and revealed-set history",
 );
 assert.match(
   app,

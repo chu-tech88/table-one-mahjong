@@ -40,12 +40,6 @@ import {
   saveScenarioSnapshot,
   type ScenarioSnapshot,
 } from "./game-logic/snapshot";
-import {
-  clearLobbyChatHistory,
-  getStoredLobbyMessages,
-  saveLobbyMessages,
-  type StoredLobbyChatMessage,
-} from "./game-logic/lobbyChatStorage";
 import html2canvas from "html2canvas";
 import oneBambooBird from "./assets/one-bamboo-bird.png";
 
@@ -617,12 +611,12 @@ function DiscardRiver({
           disabled
         />
       ))}
-      {discards.length > 4 ? (
+      {discards.length > 3 ? (
         <span
           className="discard-overflow-count"
-          aria-label={`${discards.length - 4} earlier discards`}
+          aria-label={`${discards.length - 3} earlier discards`}
         >
-          +{discards.length - 4}
+          +{discards.length - 3}
         </span>
       ) : null}
     </div>
@@ -756,6 +750,13 @@ function Opponent({
         <span>{player.score} pts</span>
       </div>
       <div className="opponent-rack">
+        <span
+          className="opponent-hand-count"
+          aria-label={`${player.name} has ${player.hand.length} concealed tiles`}
+        >
+          <i aria-hidden="true" />
+          {player.hand.length} tiles
+        </span>
         <div
           className="opponent-wall-row"
           aria-label={`${player.name} has ${player.hand.length} concealed tiles`}
@@ -805,7 +806,11 @@ function PlayerInspector({
   onClose: () => void;
 }) {
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <div
+      className="modal-backdrop player-inspector-backdrop"
+      role="presentation"
+      onMouseDown={onClose}
+    >
       <section
         className="player-inspector"
         role="dialog"
@@ -1036,17 +1041,9 @@ function MahjongApp() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activityHistoryOpen, setActivityHistoryOpen] = useState(false);
+  const [mobileActivityExpanded, setMobileActivityExpanded] = useState(true);
   const [inspectedSeat, setInspectedSeat] = useState<number | undefined>();
   const [choosingChi, setChoosingChi] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const chatSocketRef = useRef<WebSocket | null>(null);
-  const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
-  const [chatDraft, setChatDraft] = useState("");
-  const [chatMessages, setChatMessages] = useState<StoredLobbyChatMessage[]>(
-    [],
-  );
-  const [unreadChatCount, setUnreadChatCount] = useState(0);
-  const activeChatRoomRef = useRef<string | null>(null);
   const [choosingKong, setChoosingKong] = useState(false);
   const [selectedKongCode, setSelectedKongCode] = useState<
     string | undefined
@@ -1358,27 +1355,6 @@ function MahjongApp() {
   }, [game?.phase, game?.turn, SELF, humanKongs.join("|")]);
 
   useEffect(() => {
-    if (!chatOpen) return;
-    setUnreadChatCount(0);
-    chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatOpen, chatMessages.length]);
-
-  useEffect(() => {
-    if (playMode !== "online" || !connection.joined || !connection.roomId) {
-      activeChatRoomRef.current = null;
-      return;
-    }
-
-    if (activeChatRoomRef.current === connection.roomId) {
-      return;
-    }
-
-    setChatMessages([]);
-    setUnreadChatCount(0);
-    activeChatRoomRef.current = connection.roomId;
-  }, [playMode, connection.joined, connection.roomId]);
-
-  useEffect(() => {
     if (!game || !human) {
       setUiSelectedTileId(undefined);
       return;
@@ -1395,102 +1371,6 @@ function MahjongApp() {
       setUiSelectedTileId(undefined);
     }
   }, [game?.turn, game?.phase, human, uiSelectedTileId]);
-
-  useEffect(() => {
-    if (playMode !== "online" || !connection.joined) {
-      chatSocketRef.current?.close();
-      chatSocketRef.current = null;
-      setChatDraft("");
-      activeChatRoomRef.current = null;
-      return;
-    }
-
-    const socket = new WebSocket(DEFAULT_SERVER_URL);
-    chatSocketRef.current = socket;
-
-    const handleMessage = (event: MessageEvent) => {
-      if (typeof event.data !== "string") return;
-      try {
-        const payload = JSON.parse(event.data) as {
-          type?: string;
-          message?: unknown;
-        };
-        if (
-          payload.type === "lobby-chat-message" &&
-          typeof payload.message === "object" &&
-          payload.message !== null
-        ) {
-          const messagePayload = payload.message as {
-            id?: string;
-            playerIndex?: number;
-            playerName?: string;
-            text?: string;
-            createdAt?: number;
-          };
-          const normalizedMessage = {
-            id:
-              messagePayload.id ??
-              `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-            playerIndex: messagePayload.playerIndex ?? -1,
-            playerName: messagePayload.playerName ?? "Player",
-            text: messagePayload.text ?? "",
-            createdAt: messagePayload.createdAt ?? Date.now(),
-          };
-          setChatMessages((current) => {
-            const next = [...current, normalizedMessage].slice(-50);
-            saveLobbyMessages(connection.roomId, next);
-            return next;
-          });
-          if (messagePayload.playerIndex !== connection.playerIndex) {
-            setUnreadChatCount((current) => Math.min(99, current + 1));
-          }
-        }
-
-        if (
-          payload.type === "system" &&
-          typeof payload.message === "string" &&
-          payload.message === "Room reset: chat cleared"
-        ) {
-          clearLobbyChatHistory(connection.roomId);
-          activeChatRoomRef.current = null;
-          setChatMessages([]);
-          setUnreadChatCount(0);
-        }
-      } catch {
-        // Ignore malformed chat payloads.
-      }
-    };
-
-    socket.addEventListener("open", () => {
-      socket.send(
-        JSON.stringify({
-          type: "join-lobby-chat",
-          roomId: connection.roomId,
-          playerIndex: connection.playerIndex,
-          playerName: connection.playerName.trim() || "Player",
-        }),
-      );
-    });
-    socket.addEventListener("message", handleMessage);
-    socket.addEventListener("close", () => {
-      if (chatSocketRef.current === socket) {
-        chatSocketRef.current = null;
-      }
-    });
-
-    return () => {
-      socket.close();
-      if (chatSocketRef.current === socket) {
-        chatSocketRef.current = null;
-      }
-    };
-  }, [
-    playMode,
-    connection.joined,
-    connection.roomId,
-    connection.playerIndex,
-    connection.playerName,
-  ]);
 
   const nextDealer = game ? nextDealerForRound(game) : SELF;
   const dealerStatus = game
@@ -1557,6 +1437,23 @@ function MahjongApp() {
       : currentPhase === "claim"
         ? "decision"
         : "info";
+
+  useEffect(() => {
+    const requiresAttention = isSelfDiscardTurn || isSelfClaimTurn;
+    setMobileActivityExpanded(true);
+    if (requiresAttention) return;
+
+    const timer = window.setTimeout(() => {
+      setMobileActivityExpanded(false);
+    }, 2600);
+    return () => window.clearTimeout(timer);
+  }, [
+    game?.actionSeq,
+    game?.round,
+    isSelfDiscardTurn,
+    isSelfClaimTurn,
+  ]);
+
   const ruleRows = useMemo(() => [["Base win", "baseWin"]] as const, []);
 
   const [houseDraft, setHouseDraft] = useState({
@@ -2036,36 +1933,6 @@ function MahjongApp() {
     );
   }
 
-  const clearLobbyChatForCurrentRoom = () => {
-    if (!connection.roomId) return;
-    clearLobbyChatHistory(connection.roomId);
-    setChatMessages([]);
-  };
-
-  const submitLobbyChat = () => {
-    const trimmed = chatDraft.trim();
-    const socket = chatSocketRef.current;
-    if (!trimmed || playMode !== "online") {
-      return;
-    }
-
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      setChatDraft("");
-      return;
-    }
-
-    socket.send(
-      JSON.stringify({
-        type: "lobby-chat",
-        roomId: connection.roomId,
-        playerIndex: connection.playerIndex,
-        playerName: connection.playerName.trim() || "Player",
-        text: trimmed,
-      }),
-    );
-    setChatDraft("");
-  };
-
   const claimActions =
     game.phase === "claim" && game.pendingClaim?.claimer === SELF ? (
       <>
@@ -2195,11 +2062,6 @@ function MahjongApp() {
     ) : null;
 
   const actionControls = game.phase === "claim" ? claimActions : defaultActions;
-  const chatPreviewText =
-    chatMessages.length > 0
-      ? `${chatMessages[chatMessages.length - 1].playerName}: ${chatMessages[chatMessages.length - 1].text}`
-      : "No messages yet";
-
   const kongChoiceControls =
     choosingKong &&
     game.phase === "discard" &&
@@ -2374,12 +2236,14 @@ function MahjongApp() {
               </div>
             </div>
             <button
-              className={`mobile-activity-ribbon notice-${activityNoticeTone}`}
+              className={`mobile-activity-ribbon notice-${activityNoticeTone} ${mobileActivityExpanded ? "is-expanded" : "is-compact"}`}
               aria-live="polite"
               type="button"
               onClick={() => setActivityHistoryOpen(true)}
             >
-              <span>{centerStatusLabel}</span>
+              <span>
+                {mobileActivityExpanded ? centerStatusLabel : "Activity"}
+              </span>
               <strong>{activityText}</strong>
               {activity.tile ? (
                 <span
@@ -2389,6 +2253,9 @@ function MahjongApp() {
                   <TileFace tile={activity.tile} />
                 </span>
               ) : null}
+              <i className="activity-open-mark" aria-hidden="true">
+                ›
+              </i>
             </button>
             <div
               className="human-revealed-shelf"
@@ -2510,59 +2377,6 @@ function MahjongApp() {
               ) : null}
             </div>
           </div>
-          {playMode === "online" ? (
-            <div className="lobby-chat-panel" aria-label="Lobby chat">
-              <button
-                className="lobby-chat-toggle"
-                type="button"
-                onClick={() => setChatOpen((current) => !current)}
-              >
-                <span>Chat</span>
-                {unreadChatCount > 0 && !chatOpen ? (
-                  <em className="notice-count" aria-label={`${unreadChatCount} unread messages`}>
-                    {unreadChatCount}
-                  </em>
-                ) : null}
-                <strong>{chatPreviewText}</strong>
-              </button>
-              {chatOpen ? (
-                <div className="lobby-chat-card">
-                  <div className="lobby-chat-messages" aria-live="polite">
-                    {chatMessages.length === 0 ? (
-                      <p className="lobby-chat-empty">No chat yet.</p>
-                    ) : (
-                      [...chatMessages].slice(-5).map((message) => (
-                        <div key={message.id} className="lobby-chat-message">
-                          <strong>{message.playerName}</strong>
-                          <span>{message.text}</span>
-                        </div>
-                      ))
-                    )}
-                    <div ref={chatMessagesEndRef} />
-                  </div>
-                  <div className="lobby-chat-input-row">
-                    <input
-                      aria-label="Lobby chat input"
-                      maxLength={140}
-                      placeholder="Type a message"
-                      type="text"
-                      value={chatDraft}
-                      onChange={(event) => setChatDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          submitLobbyChat();
-                        }
-                      }}
-                    />
-                    <button type="button" onClick={submitLobbyChat}>
-                      Send
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
           <Opponent
             player={{ ...game.players[rightSeat], name: seatName(rightSeat) }}
             active={game.turn === rightSeat}
@@ -2893,7 +2707,6 @@ function MahjongApp() {
               type="button"
               onClick={() => {
                 newHand(nextDealer, false);
-                clearLobbyChatForCurrentRoom();
                 setSettingsOpen(false);
               }}
             >
@@ -3048,7 +2861,6 @@ function MahjongApp() {
                     } else {
                       newHand(nextDealer, false);
                     }
-                    clearLobbyChatForCurrentRoom();
                   }}
                 >
                   {playMode === "online" &&
