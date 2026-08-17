@@ -237,6 +237,21 @@ assert.match(
 );
 assert.match(
   css,
+  /@media \(max-width: 760px\) and \(orientation: portrait\)[\s\S]*grid-template-rows:\s*44px 70px 70px minmax\(140px, 1fr\)[\s\S]*\.opponent-hand-count\s*\{[^}]*display:\s*none;/s,
+  "Portrait phones must trade opponent tile counts for more discard space",
+);
+assert.doesNotMatch(
+  app,
+  /className="drawn-badge">New</,
+  "The drawn marker must not cover the tile face with text",
+);
+assert.match(
+  css,
+  /\.drawn-badge\s*\{[^}]*top:\s*-5px;[^}]*left:\s*50%;[^}]*border-radius:\s*50%;[^}]*transform:\s*translateX\(-50%\);/s,
+  "The drawn marker must sit above and centered on the tile",
+);
+assert.match(
+  css,
   /@media \(max-width: 1100px\)[\s\S]*\.action-bar button\s*\{[^}]*min-height:\s*44px;/s,
   "Mobile action buttons must meet a comfortable touch-target height",
 );

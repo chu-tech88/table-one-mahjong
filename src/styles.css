@@ -1519,17 +1519,17 @@ textarea {
 
 .drawn-badge {
   position: absolute;
-  top: 1px;
-  right: 1px;
+  top: -5px;
+  left: 50%;
   z-index: 1;
-  padding: 1px 3px;
-  border-radius: 999px;
-  background: rgba(184, 137, 37, 0.82);
-  color: white;
-  font-size: 0.46rem;
-  font-weight: 900;
-  line-height: 1;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #fff3bd;
+  border-radius: 50%;
+  background: #d89a1b;
+  box-shadow: 0 1px 4px rgba(58, 35, 0, 0.38);
   pointer-events: none;
+  transform: translateX(-50%);
 }
 
 .tile-back {
@@ -5658,6 +5658,32 @@ textarea {
   .table {
     --hand-tile-w: clamp(19px, 6vw, 25px);
     --hand-tile-h: clamp(34px, 9.8vw, 42px);
+    grid-template-rows:
+      44px 70px 70px minmax(140px, 1fr) clamp(248px, 38svh, 300px);
+  }
+
+  .opponent .seat-heading,
+  .opponent-top .seat-heading,
+  .opponent-left .seat-heading,
+  .opponent-right .seat-heading {
+    min-height: 28px;
+  }
+
+  .opponent-rack,
+  .opponent-left .opponent-rack,
+  .opponent-right .opponent-rack {
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .opponent-hand-count {
+    display: none;
+  }
+
+  .opponent-revealed-strip,
+  .opponent-left .opponent-revealed-strip,
+  .opponent-right .opponent-revealed-strip {
+    grid-row: 1;
   }
 
   .human-hand {
@@ -5675,6 +5701,12 @@ textarea {
 
   .human-hand .tile + .tile {
     margin-left: -3px;
+  }
+
+  .drawn-badge {
+    top: -4px;
+    width: 7px;
+    height: 7px;
   }
 
   .discard-lane-2 {

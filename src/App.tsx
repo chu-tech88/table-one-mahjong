@@ -741,7 +741,7 @@ function TileView({
       type="button"
     >
       <TileFace tile={tile} />
-      {drawn ? <span className="drawn-badge">New</span> : null}
+      {drawn ? <span className="drawn-badge" aria-hidden="true" /> : null}
     </button>
   );
 }
