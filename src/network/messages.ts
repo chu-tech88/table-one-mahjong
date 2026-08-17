@@ -14,6 +14,7 @@ export type ClientMessage =
   | PlayerActionMessage
   | RequestStateMessage
   | RequestRoomSeatsMessage
+  | RequestRoomListMessage
   | LobbyChatMessage
   | JoinLobbyChatMessage;
 
@@ -56,6 +57,10 @@ export type RequestRoomSeatsMessage = {
   roomId: string;
 };
 
+export type RequestRoomListMessage = {
+  type: "request-room-list";
+};
+
 export type LobbyChatMessage = {
   type: "lobby-chat";
   roomId: string;
@@ -77,6 +82,7 @@ export type ServerMessage =
   | RoomJoinedMessage
   | GameStateUpdateMessage
   | RoomSeatsUpdateMessage
+  | RoomListUpdateMessage
   | ActionRejectedMessage
   | PlayerDisconnectedMessage
   | SystemMessage
@@ -97,6 +103,18 @@ export type RoomSeatsUpdateMessage = {
   type: "room-seats-update";
   roomId: string;
   occupiedSeats: number[];
+};
+
+export type RoomListEntry = {
+  roomId: string;
+  occupiedSeats: number[];
+  playerCount: number;
+  isFull: boolean;
+};
+
+export type RoomListUpdateMessage = {
+  type: "room-list-update";
+  rooms: RoomListEntry[];
 };
 
 export type ActionRejectedMessage = {

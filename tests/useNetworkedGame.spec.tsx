@@ -9,12 +9,14 @@ const clientMocks = vi.hoisted(() => ({
 
 vi.mock("../src/network/game-client", () => ({
   GameClient: class {
-    constructor(
-      private callbacks: { onSeatAssigned?: (playerIndex: number) => void },
-    ) {}
+    private callbacks: { onSeatAssigned?: (playerIndex: number) => void };
 
-    connect() {
-      this.callbacks.onSeatAssigned?.(0);
+    constructor(callbacks: { onSeatAssigned?: (playerIndex: number) => void }) {
+      this.callbacks = callbacks;
+    }
+
+    connect(_: string, __: string, preferredPlayerIndex?: number) {
+      this.callbacks.onSeatAssigned?.(preferredPlayerIndex ?? 0);
       return Promise.resolve();
     }
 
@@ -39,12 +41,7 @@ describe("useNetworkedGame", () => {
 
   it("uses readiness instead of resetting scores between multiplayer hands", async () => {
     const { result, unmount } = renderHook(() =>
-      useNetworkedGame(
-        "ws://localhost:8080",
-        "score-preservation",
-        0,
-        "Eric",
-      ),
+      useNetworkedGame("ws://localhost:8080", "score-preservation", 0, "Eric"),
     );
 
     await waitFor(() => expect(result.current.isConnected).toBe(true));
@@ -52,6 +49,28 @@ describe("useNetworkedGame", () => {
     act(() => result.current.readyNextHand());
 
     expect(clientMocks.readyNextHand).toHaveBeenCalledOnce();
+    unmount();
+  });
+
+  it("resets the local player index when the preferred seat changes for a new room", async () => {
+    const { result, rerender, unmount } = renderHook(
+      ({ preferredPlayerIndex }) =>
+        useNetworkedGame(
+          "ws://localhost:8080",
+          "room-switch",
+          preferredPlayerIndex,
+          "Jordan",
+        ),
+      {
+        initialProps: { preferredPlayerIndex: 0 },
+      },
+    );
+
+    await waitFor(() => expect(result.current.playerIndex).toBe(0));
+
+    rerender({ preferredPlayerIndex: 1 });
+
+    await waitFor(() => expect(result.current.playerIndex).toBe(1));
     unmount();
   });
 });

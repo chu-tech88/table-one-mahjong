@@ -61,6 +61,15 @@ export function useNetworkedGame(
   const [aiTakeoverSeat, setAiTakeoverSeat] = useState<number>();
   const playerIndexRef = useRef(preferredPlayerIndex ?? -1);
   const clientRef = useRef<GameClient | null>(null);
+  const activeRoomIdRef = useRef(roomId);
+
+  useEffect(() => {
+    if (roomId !== activeRoomIdRef.current) {
+      activeRoomIdRef.current = roomId;
+    }
+    setPlayerIndex(preferredPlayerIndex ?? -1);
+    playerIndexRef.current = preferredPlayerIndex ?? -1;
+  }, [roomId, preferredPlayerIndex]);
 
   const rules: Rules = game?.rules ?? DEFAULT_RULES;
   const houseRules: HouseRule[] = game?.houseRules ?? createDefaultHouseRules();
@@ -92,6 +101,7 @@ export function useNetworkedGame(
       const client = new GameClient({
         onSeatAssigned: (assignedPlayerIndex) => {
           if (!isMounted || client !== activeClient) return;
+          if (roomId !== activeRoomIdRef.current) return;
           playerIndexRef.current = assignedPlayerIndex;
           setPlayerIndex(assignedPlayerIndex);
         },

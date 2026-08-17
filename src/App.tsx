@@ -109,25 +109,91 @@ const soundPatterns: Record<
   ],
   chi: [
     { frequency: 392, offset: 0, duration: 0.1, volume: 0.022, wave: "sine" },
-    { frequency: 523.25, offset: 0.09, duration: 0.13, volume: 0.025, wave: "sine" },
+    {
+      frequency: 523.25,
+      offset: 0.09,
+      duration: 0.13,
+      volume: 0.025,
+      wave: "sine",
+    },
   ],
   pong: [
-    { frequency: 196, offset: 0, duration: 0.1, volume: 0.03, wave: "triangle" },
-    { frequency: 196, offset: 0.1, duration: 0.12, volume: 0.03, wave: "triangle" },
+    {
+      frequency: 196,
+      offset: 0,
+      duration: 0.1,
+      volume: 0.03,
+      wave: "triangle",
+    },
+    {
+      frequency: 196,
+      offset: 0.1,
+      duration: 0.12,
+      volume: 0.03,
+      wave: "triangle",
+    },
   ],
   gong: [
-    { frequency: 130.81, offset: 0, duration: 0.58, volume: 0.04, wave: "sine" },
-    { frequency: 261.63, offset: 0.02, duration: 0.4, volume: 0.018, wave: "triangle" },
+    {
+      frequency: 130.81,
+      offset: 0,
+      duration: 0.58,
+      volume: 0.04,
+      wave: "sine",
+    },
+    {
+      frequency: 261.63,
+      offset: 0.02,
+      duration: 0.4,
+      volume: 0.018,
+      wave: "triangle",
+    },
   ],
   hu: [
-    { frequency: 523.25, offset: 0, duration: 0.18, volume: 0.04, wave: "sine" },
-    { frequency: 659.25, offset: 0.12, duration: 0.2, volume: 0.045, wave: "sine" },
-    { frequency: 783.99, offset: 0.24, duration: 0.32, volume: 0.05, wave: "sine" },
+    {
+      frequency: 523.25,
+      offset: 0,
+      duration: 0.18,
+      volume: 0.04,
+      wave: "sine",
+    },
+    {
+      frequency: 659.25,
+      offset: 0.12,
+      duration: 0.2,
+      volume: 0.045,
+      wave: "sine",
+    },
+    {
+      frequency: 783.99,
+      offset: 0.24,
+      duration: 0.32,
+      volume: 0.05,
+      wave: "sine",
+    },
   ],
   turn: [
-    { frequency: 659.25, offset: 0, duration: 0.28, volume: 0.09, wave: "sine" },
-    { frequency: 880, offset: 0.14, duration: 0.34, volume: 0.105, wave: "sine" },
-    { frequency: 987.77, offset: 0.3, duration: 0.42, volume: 0.08, wave: "sine" },
+    {
+      frequency: 659.25,
+      offset: 0,
+      duration: 0.28,
+      volume: 0.09,
+      wave: "sine",
+    },
+    {
+      frequency: 880,
+      offset: 0.14,
+      duration: 0.34,
+      volume: 0.105,
+      wave: "sine",
+    },
+    {
+      frequency: 987.77,
+      offset: 0.3,
+      duration: 0.42,
+      volume: 0.08,
+      wave: "sine",
+    },
   ],
 };
 
@@ -327,10 +393,38 @@ function FlowerArtwork({ rank }: { rank: number }) {
       <g className="flower-artwork plum-artwork">
         <path d="M22 106 C32 84 44 72 70 54 C78 48 82 37 84 24" />
         <path d="M43 75 C35 61 27 54 17 50 M62 60 C58 43 49 35 39 31" />
-        <FlowerPetals x={18} y={49} count={5} color="#de4668" center="#f2bd45" scale={0.72} />
-        <FlowerPetals x={40} y={31} count={5} color="#ee718a" center="#f2bd45" scale={0.74} />
-        <FlowerPetals x={84} y={23} count={5} color="#d92f59" center="#f2bd45" scale={0.82} />
-        <FlowerPetals x={52} y={67} count={5} color="#f18ca0" center="#f2bd45" scale={0.62} />
+        <FlowerPetals
+          x={18}
+          y={49}
+          count={5}
+          color="#de4668"
+          center="#f2bd45"
+          scale={0.72}
+        />
+        <FlowerPetals
+          x={40}
+          y={31}
+          count={5}
+          color="#ee718a"
+          center="#f2bd45"
+          scale={0.74}
+        />
+        <FlowerPetals
+          x={84}
+          y={23}
+          count={5}
+          color="#d92f59"
+          center="#f2bd45"
+          scale={0.82}
+        />
+        <FlowerPetals
+          x={52}
+          y={67}
+          count={5}
+          color="#f18ca0"
+          center="#f2bd45"
+          scale={0.62}
+        />
       </g>
     );
   }
@@ -340,9 +434,30 @@ function FlowerArtwork({ rank }: { rank: number }) {
       <g className="flower-artwork orchid-artwork">
         <path d="M48 108 C39 80 25 59 18 35 M49 108 C57 75 70 51 85 31 M47 108 C47 72 46 43 51 18" />
         <path d="M44 91 C30 81 21 80 14 84 C25 90 34 94 45 98 M55 73 C68 62 79 61 88 65 C76 73 66 78 55 82" />
-        <FlowerPetals x={50} y={22} count={5} color="#8556a7" center="#efc34f" scale={0.88} />
-        <FlowerPetals x={25} y={43} count={5} color="#ae7ac5" center="#efc34f" scale={0.68} />
-        <FlowerPetals x={76} y={42} count={5} color="#6e4797" center="#efc34f" scale={0.65} />
+        <FlowerPetals
+          x={50}
+          y={22}
+          count={5}
+          color="#8556a7"
+          center="#efc34f"
+          scale={0.88}
+        />
+        <FlowerPetals
+          x={25}
+          y={43}
+          count={5}
+          color="#ae7ac5"
+          center="#efc34f"
+          scale={0.68}
+        />
+        <FlowerPetals
+          x={76}
+          y={42}
+          count={5}
+          color="#6e4797"
+          center="#efc34f"
+          scale={0.65}
+        />
       </g>
     );
   }
@@ -380,8 +495,22 @@ function FlowerArtwork({ rank }: { rank: number }) {
     return (
       <g className="flower-artwork spring-artwork">
         <path d="M49 109 C45 83 46 61 53 38 M46 86 C31 74 21 75 14 81 C28 87 37 92 47 96 M53 63 C68 52 79 53 87 59 C74 66 64 71 53 73" />
-        <FlowerPetals x={52} y={30} count={8} color="#e34875" center="#f3c545" scale={1.15} />
-        <FlowerPetals x={31} y={57} count={7} color="#ef7998" center="#f3c545" scale={0.65} />
+        <FlowerPetals
+          x={52}
+          y={30}
+          count={8}
+          color="#e34875"
+          center="#f3c545"
+          scale={1.15}
+        />
+        <FlowerPetals
+          x={31}
+          y={57}
+          count={7}
+          color="#ef7998"
+          center="#f3c545"
+          scale={0.65}
+        />
         <circle cx="77" cy="49" r="5" fill="#e34875" />
       </g>
     );
@@ -391,7 +520,11 @@ function FlowerArtwork({ rank }: { rank: number }) {
     return (
       <g className="flower-artwork summer-artwork">
         <path d="M50 108 C49 80 50 58 51 42 M48 88 C32 78 20 80 13 88 C28 92 39 96 49 99" />
-        <path d="M15 91 C27 78 43 77 52 91 C39 104 27 104 15 91 Z" fill="#4b9a67" stroke="none" />
+        <path
+          d="M15 91 C27 78 43 77 52 91 C39 104 27 104 15 91 Z"
+          fill="#4b9a67"
+          stroke="none"
+        />
         {Array.from({ length: 8 }, (_, index) => (
           <ellipse
             key={index}
@@ -412,8 +545,16 @@ function FlowerArtwork({ rank }: { rank: number }) {
     return (
       <g className="flower-artwork autumn-artwork">
         <path d="M48 109 C48 87 51 61 57 33 M53 68 C39 58 28 58 18 64 M55 52 C70 43 80 43 89 49" />
-        <path d="M18 64 L10 55 L19 54 L17 44 L27 50 L31 40 L35 51 L45 47 L40 58 L48 63 L37 68 L39 79 L29 72 L22 81 L23 70 Z" fill="#c7522b" stroke="none" />
-        <path d="M68 48 L62 39 L70 39 L69 30 L78 36 L82 27 L86 38 L94 36 L90 46 L97 52 L87 56 L88 66 L79 60 L72 68 L73 57 Z" fill="#df8a2c" stroke="none" />
+        <path
+          d="M18 64 L10 55 L19 54 L17 44 L27 50 L31 40 L35 51 L45 47 L40 58 L48 63 L37 68 L39 79 L29 72 L22 81 L23 70 Z"
+          fill="#c7522b"
+          stroke="none"
+        />
+        <path
+          d="M68 48 L62 39 L70 39 L69 30 L78 36 L82 27 L86 38 L94 36 L90 46 L97 52 L87 56 L88 66 L79 60 L72 68 L73 57 Z"
+          fill="#df8a2c"
+          stroke="none"
+        />
         <circle cx="52" cy="79" r="7" fill="#df7c25" stroke="none" />
         <circle cx="65" cy="84" r="7" fill="#bf472d" stroke="none" />
       </g>
@@ -423,10 +564,37 @@ function FlowerArtwork({ rank }: { rank: number }) {
   return (
     <g className="flower-artwork winter-artwork">
       <path d="M49 109 C48 83 42 61 35 39 M51 109 C57 82 64 62 72 42 M48 90 C35 80 24 80 16 86 C29 91 39 96 49 100" />
-      <FlowerPetals x={34} y={34} count={6} color="#f3f1dd" center="#e8b62f" scale={0.88} />
-      <FlowerPetals x={72} y={40} count={6} color="#fffbea" center="#e8b62f" scale={0.78} />
-      <FlowerPetals x={51} y={61} count={6} color="#e9eef1" center="#d99b24" scale={0.62} />
-      <path d="M25 25 C39 17 54 16 68 21" fill="none" stroke="#a8c4d2" strokeWidth="3" opacity="0.8" />
+      <FlowerPetals
+        x={34}
+        y={34}
+        count={6}
+        color="#f3f1dd"
+        center="#e8b62f"
+        scale={0.88}
+      />
+      <FlowerPetals
+        x={72}
+        y={40}
+        count={6}
+        color="#fffbea"
+        center="#e8b62f"
+        scale={0.78}
+      />
+      <FlowerPetals
+        x={51}
+        y={61}
+        count={6}
+        color="#e9eef1"
+        center="#d99b24"
+        scale={0.62}
+      />
+      <path
+        d="M25 25 C39 17 54 16 68 21"
+        fill="none"
+        stroke="#a8c4d2"
+        strokeWidth="3"
+        opacity="0.8"
+      />
     </g>
   );
 }
@@ -653,10 +821,7 @@ function TableDiscardGrid({
               <span>{isSelf ? "You" : player.name}</span>
               <small>{player.discards.length}</small>
             </button>
-            <DiscardRiver
-              player={player}
-              latestDiscardId={latestDiscardId}
-            />
+            <DiscardRiver player={player} latestDiscardId={latestDiscardId} />
           </section>
         );
       })}
@@ -947,6 +1112,14 @@ function MahjongApp() {
     joined: Boolean(restoredActiveSession),
   }));
   const [occupiedSeats, setOccupiedSeats] = useState<number[]>([]);
+  const [roomList, setRoomList] = useState<
+    Array<{
+      roomId: string;
+      occupiedSeats: number[];
+      playerCount: number;
+      isFull: boolean;
+    }>
+  >([]);
   const [lobbySeatError, setLobbySeatError] = useState<string | null>(null);
   const [activeScenario, setActiveScenario] = useState<ScenarioSnapshot | null>(
     null,
@@ -1007,9 +1180,10 @@ function MahjongApp() {
     aiTakeoverSeat,
     playerIndex: assignedPlayerIndex,
   } = gameHook;
-  const SELF = assignedPlayerIndex >= 0
-    ? assignedPlayerIndex
-    : connection.playerIndex ?? 0;
+  const SELF =
+    assignedPlayerIndex >= 0
+      ? assignedPlayerIndex
+      : (connection.playerIndex ?? 0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1245,7 +1419,9 @@ function MahjongApp() {
 
   useEffect(() => {
     if (!showWinModal) return;
-    const frame = window.requestAnimationFrame(() => winModalRef.current?.focus());
+    const frame = window.requestAnimationFrame(() =>
+      winModalRef.current?.focus(),
+    );
     return () => window.cancelAnimationFrame(frame);
   }, [showWinModal]);
 
@@ -1275,9 +1451,9 @@ function MahjongApp() {
   useEffect(() => {
     const turnIsMine = Boolean(
       game &&
-        game.phase !== "round-over" &&
-        ((game.phase === "discard" && game.turn === SELF) ||
-          (game.phase === "claim" && game.pendingClaim?.claimer === SELF)),
+      game.phase !== "round-over" &&
+      ((game.phase === "discard" && game.turn === SELF) ||
+        (game.phase === "claim" && game.pendingClaim?.claimer === SELF)),
     );
     if (
       turnIsMine &&
@@ -1289,7 +1465,13 @@ function MahjongApp() {
       navigator.vibrate?.([100, 45, 130]);
     }
     previousTurnWasMine.current = turnIsMine;
-  }, [game?.phase, game?.turn, game?.pendingClaim?.claimer, SELF, soundEnabled]);
+  }, [
+    game?.phase,
+    game?.turn,
+    game?.pendingClaim?.claimer,
+    SELF,
+    soundEnabled,
+  ]);
   const [uiSelectedTileId, setUiSelectedTileId] = useState<string | undefined>(
     undefined,
   );
@@ -1432,7 +1614,9 @@ function MahjongApp() {
         : "Table activity";
   const activityNoticeTone = showYourTurnInCenter
     ? "action"
-    : /(point|score|bonus|wins?|collected all eight flowers)/i.test(activityText)
+    : /(point|score|bonus|wins?|collected all eight flowers)/i.test(
+          activityText,
+        )
       ? "score"
       : currentPhase === "claim"
         ? "decision"
@@ -1655,6 +1839,11 @@ function MahjongApp() {
           roomId: connection.roomId,
         }),
       );
+      ws.send(
+        JSON.stringify({
+          type: "request-room-list",
+        }),
+      );
     };
 
     ws.onopen = () => {
@@ -1670,6 +1859,12 @@ function MahjongApp() {
           type?: string;
           roomId?: string;
           occupiedSeats?: number[];
+          rooms?: Array<{
+            roomId: string;
+            occupiedSeats: number[];
+            playerCount: number;
+            isFull: boolean;
+          }>;
         };
         if (
           msg.type === "room-seats-update" &&
@@ -1683,13 +1878,25 @@ function MahjongApp() {
           ].sort((a, b) => a - b);
           setOccupiedSeats(uniqueSorted);
         }
+        if (msg.type === "room-list-update" && Array.isArray(msg.rooms)) {
+          setRoomList(
+            msg.rooms
+              .map((room) => ({
+                ...room,
+                occupiedSeats: Array.isArray(room.occupiedSeats)
+                  ? room.occupiedSeats.filter((seat) => seat >= 0 && seat <= 3)
+                  : [],
+              }))
+              .sort((a, b) => a.roomId.localeCompare(b.roomId)),
+          );
+        }
       } catch {
         // Ignore malformed payloads.
       }
     };
 
     ws.onerror = () => {
-      setLobbySeatError("Could not check seat availability.");
+      setLobbySeatError("Could not check room availability.");
     };
 
     return () => {
@@ -1730,6 +1937,41 @@ function MahjongApp() {
             label: `Seat ${connection.playerIndex + 1}`,
           },
         ];
+
+  const joinOnlineRoom = (nextRoomId?: string) => {
+    const roomId = (nextRoomId ?? connection.roomId).trim();
+    if (!connection.playerName.trim()) {
+      setLobbySeatError("Name required before joining or creating a room.");
+      return;
+    }
+    if (!roomId) {
+      setLobbySeatError("Room ID required.");
+      return;
+    }
+
+    const roomInfo = roomList.find(
+      (room) => room.roomId.trim().toLowerCase() === roomId.toLowerCase(),
+    );
+    if (roomInfo?.isFull) {
+      setLobbySeatError("All seats in this room are currently occupied.");
+      return;
+    }
+
+    const nextSeat = roomInfo
+      ? ([0, 1, 2, 3].find((seat) => !roomInfo.occupiedSeats.includes(seat)) ??
+        0)
+      : 0;
+
+    setLobbySeatError(null);
+    setActiveScenario(null);
+    setScenarioFeedback(null);
+    setConnection((current) => ({
+      ...current,
+      roomId,
+      playerIndex: nextSeat,
+      joined: true,
+    }));
+  };
 
   const hasOtherHumanPlayers = Boolean(
     game?.players.some(
@@ -1801,6 +2043,7 @@ function MahjongApp() {
                   setConnection((current) => ({
                     ...current,
                     roomId: "table-one",
+                    playerIndex: 0,
                   }));
                 }}
               >
@@ -1826,21 +2069,123 @@ function MahjongApp() {
               </label>
               {playMode === "online" ? (
                 <>
-                  <label>
-                    <span>Room ID</span>
-                    <input
-                      type="text"
-                      value={connection.roomId}
-                      onChange={(event) =>
+                  <div
+                    className="online-room-row"
+                    style={{ gridColumn: "span 2" }}
+                  >
+                    <label>
+                      <span>Room ID</span>
+                      <input
+                        type="text"
+                        value={connection.roomId}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            joinOnlineRoom();
+                          }
+                        }}
+                        onChange={(event) =>
+                          setConnection((current) => ({
+                            ...current,
+                            roomId: event.target.value.replace(/\s+/g, "-"),
+                          }))
+                        }
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={!connection.roomId.trim()}
+                      onClick={() => {
+                        if (!connection.playerName.trim()) {
+                          setLobbySeatError(
+                            "Name required before joining or creating a room.",
+                          );
+                          return;
+                        }
+
+                        const roomId = connection.roomId.trim();
+                        const exists = roomList.some(
+                          (room) =>
+                            room.roomId.trim().toLowerCase() ===
+                            roomId.toLowerCase(),
+                        );
+
+                        if (exists) {
+                          setLobbySeatError(
+                            `Room "${roomId}" already exists. Join it instead or choose another room ID.`,
+                          );
+                          return;
+                        }
+
                         setConnection((current) => ({
                           ...current,
-                          roomId: event.target.value.replace(/\s+/g, "-"),
-                        }))
-                      }
-                    />
-                  </label>
+                          roomId,
+                          playerIndex: 0,
+                        }));
+                        joinOnlineRoom(roomId);
+                      }}
+                    >
+                      Create room
+                    </button>
+                  </div>
+                  <div style={{ gridColumn: "span 2" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        marginBottom: 8,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "0.74rem",
+                          fontWeight: 800,
+                          color: "#666",
+                        }}
+                      >
+                        Available rooms
+                      </span>
+                    </div>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {roomList.length > 0 ? (
+                        roomList.map((room) => (
+                          <button
+                            key={room.roomId}
+                            type="button"
+                            className="secondary-button"
+                            style={{
+                              justifyContent: "space-between",
+                              width: "100%",
+                              textAlign: "left",
+                              opacity: room.isFull ? 0.65 : 1,
+                              cursor: room.isFull ? "pointer" : "pointer",
+                            }}
+                            onClick={() => joinOnlineRoom(room.roomId)}
+                          >
+                            <span>{room.roomId}</span>
+                            <span
+                              style={{
+                                fontSize: "0.8rem",
+                                color: room.isFull ? "#b74b38" : "#4b5a4a",
+                              }}
+                            >
+                              {room.playerCount}/4 seats
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <div style={{ color: "#666", fontSize: "0.85rem" }}>
+                          No active rooms right now. Create one to invite
+                          friends.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>
-                    Your seat is assigned automatically when you join.
+                    Press Enter or choose a room above to join.
                   </p>
                 </>
               ) : (
@@ -1855,28 +2200,20 @@ function MahjongApp() {
                 {lobbySeatError}
               </p>
             ) : null}
-            {playMode === "online" && seatOptions.length === 0 ? (
-              <p style={{ fontSize: "0.9rem", color: "#666" }}>
-                All seats in this room are currently occupied.
-              </p>
+            {playMode === "solo" ? (
+              <button
+                className="full-width-button"
+                type="button"
+                disabled={!connection.playerName.trim()}
+                onClick={() => {
+                  setActiveScenario(null);
+                  setScenarioFeedback(null);
+                  setConnection((current) => ({ ...current, joined: true }));
+                }}
+              >
+                Start game
+              </button>
             ) : null}
-            <button
-              className="full-width-button"
-              type="button"
-              disabled={
-                (playMode === "online" &&
-                  seatOptions.length === 0 &&
-                  occupiedSeats.length >= 4) ||
-                !connection.playerName.trim()
-              }
-              onClick={() => {
-                setActiveScenario(null);
-                setScenarioFeedback(null);
-                setConnection((current) => ({ ...current, joined: true }));
-              }}
-            >
-              {playMode === "solo" ? "Start game" : "Join room"}
-            </button>
           </div>
         </section>
       </main>
@@ -2406,7 +2743,10 @@ function MahjongApp() {
       ) : null}
 
       {activityHistoryOpen ? (
-        <div className="modal-backdrop activity-history-backdrop" role="presentation">
+        <div
+          className="modal-backdrop activity-history-backdrop"
+          role="presentation"
+        >
           <section
             className="activity-history-panel"
             role="dialog"
