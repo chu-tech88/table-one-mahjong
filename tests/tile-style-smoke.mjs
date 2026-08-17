@@ -32,8 +32,13 @@ assert.doesNotMatch(
 );
 assert.match(
   app,
-  /className="opponent-rack"[\s\S]*?className="opponent-wall-row"[\s\S]*?className="opponent-revealed-strip"/,
+  /className="opponent-rack"[\s\S]*?className="opponent-wall-row"[\s\S]*?className=\{`opponent-revealed-strip/,
   "Opponent walls and revealed sets must share one compact seat rack",
+);
+assert.match(
+  app,
+  /revealedTileCount[\s\S]*?revealed-density-compact[\s\S]*?data-revealed-tiles=\{revealedTileCount\}/,
+  "Opponent revealed sets must expose count-aware density for responsive sizing",
 );
 assert.match(
   css,
@@ -332,8 +337,28 @@ assert.match(
 );
 assert.match(
   css,
-  /@media \(max-width: 760px\) and \(orientation: portrait\)[\s\S]*?--hand-tile-w:\s*clamp\(18px, 5\.65vw, 23px\);[\s\S]*?\.human-hand \.tile\s*\{[^}]*flex:\s*0 0 var\(--hand-tile-w\);/,
-  "Portrait phones must enlarge the playable hand without overflowing a drawn 18-tile hand",
+  /@media \(max-width: 760px\) and \(orientation: portrait\)[\s\S]*?--hand-tile-w:\s*clamp\(19px, 6vw, 25px\);[\s\S]*?--hand-tile-h:\s*clamp\(34px, 9\.8vw, 42px\);[\s\S]*?margin-left:\s*-3px;/,
+  "Portrait phones must use the available width without stretching the playable hand",
+);
+assert.match(
+  css,
+  /@media \(max-width: 760px\) and \(orientation: portrait\)[\s\S]*?\.discard-lane-2\s*\{[^}]*width:\s*min\(230px, 96%\);[^}]*overflow:\s*visible;[\s\S]*?\.discard-lane-2 \.discard-river\s*\{[^}]*flex-wrap:\s*nowrap;/,
+  "Portrait phones must keep the top opponent's recent discards visible",
+);
+assert.match(
+  css,
+  /@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)[\s\S]*?\.discard-overflow-count\s*\{[^}]*width:\s*24px;[^}]*height:\s*32px;[\s\S]*?\.table-discard-lane \.discard-river\s*\{[^}]*flex-wrap:\s*nowrap;/,
+  "Landscape discard counters must match tiles and remain on the same line",
+);
+assert.match(
+  css,
+  /@media \(max-width: 1100px\) and \(max-height: 600px\) and \(orientation: landscape\)[\s\S]*?\.opponent-left \.opponent-revealed-strip \.seat-sets-row,[\s\S]*?flex-direction:\s*row;[\s\S]*?\.revealed-density-compact\s*\{[^}]*--opponent-reveal-width:\s*14px;/,
+  "Landscape side seats must use horizontal count-aware revealed rails",
+);
+assert.match(
+  app,
+  /className="analytics-consent-allow"[\s\S]*?onChoose\(true\)[\s\S]*?Yes, allow analytics[\s\S]*?className="analytics-consent-decline"[\s\S]*?onChoose\(false\)/,
+  "The consent prompt must present the affirmative action first",
 );
 assert.match(
   css,

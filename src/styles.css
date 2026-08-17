@@ -1593,9 +1593,11 @@ textarea {
 .discard-overflow-count {
   display: none;
   place-items: center;
-  min-width: 26px;
+  flex: 0 0 var(--river-tile-w);
+  width: var(--river-tile-w);
+  min-width: var(--river-tile-w);
   height: var(--river-tile-h);
-  padding: 0 4px;
+  padding: 0;
   border: 1px solid rgba(225, 240, 229, 0.2);
   border-radius: 5px;
   background: rgba(5, 39, 17, 0.72);
@@ -4612,12 +4614,32 @@ textarea {
 
 .analytics-consent-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
 .analytics-consent-actions button {
   min-height: 42px;
+  border-radius: 7px;
+  font-weight: 800;
+}
+
+.analytics-consent-allow {
+  border: 1px solid #0f6f58;
+  background: linear-gradient(180deg, #1b9475, #116b57);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(14, 94, 78, 0.2);
+}
+
+.analytics-consent-allow:hover,
+.analytics-consent-allow:focus-visible {
+  background: #0e5e4e;
+}
+
+.analytics-consent-decline {
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: #4e564d;
 }
 
 @media (max-height: 420px) and (orientation: landscape) {
@@ -5444,6 +5466,9 @@ textarea {
 
   .discard-overflow-count {
     display: grid;
+    flex-basis: clamp(27px, 4.2vw, 34px);
+    width: clamp(27px, 4.2vw, 34px);
+    min-width: clamp(27px, 4.2vw, 34px);
     height: clamp(37px, 5.7vw, 47px);
   }
 
@@ -5612,6 +5637,9 @@ textarea {
   }
 
   .discard-overflow-count {
+    flex-basis: clamp(26px, 8vw, 32px);
+    width: clamp(26px, 8vw, 32px);
+    min-width: clamp(26px, 8vw, 32px);
     height: clamp(36px, 11vw, 44px);
   }
 
@@ -5628,8 +5656,8 @@ textarea {
 
 @media (max-width: 760px) and (orientation: portrait) {
   .table {
-    --hand-tile-w: clamp(18px, 5.65vw, 23px);
-    --hand-tile-h: clamp(40px, 11.8vw, 50px);
+    --hand-tile-w: clamp(19px, 6vw, 25px);
+    --hand-tile-h: clamp(34px, 9.8vw, 42px);
   }
 
   .human-hand {
@@ -5646,7 +5674,20 @@ textarea {
   }
 
   .human-hand .tile + .tile {
-    margin-left: -1px;
+    margin-left: -3px;
+  }
+
+  .discard-lane-2 {
+    z-index: 3;
+    width: min(230px, 96%);
+    min-height: 56px;
+    overflow: visible;
+  }
+
+  .discard-lane-2 .discard-river {
+    flex-wrap: nowrap;
+    min-height: 42px;
+    overflow: visible;
   }
 }
 
@@ -5697,13 +5738,41 @@ textarea {
   }
 
   .discard-lane-2 .discard-river {
+    flex-wrap: nowrap;
     min-height: 32px;
     overflow: visible;
   }
 
+  .table-discard-lane .discard-river .tile,
   .discard-lane-2 .discard-river .tile {
+    flex: 0 0 24px;
     width: 24px;
     height: 32px;
+  }
+
+  .discard-overflow-count {
+    flex: 0 0 24px;
+    width: 24px;
+    min-width: 24px;
+    height: 32px;
+  }
+
+  .discard-lane-1,
+  .discard-lane-3 {
+    width: min(150px, 100%);
+    max-height: none;
+    overflow: visible;
+  }
+
+  .table-discard-lane .discard-river {
+    flex-wrap: nowrap;
+    align-content: center;
+    overflow: visible;
+  }
+
+  .discard-lane-1 .discard-river,
+  .discard-lane-3 .discard-river {
+    justify-content: center;
   }
 
   .claim-decision-active .table-discard-grid .discard-river .tile {
@@ -5745,6 +5814,67 @@ textarea {
   .opponent-left .opponent-revealed-strip,
   .opponent-right .opponent-revealed-strip {
     grid-row: 1;
+    align-self: start;
+    width: max-content;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+
+  .opponent-top .opponent-revealed-strip {
+    justify-self: center;
+    max-width: min(46vw, 360px);
+  }
+
+  .opponent-left .opponent-revealed-strip {
+    justify-self: start;
+    max-width: min(26vw, 200px);
+  }
+
+  .opponent-right .opponent-revealed-strip {
+    justify-self: end;
+    max-width: min(26vw, 200px);
+  }
+
+  .opponent-left .opponent-revealed-strip .seat-sets-row,
+  .opponent-right .opponent-revealed-strip .seat-sets-row,
+  .opponent-left .opponent-revealed-strip .flower-row,
+  .opponent-right .opponent-revealed-strip .flower-row,
+  .opponent-left .opponent-revealed-strip .meld-row,
+  .opponent-right .opponent-revealed-strip .meld-row,
+  .opponent-left .opponent-revealed-strip .meld,
+  .opponent-right .opponent-revealed-strip .meld,
+  .opponent-left .opponent-revealed-strip .meld div,
+  .opponent-right .opponent-revealed-strip .meld div {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+  }
+
+  .revealed-density-roomy {
+    --opponent-reveal-width: 20px;
+    --opponent-reveal-height: 28px;
+  }
+
+  .revealed-density-condensed {
+    --opponent-reveal-width: 16px;
+    --opponent-reveal-height: 23px;
+  }
+
+  .revealed-density-compact {
+    --opponent-reveal-width: 14px;
+    --opponent-reveal-height: 20px;
+  }
+
+  .opponent-top .opponent-revealed-strip .flower-row .tile,
+  .opponent-top .opponent-revealed-strip .meld .tile,
+  .opponent-left .opponent-revealed-strip .flower-row .tile,
+  .opponent-left .opponent-revealed-strip .meld .tile,
+  .opponent-right .opponent-revealed-strip .flower-row .tile,
+  .opponent-right .opponent-revealed-strip .meld .tile {
+    width: var(--opponent-reveal-width);
+    height: var(--opponent-reveal-height);
+    border-bottom-width: 2px;
   }
 
   .human-seat {

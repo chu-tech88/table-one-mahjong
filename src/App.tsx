@@ -892,7 +892,15 @@ function Opponent({
   presence?: "connected" | "reconnecting" | "ai";
   onInspect: () => void;
 }) {
-  const revealedCount = player.flowers.length + player.melds.length;
+  const revealedTileCount =
+    player.flowers.length +
+    player.melds.reduce((total, meld) => total + meld.tiles.length, 0);
+  const revealedDensity =
+    revealedTileCount > 8
+      ? "revealed-density-compact"
+      : revealedTileCount > 6
+        ? "revealed-density-condensed"
+        : "revealed-density-roomy";
   const wallTileCount = Math.min(player.hand.length, 18);
   return (
     <section
@@ -944,10 +952,11 @@ function Opponent({
             <i key={index} />
           ))}
         </div>
-        {revealedCount > 0 ? (
+        {revealedTileCount > 0 ? (
           <div
-            className="opponent-revealed-strip"
+            className={`opponent-revealed-strip ${revealedDensity}`}
             aria-label={`${player.name} revealed tiles`}
+            data-revealed-tiles={revealedTileCount}
           >
             <SeatSets flowers={player.flowers} melds={player.melds} />
           </div>
@@ -3437,18 +3446,19 @@ function AnalyticsConsentPrompt({
         </div>
         <div className="analytics-consent-actions">
           <button
-            className="secondary-button"
-            type="button"
-            onClick={() => onChoose(false)}
-          >
-            Not now
-          </button>
-          <button
-            className="full-width-button"
+            autoFocus
+            className="analytics-consent-allow"
             type="button"
             onClick={() => onChoose(true)}
           >
-            Allow analytics
+            Yes, allow analytics
+          </button>
+          <button
+            className="analytics-consent-decline"
+            type="button"
+            onClick={() => onChoose(false)}
+          >
+            No, not now
           </button>
         </div>
       </section>
