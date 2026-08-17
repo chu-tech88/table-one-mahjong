@@ -4572,6 +4572,63 @@ textarea {
   line-height: 1.35;
 }
 
+.analytics-consent-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background: rgba(3, 24, 11, 0.68);
+  backdrop-filter: blur(3px);
+}
+
+.analytics-consent-dialog {
+  display: grid;
+  gap: 16px;
+  width: min(480px, 100%);
+  padding: 20px;
+  border: 1px solid rgba(45, 92, 66, 0.2);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+
+.analytics-consent-dialog h2,
+.analytics-consent-dialog p {
+  margin: 0;
+}
+
+.analytics-consent-dialog > div:first-child {
+  display: grid;
+  gap: 8px;
+}
+
+.analytics-consent-dialog > div:first-child > p:last-child {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.analytics-consent-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.analytics-consent-actions button {
+  min-height: 42px;
+}
+
+@media (max-height: 420px) and (orientation: landscape) {
+  .analytics-consent-dialog {
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 0.72fr);
+    align-items: end;
+    width: min(760px, 100%);
+    padding: 14px;
+  }
+}
+
 @media (max-width: 1199px) {
   .opponent-top {
     width: min(620px, 90%);

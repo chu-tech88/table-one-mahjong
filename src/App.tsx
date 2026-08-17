@@ -42,6 +42,13 @@ import {
 } from "./game-logic/snapshot";
 import html2canvas from "html2canvas";
 import oneBambooBird from "./assets/one-bamboo-bird.png";
+import {
+  type AnalyticsConsent,
+  getAnalyticsConsent,
+  initializeAnalytics,
+  setAnalyticsConsent,
+  trackAnalyticsEvent,
+} from "./analytics";
 
 const SOUND_SETTING_KEY = "table-one-sound-enabled";
 type GameSound = "discard" | "chi" | "pong" | "gong" | "hu" | "turn";
@@ -64,6 +71,13 @@ function prefersReducedMotion() {
     typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
+}
+
+function analyticsDeviceFormat() {
+  if (typeof window === "undefined") return "unknown";
+  if (window.innerWidth <= 760) return "mobile";
+  if (window.innerWidth <= 1100) return "tablet";
+  return "desktop";
 }
 
 function claimedTileBetween(previous: Game, current: Game, actor: number) {
@@ -1100,7 +1114,13 @@ function loadActiveSession() {
   }
 }
 
-function MahjongApp() {
+function MahjongApp({
+  analyticsEnabled,
+  onAnalyticsConsentChange,
+}: {
+  analyticsEnabled: boolean;
+  onAnalyticsConsentChange: (enabled: boolean) => void;
+}) {
   const restoredActiveSession = useMemo(loadActiveSession, []);
   const [playMode, setPlayMode] = useState<"solo" | "online">(
     restoredActiveSession?.playMode ?? "solo",
@@ -1232,12 +1252,34 @@ function MahjongApp() {
   const audioUnlocked = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const previousPresentationGame = useRef<Game | undefined>(undefined);
+  const latestAnalyticsGame = useRef<Game | undefined>(undefined);
+  const analyticsSessionKey = useRef<string | undefined>(undefined);
+  const analyticsSessionStartedAt = useRef<number | undefined>(undefined);
+  const analyticsHandKey = useRef<string | undefined>(undefined);
+  const analyticsHandStartedAt = useRef<number | undefined>(undefined);
+  const completedAnalyticsHandKey = useRef<string | undefined>(undefined);
   const winModalRef = useRef<HTMLElement | null>(null);
   const [tileFlight, setTileFlight] = useState<TileFlight | undefined>();
   const [showWinModal, setShowWinModal] = useState(false);
   const [winStage, setWinStage] = useState<0 | 1 | 2>(0);
   const [scoreDeltas, setScoreDeltas] = useState<number[]>([0, 0, 0, 0]);
   const [animatedWinTotal, setAnimatedWinTotal] = useState(0);
+
+  latestAnalyticsGame.current = game ?? undefined;
+
+  const analyticsContext = () => ({
+    game_mode: playMode,
+    device_format: analyticsDeviceFormat(),
+    round_number: game?.round ?? 0,
+    dealer_streak: game?.dealerStreak ?? 0,
+  });
+
+  const trackHumanAction = (actionType: string) => {
+    trackAnalyticsEvent("mahjong_action", {
+      ...analyticsContext(),
+      action_type: actionType,
+    });
+  };
 
   const getAudioContext = () => {
     if (!soundEnabled || !audioUnlocked.current) return null;
@@ -1280,6 +1322,108 @@ function MahjongApp() {
   useEffect(() => {
     window.localStorage.setItem(SOUND_SETTING_KEY, String(soundEnabled));
   }, [soundEnabled]);
+
+  useEffect(() => {
+    if (!analyticsEnabled || !connection.joined || !game) {
+      if (!connection.joined) {
+        analyticsSessionKey.current = undefined;
+        analyticsSessionStartedAt.current = undefined;
+        analyticsHandKey.current = undefined;
+        analyticsHandStartedAt.current = undefined;
+        completedAnalyticsHandKey.current = undefined;
+      }
+      return;
+    }
+
+    const sessionKey = `${playMode}:${game.tableId}:${SELF}`;
+    if (analyticsSessionKey.current === sessionKey) return;
+    analyticsSessionKey.current = sessionKey;
+    analyticsSessionStartedAt.current = Date.now();
+    trackAnalyticsEvent("game_started", {
+      ...analyticsContext(),
+      human_player_count: game.players.filter(
+        (player) => player.controller === "human",
+      ).length,
+    });
+  }, [analyticsEnabled, connection.joined, game?.tableId, playMode, SELF]);
+
+  useEffect(() => {
+    if (!analyticsEnabled || !connection.joined || !game) return;
+
+    const handKey = `${game.tableId}:${game.round}:${game.dealerStreak}`;
+    if (analyticsHandKey.current !== handKey) {
+      analyticsHandKey.current = handKey;
+      analyticsHandStartedAt.current = Date.now();
+      completedAnalyticsHandKey.current = undefined;
+      trackAnalyticsEvent("hand_started", analyticsContext());
+    }
+
+    if (
+      !game.winSummary ||
+      completedAnalyticsHandKey.current === handKey
+    ) {
+      return;
+    }
+
+    completedAnalyticsHandKey.current = handKey;
+    const result =
+      game.winSummary.winner === undefined
+        ? "draw"
+        : game.winSummary.winner === SELF
+          ? "win"
+          : "loss";
+    trackAnalyticsEvent("hand_completed", {
+      ...analyticsContext(),
+      result,
+      win_method:
+        game.winSummary.winner === undefined
+          ? "draw"
+          : /self-draw/i.test(game.winSummary.detail)
+            ? "self_draw"
+            : "discard",
+      points: game.winSummary.points,
+      total_payment: game.winSummary.total,
+      duration_seconds: Math.max(
+        0,
+        Math.round(
+          (Date.now() - (analyticsHandStartedAt.current ?? Date.now())) / 1000,
+        ),
+      ),
+    });
+  }, [
+    analyticsEnabled,
+    connection.joined,
+    game?.tableId,
+    game?.round,
+    game?.dealerStreak,
+    game?.winSummary,
+    playMode,
+    SELF,
+  ]);
+
+  useEffect(() => {
+    if (!analyticsEnabled || !connection.joined || !game?.tableId) return;
+    const heartbeat = window.setInterval(() => {
+      const current = latestAnalyticsGame.current;
+      if (!current || current.phase === "round-over") return;
+      if (document.visibilityState !== "visible") return;
+      trackAnalyticsEvent("game_heartbeat", {
+        game_mode: playMode,
+        device_format: analyticsDeviceFormat(),
+        round_number: current.round,
+        dealer_streak: current.dealerStreak,
+        active_seconds: Math.max(
+          0,
+          Math.round(
+            (Date.now() -
+              (analyticsSessionStartedAt.current ?? Date.now())) /
+              1000,
+          ),
+        ),
+      });
+    }, 60_000);
+    return () => window.clearInterval(heartbeat);
+  }, [analyticsEnabled, connection.joined, game?.tableId, playMode]);
 
   useEffect(() => {
     const latestAction = game?.actionLog.at(-1);
@@ -1996,6 +2140,19 @@ function MahjongApp() {
       }
     }
 
+    trackAnalyticsEvent("game_session_ended", {
+      ...analyticsContext(),
+      exit_reason: "leave_game",
+      duration_seconds: Math.max(
+        0,
+        Math.round(
+          (Date.now() -
+            (analyticsSessionStartedAt.current ?? Date.now())) /
+            1000,
+        ),
+      ),
+    });
+
     if (playMode === "online" && connection.joined) {
       leaveRoom();
     }
@@ -2280,6 +2437,7 @@ function MahjongApp() {
           <button
             onClick={() => {
               setChoosingChi(false);
+              trackHumanAction("pong");
               claim("pong");
             }}
             type="button"
@@ -2294,6 +2452,7 @@ function MahjongApp() {
                 setChoosingChi(true);
               } else if (humanChiOptions[0]) {
                 setChoosingChi(false);
+                trackHumanAction("chi");
                 claim("chi", humanChiOptions[0]);
               }
             }}
@@ -2306,6 +2465,7 @@ function MahjongApp() {
           <button
             onClick={() => {
               setChoosingChi(false);
+              trackHumanAction("hu_discard");
               hu("discard");
             }}
             type="button"
@@ -2317,6 +2477,7 @@ function MahjongApp() {
           <button
             onClick={() => {
               setChoosingChi(false);
+              trackHumanAction("gong_claim");
               claim("kong");
             }}
             type="button"
@@ -2328,6 +2489,7 @@ function MahjongApp() {
           className="secondary-action"
           onClick={() => {
             setChoosingChi(false);
+            trackHumanAction("pass");
             pass();
           }}
           type="button"
@@ -2355,6 +2517,7 @@ function MahjongApp() {
           }
           onClick={() => {
             if (!effectiveSelectedTileId) return;
+            trackHumanAction("discard");
             discard(effectiveSelectedTileId);
             setUiSelectedTileId(undefined);
           }}
@@ -2365,6 +2528,7 @@ function MahjongApp() {
         {canSelfHu ? (
           <button
             onClick={() => {
+              trackHumanAction("hu_self_draw");
               hu("self-draw");
             }}
             type="button"
@@ -2391,6 +2555,7 @@ function MahjongApp() {
             type="button"
             onClick={() => {
               if (!effectiveSelectedTileId) return;
+              trackHumanAction("declare_ready");
               declareReady(effectiveSelectedTileId);
               setUiSelectedTileId(undefined);
             }}
@@ -2427,6 +2592,7 @@ function MahjongApp() {
           <button
             type="button"
             onClick={() => {
+              trackHumanAction("gong_added");
               kong(activeHumanKong, false);
               setChoosingKong(false);
             }}
@@ -2438,6 +2604,7 @@ function MahjongApp() {
             <button
               type="button"
               onClick={() => {
+                trackHumanAction("gong_silent");
                 kong(activeHumanKong, true);
                 setChoosingKong(false);
               }}
@@ -2447,6 +2614,7 @@ function MahjongApp() {
             <button
               type="button"
               onClick={() => {
+                trackHumanAction("gong_revealed");
                 kong(activeHumanKong, false);
                 setChoosingKong(false);
               }}
@@ -2620,6 +2788,7 @@ function MahjongApp() {
                       type="button"
                       onClick={() => {
                         setChoosingChi(false);
+                        trackHumanAction("chi");
                         claim("chi", option);
                       }}
                     >
@@ -2670,6 +2839,7 @@ function MahjongApp() {
                   onDoubleClick={() => {
                     if (game.phase !== "discard" || game.turn !== SELF) return;
                     setUiSelectedTileId(tile.id);
+                    trackHumanAction("discard_double_tap");
                     discard(tile.id);
                     setUiSelectedTileId(undefined);
                   }}
@@ -2860,6 +3030,19 @@ function MahjongApp() {
                     type="checkbox"
                     checked={soundEnabled}
                     onChange={(event) => setSoundEnabled(event.target.checked)}
+                  />
+                </label>
+                <label className="sound-setting">
+                  <span>
+                    <strong>Usage analytics</strong>
+                    <small>No player names or room names are collected.</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={analyticsEnabled}
+                    onChange={(event) =>
+                      onAnalyticsConsentChange(event.target.checked)
+                    }
                   />
                 </label>
               </section>
@@ -3230,12 +3413,66 @@ function MahjongApp() {
   );
 }
 
+function AnalyticsConsentPrompt({
+  onChoose,
+}: {
+  onChoose: (enabled: boolean) => void;
+}) {
+  return (
+    <div className="analytics-consent-backdrop" role="presentation">
+      <section
+        className="analytics-consent-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="analytics-consent-title"
+      >
+        <div>
+          <p className="eyebrow">Privacy choice</p>
+          <h2 id="analytics-consent-title">Help improve Table One</h2>
+          <p>
+            Allow usage analytics so we can understand active players, game
+            duration, and returning visits. Player names and room names are not
+            sent.
+          </p>
+        </div>
+        <div className="analytics-consent-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => onChoose(false)}
+          >
+            Not now
+          </button>
+          <button
+            className="full-width-button"
+            type="button"
+            onClick={() => onChoose(true)}
+          >
+            Allow analytics
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function Home() {
   const [ready, setReady] = useState(false);
+  const [analyticsConsent, setAnalyticsConsentState] =
+    useState<AnalyticsConsent>(() => getAnalyticsConsent());
 
   useEffect(() => {
     setReady(true);
   }, []);
+
+  useEffect(() => {
+    if (analyticsConsent === "granted") initializeAnalytics();
+  }, [analyticsConsent]);
+
+  const updateAnalyticsConsent = (enabled: boolean) => {
+    setAnalyticsConsent(enabled);
+    setAnalyticsConsentState(enabled ? "granted" : "denied");
+  };
 
   if (!ready) {
     return (
@@ -3251,5 +3488,15 @@ export default function Home() {
     );
   }
 
-  return <MahjongApp />;
+  return (
+    <>
+      <MahjongApp
+        analyticsEnabled={analyticsConsent === "granted"}
+        onAnalyticsConsentChange={updateAnalyticsConsent}
+      />
+      {analyticsConsent === null ? (
+        <AnalyticsConsentPrompt onChoose={updateAnalyticsConsent} />
+      ) : null}
+    </>
+  );
 }

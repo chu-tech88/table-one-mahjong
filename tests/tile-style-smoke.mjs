@@ -3,6 +3,10 @@ import { readFile } from "node:fs/promises";
 
 const css = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");
 const app = await readFile(new URL("../src/App.tsx", import.meta.url), "utf8");
+const analytics = await readFile(
+  new URL("../src/analytics.ts", import.meta.url),
+  "utf8",
+);
 const server = await readFile(new URL("../server/game-server.ts", import.meta.url), "utf8");
 
 assert.match(
@@ -229,6 +233,21 @@ assert.match(
   app,
   /function PlayerInspector[\s\S]*player\.discards\.map[\s\S]*<SeatSets flowers=\{player\.flowers\} melds=\{player\.melds\}/,
   "The player inspector must retain complete discard and revealed-set history",
+);
+assert.match(
+  analytics,
+  /VITE_GA_MEASUREMENT_ID[\s\S]*G-R0N2WZD69E[\s\S]*getAnalyticsConsent\(\) !== "granted"/,
+  "Google Analytics must use the configured property and remain gated by consent",
+);
+assert.match(
+  app,
+  /trackAnalyticsEvent\("game_started"[\s\S]*trackAnalyticsEvent\("hand_completed"[\s\S]*trackAnalyticsEvent\("game_heartbeat"/,
+  "Analytics must distinguish game starts, completed hands, and active play",
+);
+assert.match(
+  app,
+  /Usage analytics[\s\S]*No player names or room names are collected\./,
+  "Players must be able to review and change analytics consent in Settings",
 );
 assert.match(
   app,
