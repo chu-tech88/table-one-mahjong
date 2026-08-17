@@ -7,6 +7,7 @@ const analytics = await readFile(
   new URL("../src/analytics.ts", import.meta.url),
   "utf8",
 );
+const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const server = await readFile(new URL("../server/game-server.ts", import.meta.url), "utf8");
 
 assert.match(
@@ -238,6 +239,11 @@ assert.match(
   analytics,
   /VITE_GA_MEASUREMENT_ID[\s\S]*G-R0N2WZD69E[\s\S]*getAnalyticsConsent\(\) !== "granted"/,
   "Google Analytics must use the configured property and remain gated by consent",
+);
+assert.match(
+  html,
+  /gtag\("consent", "default", \{[\s\S]*analytics_storage: "denied"[\s\S]*googletagmanager\.com\/gtag\/js\?id=G-R0N2WZD69E[\s\S]*gtag\("config", "G-R0N2WZD69E"/,
+  "The shared page shell must install the Google tag after setting default consent",
 );
 assert.match(
   app,

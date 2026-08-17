@@ -41,19 +41,20 @@ export function initializeAnalytics() {
       window.dataLayer?.push(args);
     };
 
-  window.gtag("consent", "default", {
+  window.gtag("consent", "update", {
     analytics_storage: "granted",
     ad_storage: "denied",
     ad_user_data: "denied",
     ad_personalization: "denied",
   });
-  window.gtag("js", new Date());
-  window.gtag("config", ANALYTICS_MEASUREMENT_ID, {
-    allow_google_signals: false,
-    allow_ad_personalization_signals: false,
-  });
 
   if (!document.getElementById(ANALYTICS_SCRIPT_ID)) {
+    window.gtag("js", new Date());
+    window.gtag("config", ANALYTICS_MEASUREMENT_ID, {
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false,
+    });
+
     const script = document.createElement("script");
     script.id = ANALYTICS_SCRIPT_ID;
     script.async = true;
