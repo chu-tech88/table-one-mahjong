@@ -2179,8 +2179,11 @@ textarea {
 
 .settings-modal {
   display: grid;
-  gap: 14px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  height: min(760px, calc(100svh - 36px));
   padding: 18px;
+  overflow: hidden;
 }
 
 .modal-header {
@@ -2199,6 +2202,137 @@ textarea {
 .settings-stack {
   display: grid;
   gap: 12px;
+}
+
+.settings-scroll {
+  min-height: 0;
+  padding: 2px 4px 4px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.settings-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(45, 92, 66, 0.14);
+}
+
+.settings-action {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid rgba(45, 92, 66, 0.22);
+  border-radius: 7px;
+  background: #f2f7f2;
+  color: var(--accent-strong);
+  text-align: left;
+}
+
+.settings-action strong {
+  font-size: 0.86rem;
+}
+
+.settings-action span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.settings-action:hover {
+  border-color: rgba(22, 123, 102, 0.48);
+  background: #e8f3eb;
+}
+
+.settings-action-leave {
+  border-color: rgba(186, 60, 60, 0.28);
+  background: #fff7f5;
+  color: #9e3030;
+}
+
+.settings-action-leave:hover {
+  border-color: rgba(186, 60, 60, 0.5);
+  background: #fceceb;
+}
+
+.settings-disclosure {
+  border: 1px solid rgba(45, 92, 66, 0.18);
+  border-radius: 8px;
+  background: #fffdf8;
+  overflow: hidden;
+}
+
+.settings-disclosure > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 62px;
+  padding: 12px 14px;
+  color: var(--foreground);
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-disclosure > summary::after {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border: 1px solid rgba(45, 92, 66, 0.2);
+  border-radius: 50%;
+  color: var(--accent-strong);
+  content: "+";
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.settings-disclosure[open] > summary {
+  border-bottom: 1px solid rgba(45, 92, 66, 0.14);
+  background: #f5f8f3;
+}
+
+.settings-disclosure[open] > summary::after {
+  content: "−";
+}
+
+.settings-disclosure-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.settings-disclosure-copy strong {
+  font-size: 0.9rem;
+}
+
+.settings-disclosure-copy small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.settings-disclosure-body {
+  padding: 14px;
+}
+
+.support-disclosure .house-rule-actions {
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.support-disclosure .house-rule-actions button {
+  width: auto;
+  flex: 1 1 150px;
 }
 
 .settings-section h3 {
@@ -2781,6 +2915,40 @@ textarea {
   .house-rule-form,
   .house-rule-card {
     grid-template-columns: 1fr;
+  }
+
+  .settings-modal {
+    width: 100%;
+    height: calc(100svh - 16px);
+    padding: 14px;
+  }
+
+  .settings-scroll {
+    padding-right: 2px;
+    scrollbar-gutter: auto;
+  }
+
+  .settings-quick-actions {
+    gap: 6px;
+    padding-bottom: 10px;
+  }
+
+  .settings-action {
+    min-height: 54px;
+    padding: 9px 10px;
+  }
+
+  .settings-action span {
+    font-size: 0.64rem;
+  }
+
+  .settings-disclosure > summary {
+    min-height: 58px;
+    padding: 10px 12px;
+  }
+
+  .settings-disclosure-body {
+    padding: 10px;
   }
 
   .house-rule-actions {

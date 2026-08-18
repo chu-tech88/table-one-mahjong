@@ -292,6 +292,26 @@ assert.match(
 );
 assert.match(
   app,
+  /settings-quick-actions[\s\S]*New hand[\s\S]*Leave game[\s\S]*settings-scroll[\s\S]*Players and style/,
+  "Settings must keep new-hand and leave-game actions above scrollable preferences",
+);
+assert.match(
+  app,
+  /<details className="settings-disclosure rules-disclosure">[\s\S]*Rules and scoring[\s\S]*activeRuleCount[\s\S]*Taiwanese scoring table/,
+  "The full scoring table must start collapsed behind a useful rules summary",
+);
+assert.match(
+  app,
+  /<details className="settings-disclosure support-disclosure">[\s\S]*Support and diagnostics[\s\S]*Create Trello card/,
+  "Developer reporting controls must remain available without dominating settings",
+);
+assert.match(
+  css,
+  /\.settings-modal\s*\{[^}]*grid-template-rows:\s*auto auto minmax\(0, 1fr\);[^}]*overflow:\s*hidden;[\s\S]*?\.settings-scroll\s*\{[^}]*overflow-y:\s*auto;/,
+  "Settings header and quick actions must remain fixed while content scrolls",
+);
+assert.match(
+  app,
   /setActivityHistoryOpen\(true\)[\s\S]*?activity-history-panel[\s\S]*?game\.actionLog[\s\S]*?slice\(-20\)/,
   "The activity hub must provide recent table history on demand",
 );

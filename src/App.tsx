@@ -50,6 +50,12 @@ import {
 } from "./game-logic/lobbyChatStorage";
 import html2canvas from "html2canvas";
 import oneBambooBird from "./assets/one-bamboo-bird.png";
+import {
+  type AnalyticsConsent,
+  getAnalyticsConsent,
+  initializeAnalytics,
+  setAnalyticsConsent,
+} from "./analytics";
 
 const SOUND_SETTING_KEY = "table-one-sound-enabled";
 type GameSound = "discard" | "chi" | "pong" | "gong" | "hu" | "turn";
@@ -1097,7 +1103,15 @@ function loadActiveSession() {
   }
 }
 
-function MahjongApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
+function MahjongApp({
+  auth,
+  analyticsEnabled,
+  onAnalyticsConsentChange,
+}: {
+  auth: ReturnType<typeof useAuth>;
+  analyticsEnabled: boolean;
+  onAnalyticsConsentChange: (enabled: boolean) => void;
+}) {
   const restoredActiveSession = useMemo(loadActiveSession, []);
   const accountDisplayName = displayNameOf(auth.user);
   const signedInPlayerName = accountDisplayName || "Player";
@@ -1797,6 +1811,7 @@ function MahjongApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
         ? "decision"
         : "info";
   const ruleRows = useMemo(() => [["Base win", "baseWin"]] as const, []);
+  const activeRuleCount = houseRules.filter((rule) => rule.enabled).length;
 
   const [houseDraft, setHouseDraft] = useState({
     name: "",
@@ -3064,8 +3079,32 @@ function MahjongApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
               </button>
             </div>
 
-            <div className="settings-stack">
-              <section className="panel-block settings-section">
+            <div className="settings-quick-actions" aria-label="Game actions">
+              <button
+                className="settings-action settings-action-new"
+                type="button"
+                onClick={() => {
+                  newHand(nextDealer, false);
+                  clearLobbyChatForCurrentRoom();
+                  setSettingsOpen(false);
+                }}
+              >
+                <strong>New hand</strong>
+                <span>Redeal the current table</span>
+              </button>
+              <button
+                className="settings-action settings-action-leave"
+                type="button"
+                onClick={leaveCurrentGame}
+              >
+                <strong>Leave game</strong>
+                <span>Return to the lobby</span>
+              </button>
+            </div>
+
+            <div className="settings-scroll">
+              <div className="settings-stack">
+                <section className="panel-block settings-section">
                 <h2>Players and style</h2>
                 {game.players.map((player, index) => (
                   <div className="profile-row" key={index}>
@@ -3115,56 +3154,32 @@ function MahjongApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
                     onChange={(event) => setSoundEnabled(event.target.checked)}
                   />
                 </label>
-              </section>
+                <label className="sound-setting">
+                  <span>
+                    <strong>Usage analytics</strong>
+                    <small>No player names or room names are collected.</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={analyticsEnabled}
+                    onChange={(event) =>
+                      onAnalyticsConsentChange(event.target.checked)
+                    }
+                  />
+                </label>
+                </section>
 
-              <section className="panel-block settings-section">
-                <h2>Bug reports</h2>
-                <p className="settings-note">
-                  Create a Trello-ready bug report payload from the current game
-                  state and download it as JSON.
-                </p>
-                <div className="house-rule-actions">
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={createBugReport}
-                  >
-                    Create Trello card
-                  </button>
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={exportCurrentScenario}
-                  >
-                    Export JSON
-                  </button>
-                  <button
-                    className="text-button"
-                    type="button"
-                    onClick={() => scenarioFileInputRef.current?.click()}
-                  >
-                    Import JSON
-                  </button>
-                </div>
-                <input
-                  ref={scenarioFileInputRef}
-                  accept="application/json"
-                  hidden
-                  onChange={importScenarioFromFile}
-                  type="file"
-                />
-                {scenarioFeedback ? (
-                  <p className="settings-note">{scenarioFeedback}</p>
-                ) : null}
-                {activeScenario ? (
-                  <p className="settings-note">
-                    Last prepared report: {activeScenario.label}
-                  </p>
-                ) : null}
-              </section>
-
-              <section className="panel-block settings-section rules-section">
-                <h2>Rules</h2>
+                <details className="settings-disclosure rules-disclosure">
+                  <summary>
+                    <span className="settings-disclosure-copy">
+                      <strong>Rules and scoring</strong>
+                      <small>
+                        Base {rules.baseWin} · {activeRuleCount} of{" "}
+                        {houseRules.length} bonuses active
+                      </small>
+                    </span>
+                  </summary>
+                  <div className="settings-disclosure-body settings-section rules-section">
                 <div className="scoring-rules-grid">
                   {ruleRows.map(([label, key]) => (
                     <label className="rule-row" key={key}>
@@ -3298,27 +3313,63 @@ function MahjongApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
                     Add house item
                   </button>
                 </div>
-              </section>
-            </div>
+                  </div>
+                </details>
 
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => {
-                newHand(nextDealer, false);
-                clearLobbyChatForCurrentRoom();
-                setSettingsOpen(false);
-              }}
-            >
-              New hand
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={leaveCurrentGame}
-            >
-              Leave game
-            </button>
+                <details className="settings-disclosure support-disclosure">
+                  <summary>
+                    <span className="settings-disclosure-copy">
+                      <strong>Support and diagnostics</strong>
+                      <small>Report a problem or import a saved game state</small>
+                    </span>
+                  </summary>
+                  <div className="settings-disclosure-body settings-section">
+                    <p className="settings-note">
+                      Create a Trello-ready bug report payload from the current
+                      game state or download it as JSON.
+                    </p>
+                    <div className="house-rule-actions">
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={createBugReport}
+                      >
+                        Create Trello card
+                      </button>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={exportCurrentScenario}
+                      >
+                        Export JSON
+                      </button>
+                      <button
+                        className="text-button"
+                        type="button"
+                        onClick={() => scenarioFileInputRef.current?.click()}
+                      >
+                        Import JSON
+                      </button>
+                    </div>
+                    <input
+                      ref={scenarioFileInputRef}
+                      accept="application/json"
+                      hidden
+                      onChange={importScenarioFromFile}
+                      type="file"
+                    />
+                    {scenarioFeedback ? (
+                      <p className="settings-note">{scenarioFeedback}</p>
+                    ) : null}
+                    {activeScenario ? (
+                      <p className="settings-note">
+                        Last prepared report: {activeScenario.label}
+                      </p>
+                    ) : null}
+                  </div>
+                </details>
+              </div>
+            </div>
           </section>
         </div>
       ) : null}
@@ -3492,13 +3543,68 @@ function MahjongApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
   );
 }
 
+function AnalyticsConsentPrompt({
+  onChoose,
+}: {
+  onChoose: (enabled: boolean) => void;
+}) {
+  return (
+    <div className="analytics-consent-backdrop" role="presentation">
+      <section
+        className="analytics-consent-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="analytics-consent-title"
+      >
+        <div>
+          <p className="eyebrow">Privacy choice</p>
+          <h2 id="analytics-consent-title">Help improve Table One</h2>
+          <p>
+            Allow usage analytics so we can understand active players, game
+            duration, and returning visits. Player names and room names are not
+            sent.
+          </p>
+        </div>
+        <div className="analytics-consent-actions">
+          <button
+            autoFocus
+            className="analytics-consent-allow"
+            type="button"
+            onClick={() => onChoose(true)}
+          >
+            Yes, allow analytics
+          </button>
+          <button
+            className="analytics-consent-decline"
+            type="button"
+            onClick={() => onChoose(false)}
+          >
+            No, not now
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function Home() {
   const [ready, setReady] = useState(false);
   const auth = useAuth();
+  const [analyticsConsent, setAnalyticsConsentState] =
+    useState<AnalyticsConsent>(() => getAnalyticsConsent());
 
   useEffect(() => {
     setReady(true);
   }, []);
+
+  useEffect(() => {
+    if (analyticsConsent === "granted") initializeAnalytics();
+  }, [analyticsConsent]);
+
+  const updateAnalyticsConsent = (enabled: boolean) => {
+    setAnalyticsConsent(enabled);
+    setAnalyticsConsentState(enabled ? "granted" : "denied");
+  };
 
   if (!ready || auth.status === "loading") {
     return (
@@ -3514,5 +3620,16 @@ export default function Home() {
     );
   }
 
-  return <MahjongApp auth={auth} />;
+  return (
+    <>
+      <MahjongApp
+        auth={auth}
+        analyticsEnabled={analyticsConsent === "granted"}
+        onAnalyticsConsentChange={updateAnalyticsConsent}
+      />
+      {analyticsConsent === null ? (
+        <AnalyticsConsentPrompt onChoose={updateAnalyticsConsent} />
+      ) : null}
+    </>
+  );
 }
