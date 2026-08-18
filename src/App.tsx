@@ -23,6 +23,8 @@ import {
   sortTiles,
   kongLabel,
 } from "./game-logic/helpers";
+import { useAuth, displayNameOf } from "./hooks/useAuth";
+import { AuthScreen } from "./components/AuthScreen";
 import {
   isWinningHand,
   concealedKongOptions,
@@ -40,15 +42,14 @@ import {
   saveScenarioSnapshot,
   type ScenarioSnapshot,
 } from "./game-logic/snapshot";
+import {
+  clearLobbyChatHistory,
+  getStoredLobbyMessages,
+  saveLobbyMessages,
+  type StoredLobbyChatMessage,
+} from "./game-logic/lobbyChatStorage";
 import html2canvas from "html2canvas";
 import oneBambooBird from "./assets/one-bamboo-bird.png";
-import {
-  type AnalyticsConsent,
-  getAnalyticsConsent,
-  initializeAnalytics,
-  setAnalyticsConsent,
-  trackAnalyticsEvent,
-} from "./analytics";
 
 const SOUND_SETTING_KEY = "table-one-sound-enabled";
 type GameSound = "discard" | "chi" | "pong" | "gong" | "hu" | "turn";
@@ -71,13 +72,6 @@ function prefersReducedMotion() {
     typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
-}
-
-function analyticsDeviceFormat() {
-  if (typeof window === "undefined") return "unknown";
-  if (window.innerWidth <= 760) return "mobile";
-  if (window.innerWidth <= 1100) return "tablet";
-  return "desktop";
 }
 
 function claimedTileBetween(previous: Game, current: Game, actor: number) {
@@ -741,7 +735,7 @@ function TileView({
       type="button"
     >
       <TileFace tile={tile} />
-      {drawn ? <span className="drawn-badge" aria-hidden="true" /> : null}
+      {drawn ? <span className="drawn-badge">New</span> : null}
     </button>
   );
 }
@@ -793,12 +787,12 @@ function DiscardRiver({
           disabled
         />
       ))}
-      {discards.length > 3 ? (
+      {discards.length > 4 ? (
         <span
           className="discard-overflow-count"
-          aria-label={`${discards.length - 3} earlier discards`}
+          aria-label={`${discards.length - 4} earlier discards`}
         >
-          +{discards.length - 3}
+          +{discards.length - 4}
         </span>
       ) : null}
     </div>
@@ -892,15 +886,7 @@ function Opponent({
   presence?: "connected" | "reconnecting" | "ai";
   onInspect: () => void;
 }) {
-  const revealedTileCount =
-    player.flowers.length +
-    player.melds.reduce((total, meld) => total + meld.tiles.length, 0);
-  const revealedDensity =
-    revealedTileCount > 8
-      ? "revealed-density-compact"
-      : revealedTileCount > 6
-        ? "revealed-density-condensed"
-        : "revealed-density-roomy";
+  const revealedCount = player.flowers.length + player.melds.length;
   const wallTileCount = Math.min(player.hand.length, 18);
   return (
     <section
@@ -937,13 +923,6 @@ function Opponent({
         <span>{player.score} pts</span>
       </div>
       <div className="opponent-rack">
-        <span
-          className="opponent-hand-count"
-          aria-label={`${player.name} has ${player.hand.length} concealed tiles`}
-        >
-          <i aria-hidden="true" />
-          {player.hand.length} tiles
-        </span>
         <div
           className="opponent-wall-row"
           aria-label={`${player.name} has ${player.hand.length} concealed tiles`}
@@ -952,11 +931,10 @@ function Opponent({
             <i key={index} />
           ))}
         </div>
-        {revealedTileCount > 0 ? (
+        {revealedCount > 0 ? (
           <div
-            className={`opponent-revealed-strip ${revealedDensity}`}
+            className="opponent-revealed-strip"
             aria-label={`${player.name} revealed tiles`}
-            data-revealed-tiles={revealedTileCount}
           >
             <SeatSets flowers={player.flowers} melds={player.melds} />
           </div>
@@ -994,11 +972,7 @@ function PlayerInspector({
   onClose: () => void;
 }) {
   return (
-    <div
-      className="modal-backdrop player-inspector-backdrop"
-      role="presentation"
-      onMouseDown={onClose}
-    >
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
         className="player-inspector"
         role="dialog"
@@ -1123,21 +1097,17 @@ function loadActiveSession() {
   }
 }
 
-function MahjongApp({
-  analyticsEnabled,
-  onAnalyticsConsentChange,
-}: {
-  analyticsEnabled: boolean;
-  onAnalyticsConsentChange: (enabled: boolean) => void;
-}) {
+function MahjongApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
   const restoredActiveSession = useMemo(loadActiveSession, []);
+  const accountDisplayName = displayNameOf(auth.user);
+  const signedInPlayerName = accountDisplayName || "Player";
   const [playMode, setPlayMode] = useState<"solo" | "online">(
     restoredActiveSession?.playMode ?? "solo",
   );
   const [connection, setConnection] = useState(() => ({
     roomId: restoredActiveSession?.roomId ?? createSoloRoomId(),
     playerIndex: restoredActiveSession?.playerIndex ?? 0,
-    playerName: restoredActiveSession?.playerName ?? "",
+    playerName: restoredActiveSession?.playerName ?? accountDisplayName,
     joined: Boolean(restoredActiveSession),
   }));
   const [occupiedSeats, setOccupiedSeats] = useState<number[]>([]);
@@ -1155,6 +1125,57 @@ function MahjongApp({
   );
   const [scenarioFeedback, setScenarioFeedback] = useState<string | null>(null);
   const scenarioFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authInitialMode, setAuthInitialMode] = useState<"sign-in" | "sign-up">(
+    "sign-in",
+  );
+
+  const openAuth = (initialMode: "sign-in" | "sign-up") => {
+    setAuthInitialMode(initialMode);
+    setAuthOpen(true);
+  };
+
+  const accountControls = auth.user ? (
+    <button
+      className="secondary-button account-button"
+      type="button"
+      onClick={() => void auth.signOut()}
+    >
+      Sign out
+    </button>
+  ) : (
+    <div className="account-actions">
+      <button
+        className="secondary-button account-button"
+        type="button"
+        onClick={() => {
+          setAuthInitialMode("sign-in");
+          setAuthOpen(true);
+        }}
+      >
+        Sign in
+      </button>
+      <button
+        className="full-width-button account-button"
+        type="button"
+        onClick={() => {
+          setAuthInitialMode("sign-up");
+          setAuthOpen(true);
+        }}
+      >
+        Create account
+      </button>
+    </div>
+  );
+
+  useEffect(() => {
+    if (!auth.user || !accountDisplayName) return;
+    setConnection((current) =>
+      current.playerName === accountDisplayName
+        ? current
+        : { ...current, playerName: accountDisplayName },
+    );
+  }, [accountDisplayName, auth.user]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1244,9 +1265,17 @@ function MahjongApp({
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activityHistoryOpen, setActivityHistoryOpen] = useState(false);
-  const [mobileActivityExpanded, setMobileActivityExpanded] = useState(true);
   const [inspectedSeat, setInspectedSeat] = useState<number | undefined>();
   const [choosingChi, setChoosingChi] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const chatSocketRef = useRef<WebSocket | null>(null);
+  const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatMessages, setChatMessages] = useState<StoredLobbyChatMessage[]>(
+    [],
+  );
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const activeChatRoomRef = useRef<string | null>(null);
   const [choosingKong, setChoosingKong] = useState(false);
   const [selectedKongCode, setSelectedKongCode] = useState<
     string | undefined
@@ -1261,34 +1290,12 @@ function MahjongApp({
   const audioUnlocked = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const previousPresentationGame = useRef<Game | undefined>(undefined);
-  const latestAnalyticsGame = useRef<Game | undefined>(undefined);
-  const analyticsSessionKey = useRef<string | undefined>(undefined);
-  const analyticsSessionStartedAt = useRef<number | undefined>(undefined);
-  const analyticsHandKey = useRef<string | undefined>(undefined);
-  const analyticsHandStartedAt = useRef<number | undefined>(undefined);
-  const completedAnalyticsHandKey = useRef<string | undefined>(undefined);
   const winModalRef = useRef<HTMLElement | null>(null);
   const [tileFlight, setTileFlight] = useState<TileFlight | undefined>();
   const [showWinModal, setShowWinModal] = useState(false);
   const [winStage, setWinStage] = useState<0 | 1 | 2>(0);
   const [scoreDeltas, setScoreDeltas] = useState<number[]>([0, 0, 0, 0]);
   const [animatedWinTotal, setAnimatedWinTotal] = useState(0);
-
-  latestAnalyticsGame.current = game ?? undefined;
-
-  const analyticsContext = () => ({
-    game_mode: playMode,
-    device_format: analyticsDeviceFormat(),
-    round_number: game?.round ?? 0,
-    dealer_streak: game?.dealerStreak ?? 0,
-  });
-
-  const trackHumanAction = (actionType: string) => {
-    trackAnalyticsEvent("mahjong_action", {
-      ...analyticsContext(),
-      action_type: actionType,
-    });
-  };
 
   const getAudioContext = () => {
     if (!soundEnabled || !audioUnlocked.current) return null;
@@ -1331,108 +1338,6 @@ function MahjongApp({
   useEffect(() => {
     window.localStorage.setItem(SOUND_SETTING_KEY, String(soundEnabled));
   }, [soundEnabled]);
-
-  useEffect(() => {
-    if (!analyticsEnabled || !connection.joined || !game) {
-      if (!connection.joined) {
-        analyticsSessionKey.current = undefined;
-        analyticsSessionStartedAt.current = undefined;
-        analyticsHandKey.current = undefined;
-        analyticsHandStartedAt.current = undefined;
-        completedAnalyticsHandKey.current = undefined;
-      }
-      return;
-    }
-
-    const sessionKey = `${playMode}:${game.tableId}:${SELF}`;
-    if (analyticsSessionKey.current === sessionKey) return;
-    analyticsSessionKey.current = sessionKey;
-    analyticsSessionStartedAt.current = Date.now();
-    trackAnalyticsEvent("game_started", {
-      ...analyticsContext(),
-      human_player_count: game.players.filter(
-        (player) => player.controller === "human",
-      ).length,
-    });
-  }, [analyticsEnabled, connection.joined, game?.tableId, playMode, SELF]);
-
-  useEffect(() => {
-    if (!analyticsEnabled || !connection.joined || !game) return;
-
-    const handKey = `${game.tableId}:${game.round}:${game.dealerStreak}`;
-    if (analyticsHandKey.current !== handKey) {
-      analyticsHandKey.current = handKey;
-      analyticsHandStartedAt.current = Date.now();
-      completedAnalyticsHandKey.current = undefined;
-      trackAnalyticsEvent("hand_started", analyticsContext());
-    }
-
-    if (
-      !game.winSummary ||
-      completedAnalyticsHandKey.current === handKey
-    ) {
-      return;
-    }
-
-    completedAnalyticsHandKey.current = handKey;
-    const result =
-      game.winSummary.winner === undefined
-        ? "draw"
-        : game.winSummary.winner === SELF
-          ? "win"
-          : "loss";
-    trackAnalyticsEvent("hand_completed", {
-      ...analyticsContext(),
-      result,
-      win_method:
-        game.winSummary.winner === undefined
-          ? "draw"
-          : /self-draw/i.test(game.winSummary.detail)
-            ? "self_draw"
-            : "discard",
-      points: game.winSummary.points,
-      total_payment: game.winSummary.total,
-      duration_seconds: Math.max(
-        0,
-        Math.round(
-          (Date.now() - (analyticsHandStartedAt.current ?? Date.now())) / 1000,
-        ),
-      ),
-    });
-  }, [
-    analyticsEnabled,
-    connection.joined,
-    game?.tableId,
-    game?.round,
-    game?.dealerStreak,
-    game?.winSummary,
-    playMode,
-    SELF,
-  ]);
-
-  useEffect(() => {
-    if (!analyticsEnabled || !connection.joined || !game?.tableId) return;
-    const heartbeat = window.setInterval(() => {
-      const current = latestAnalyticsGame.current;
-      if (!current || current.phase === "round-over") return;
-      if (document.visibilityState !== "visible") return;
-      trackAnalyticsEvent("game_heartbeat", {
-        game_mode: playMode,
-        device_format: analyticsDeviceFormat(),
-        round_number: current.round,
-        dealer_streak: current.dealerStreak,
-        active_seconds: Math.max(
-          0,
-          Math.round(
-            (Date.now() -
-              (analyticsSessionStartedAt.current ?? Date.now())) /
-              1000,
-          ),
-        ),
-      });
-    }, 60_000);
-    return () => window.clearInterval(heartbeat);
-  }, [analyticsEnabled, connection.joined, game?.tableId, playMode]);
 
   useEffect(() => {
     const latestAction = game?.actionLog.at(-1);
@@ -1629,43 +1534,6 @@ function MahjongApp({
     undefined,
   );
   const human = game?.players[SELF];
-  const humanName = human?.name.trim();
-  const soloHumanName =
-    humanName && humanName.toLowerCase() !== "you"
-      ? humanName
-      : connection.playerName.trim() || "Player";
-  const humanDisplayName =
-    playMode === "solo" ? soloHumanName : `${humanName || "You"} (You)`;
-  const humanHandDensity =
-    (human?.hand.length ?? 17) >= 16
-      ? "human-hand-density-compact"
-      : (human?.hand.length ?? 17) >= 13
-        ? "human-hand-density-standard"
-        : "human-hand-density-roomy";
-
-  useEffect(() => {
-    const requestedName = connection.playerName.trim();
-    if (
-      playMode !== "solo" ||
-      !connection.joined ||
-      activeScenario ||
-      !requestedName ||
-      !human ||
-      human.name.trim().toLowerCase() !== "you"
-    ) {
-      return;
-    }
-    updatePlayerName(SELF, requestedName);
-  }, [
-    SELF,
-    activeScenario,
-    connection.joined,
-    connection.playerName,
-    human,
-    playMode,
-    updatePlayerName,
-  ]);
-
   const effectiveSelectedTileId =
     uiSelectedTileId ?? selectedTileId ?? game?.selectedId;
   const concealedHumanKongs = human ? concealedKongOptions(human.hand) : [];
@@ -1727,6 +1595,27 @@ function MahjongApp({
   }, [game?.phase, game?.turn, SELF, humanKongs.join("|")]);
 
   useEffect(() => {
+    if (!chatOpen) return;
+    setUnreadChatCount(0);
+    chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatOpen, chatMessages.length]);
+
+  useEffect(() => {
+    if (playMode !== "online" || !connection.joined || !connection.roomId) {
+      activeChatRoomRef.current = null;
+      return;
+    }
+
+    if (activeChatRoomRef.current === connection.roomId) {
+      return;
+    }
+
+    setChatMessages([]);
+    setUnreadChatCount(0);
+    activeChatRoomRef.current = connection.roomId;
+  }, [playMode, connection.joined, connection.roomId]);
+
+  useEffect(() => {
     if (!game || !human) {
       setUiSelectedTileId(undefined);
       return;
@@ -1743,6 +1632,102 @@ function MahjongApp({
       setUiSelectedTileId(undefined);
     }
   }, [game?.turn, game?.phase, human, uiSelectedTileId]);
+
+  useEffect(() => {
+    if (playMode !== "online" || !connection.joined) {
+      chatSocketRef.current?.close();
+      chatSocketRef.current = null;
+      setChatDraft("");
+      activeChatRoomRef.current = null;
+      return;
+    }
+
+    const socket = new WebSocket(DEFAULT_SERVER_URL);
+    chatSocketRef.current = socket;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (typeof event.data !== "string") return;
+      try {
+        const payload = JSON.parse(event.data) as {
+          type?: string;
+          message?: unknown;
+        };
+        if (
+          payload.type === "lobby-chat-message" &&
+          typeof payload.message === "object" &&
+          payload.message !== null
+        ) {
+          const messagePayload = payload.message as {
+            id?: string;
+            playerIndex?: number;
+            playerName?: string;
+            text?: string;
+            createdAt?: number;
+          };
+          const normalizedMessage = {
+            id:
+              messagePayload.id ??
+              `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            playerIndex: messagePayload.playerIndex ?? -1,
+            playerName: messagePayload.playerName ?? "Player",
+            text: messagePayload.text ?? "",
+            createdAt: messagePayload.createdAt ?? Date.now(),
+          };
+          setChatMessages((current) => {
+            const next = [...current, normalizedMessage].slice(-50);
+            saveLobbyMessages(connection.roomId, next);
+            return next;
+          });
+          if (messagePayload.playerIndex !== connection.playerIndex) {
+            setUnreadChatCount((current) => Math.min(99, current + 1));
+          }
+        }
+
+        if (
+          payload.type === "system" &&
+          typeof payload.message === "string" &&
+          payload.message === "Room reset: chat cleared"
+        ) {
+          clearLobbyChatHistory(connection.roomId);
+          activeChatRoomRef.current = null;
+          setChatMessages([]);
+          setUnreadChatCount(0);
+        }
+      } catch {
+        // Ignore malformed chat payloads.
+      }
+    };
+
+    socket.addEventListener("open", () => {
+      socket.send(
+        JSON.stringify({
+          type: "join-lobby-chat",
+          roomId: connection.roomId,
+          playerIndex: connection.playerIndex,
+          playerName: connection.playerName.trim() || "Player",
+        }),
+      );
+    });
+    socket.addEventListener("message", handleMessage);
+    socket.addEventListener("close", () => {
+      if (chatSocketRef.current === socket) {
+        chatSocketRef.current = null;
+      }
+    });
+
+    return () => {
+      socket.close();
+      if (chatSocketRef.current === socket) {
+        chatSocketRef.current = null;
+      }
+    };
+  }, [
+    playMode,
+    connection.joined,
+    connection.roomId,
+    connection.playerIndex,
+    connection.playerName,
+  ]);
 
   const nextDealer = game ? nextDealerForRound(game) : SELF;
   const dealerStatus = game
@@ -1769,9 +1754,6 @@ function MahjongApp({
   const currentClaimer = game?.pendingClaim?.claimer;
   const isSelfDiscardTurn = currentPhase === "discard" && currentTurn === SELF;
   const isSelfClaimTurn = currentPhase === "claim" && currentClaimer === SELF;
-  const focusedActivityTile = isSelfClaimTurn
-    ? game?.pendingClaim?.tile
-    : activity.tile;
   const activityIsTurnCall = /is taking a turn\.?$/i.test(activity.text);
   const activityIndicatesSelfAction =
     activity.player === SELF &&
@@ -1814,23 +1796,6 @@ function MahjongApp({
       : currentPhase === "claim"
         ? "decision"
         : "info";
-
-  useEffect(() => {
-    const requiresAttention = isSelfDiscardTurn || isSelfClaimTurn;
-    setMobileActivityExpanded(true);
-    if (requiresAttention) return;
-
-    const timer = window.setTimeout(() => {
-      setMobileActivityExpanded(false);
-    }, 2600);
-    return () => window.clearTimeout(timer);
-  }, [
-    game?.actionSeq,
-    game?.round,
-    isSelfDiscardTurn,
-    isSelfClaimTurn,
-  ]);
-
   const ruleRows = useMemo(() => [["Base win", "baseWin"]] as const, []);
 
   const [houseDraft, setHouseDraft] = useState({
@@ -2186,19 +2151,6 @@ function MahjongApp({
       }
     }
 
-    trackAnalyticsEvent("game_session_ended", {
-      ...analyticsContext(),
-      exit_reason: "leave_game",
-      duration_seconds: Math.max(
-        0,
-        Math.round(
-          (Date.now() -
-            (analyticsSessionStartedAt.current ?? Date.now())) /
-            1000,
-        ),
-      ),
-    });
-
     if (playMode === "online" && connection.joined) {
       leaveRoom();
     }
@@ -2222,6 +2174,7 @@ function MahjongApp({
             <span>Multiplayer</span>
             <strong>Choose a room to join</strong>
           </div>
+          {accountControls}
         </header>
         <section className="game-layout lobby-layout">
           <div className="panel-block settings-section join-panel">
@@ -2258,18 +2211,21 @@ function MahjongApp({
             </div>
             <div className="join-fields">
               <label>
-                <span>Your name</span>
+                <span>{auth.user ? "Account display name" : "Your name"}</span>
                 <input
                   autoComplete="nickname"
                   maxLength={18}
-                  placeholder="Enter your name"
+                  placeholder={auth.user ? "From your account" : "Enter your name"}
+                  readOnly={Boolean(auth.user)}
                   type="text"
-                  value={connection.playerName}
+                  value={auth.user ? signedInPlayerName : connection.playerName}
                   onChange={(event) =>
-                    setConnection((current) => ({
-                      ...current,
-                      playerName: event.target.value,
-                    }))
+                    auth.user
+                      ? undefined
+                      : setConnection((current) => ({
+                          ...current,
+                          playerName: event.target.value,
+                        }))
                   }
                 />
               </label>
@@ -2422,6 +2378,13 @@ function MahjongApp({
             ) : null}
           </div>
         </section>
+        {authOpen ? (
+          <AuthScreen
+            auth={auth}
+            initialMode={authInitialMode}
+            onClose={() => setAuthOpen(false)}
+          />
+        ) : null}
       </main>
     );
   }
@@ -2449,6 +2412,7 @@ function MahjongApp({
               {gameHook.isConnected ? "Connected" : "Waiting for server"}
             </strong>
           </div>
+          {accountControls}
         </header>
         <section className="game-layout">
           <div style={{ textAlign: "center", padding: "2rem" }}>
@@ -2472,9 +2436,46 @@ function MahjongApp({
             )}
           </div>
         </section>
+        {authOpen ? (
+          <AuthScreen
+            auth={auth}
+            initialMode={authInitialMode}
+            onClose={() => setAuthOpen(false)}
+          />
+        ) : null}
       </main>
     );
   }
+
+  const clearLobbyChatForCurrentRoom = () => {
+    if (!connection.roomId) return;
+    clearLobbyChatHistory(connection.roomId);
+    setChatMessages([]);
+  };
+
+  const submitLobbyChat = () => {
+    const trimmed = chatDraft.trim();
+    const socket = chatSocketRef.current;
+    if (!trimmed || playMode !== "online") {
+      return;
+    }
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setChatDraft("");
+      return;
+    }
+
+    socket.send(
+      JSON.stringify({
+        type: "lobby-chat",
+        roomId: connection.roomId,
+        playerIndex: connection.playerIndex,
+        playerName: connection.playerName.trim() || "Player",
+        text: trimmed,
+      }),
+    );
+    setChatDraft("");
+  };
 
   const claimActions =
     game.phase === "claim" && game.pendingClaim?.claimer === SELF ? (
@@ -2483,7 +2484,6 @@ function MahjongApp({
           <button
             onClick={() => {
               setChoosingChi(false);
-              trackHumanAction("pong");
               claim("pong");
             }}
             type="button"
@@ -2498,7 +2498,6 @@ function MahjongApp({
                 setChoosingChi(true);
               } else if (humanChiOptions[0]) {
                 setChoosingChi(false);
-                trackHumanAction("chi");
                 claim("chi", humanChiOptions[0]);
               }
             }}
@@ -2511,7 +2510,6 @@ function MahjongApp({
           <button
             onClick={() => {
               setChoosingChi(false);
-              trackHumanAction("hu_discard");
               hu("discard");
             }}
             type="button"
@@ -2523,7 +2521,6 @@ function MahjongApp({
           <button
             onClick={() => {
               setChoosingChi(false);
-              trackHumanAction("gong_claim");
               claim("kong");
             }}
             type="button"
@@ -2535,7 +2532,6 @@ function MahjongApp({
           className="secondary-action"
           onClick={() => {
             setChoosingChi(false);
-            trackHumanAction("pass");
             pass();
           }}
           type="button"
@@ -2563,7 +2559,6 @@ function MahjongApp({
           }
           onClick={() => {
             if (!effectiveSelectedTileId) return;
-            trackHumanAction("discard");
             discard(effectiveSelectedTileId);
             setUiSelectedTileId(undefined);
           }}
@@ -2574,7 +2569,6 @@ function MahjongApp({
         {canSelfHu ? (
           <button
             onClick={() => {
-              trackHumanAction("hu_self_draw");
               hu("self-draw");
             }}
             type="button"
@@ -2601,7 +2595,6 @@ function MahjongApp({
             type="button"
             onClick={() => {
               if (!effectiveSelectedTileId) return;
-              trackHumanAction("declare_ready");
               declareReady(effectiveSelectedTileId);
               setUiSelectedTileId(undefined);
             }}
@@ -2613,6 +2606,11 @@ function MahjongApp({
     ) : null;
 
   const actionControls = game.phase === "claim" ? claimActions : defaultActions;
+  const chatPreviewText =
+    chatMessages.length > 0
+      ? `${chatMessages[chatMessages.length - 1].playerName}: ${chatMessages[chatMessages.length - 1].text}`
+      : "No messages yet";
+
   const kongChoiceControls =
     choosingKong &&
     game.phase === "discard" &&
@@ -2638,7 +2636,6 @@ function MahjongApp({
           <button
             type="button"
             onClick={() => {
-              trackHumanAction("gong_added");
               kong(activeHumanKong, false);
               setChoosingKong(false);
             }}
@@ -2650,7 +2647,6 @@ function MahjongApp({
             <button
               type="button"
               onClick={() => {
-                trackHumanAction("gong_silent");
                 kong(activeHumanKong, true);
                 setChoosingKong(false);
               }}
@@ -2660,7 +2656,6 @@ function MahjongApp({
             <button
               type="button"
               onClick={() => {
-                trackHumanAction("gong_revealed");
                 kong(activeHumanKong, false);
                 setChoosingKong(false);
               }}
@@ -2681,44 +2676,35 @@ function MahjongApp({
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <h1>Table One Mahjong</h1>
-        <div className="round-status">
-          <span>Round {game.round}</span>
-          <strong>{dealerStatus}</strong>
-        </div>
-      </header>
-
       <section className="game-layout">
-        <section
-          className={`table ${isSelfClaimTurn ? "claim-decision-active" : ""}`}
-          aria-label="Mahjong table"
-        >
+        <section className="table" aria-label="Mahjong table">
           <div className="board-toolbar">
-            <div className="table-brand">
-              <strong>Table One Mahjong</strong>
-              <span>
-                Round {game.round} · {dealerStatus}
-              </span>
+            <div className="toolbar-left">
+              <div className="tiles-remaining">
+                <span>Tiles</span>
+                <strong>{game.wall.length}</strong>
+              </div>
+              <div className="round-indicator">
+                <span>Round {game.round}</span>
+                <strong>{dealerStatus}</strong>
+              </div>
             </div>
-            <div className="tiles-remaining">
-              <span>Tiles</span>
-              <strong>{game.wall.length}</strong>
+            <div className="toolbar-right">
+              <div className="online-status" aria-label="Online readiness">
+                <span>{playMode === "solo" ? "Solo" : "Shared room"}</span>
+                <strong>
+                  {playMode === "solo" ? "3 AI" : connection.roomId}
+                </strong>
+              </div>
+              <button
+                className="gear-button"
+                type="button"
+                aria-label="Open settings"
+                onClick={() => setSettingsOpen(true)}
+              >
+                ⚙
+              </button>
             </div>
-            <div className="online-status" aria-label="Online readiness">
-              <span>{playMode === "solo" ? "Solo" : "Shared room"}</span>
-              <strong>
-                {playMode === "solo" ? "3 AI" : connection.roomId}
-              </strong>
-            </div>
-            <button
-              className="gear-button"
-              type="button"
-              aria-label="Open settings"
-              onClick={() => setSettingsOpen(true)}
-            >
-              ⚙
-            </button>
           </div>
           {tileFlight ? (
             <div
@@ -2773,7 +2759,7 @@ function MahjongApp({
                     Your turn
                   </span>
                 ) : null}
-                <strong>{humanDisplayName}</strong>
+                <strong>{human.name} (You)</strong>
               </button>
               <div className="seat-badges">
                 {game.dealer === SELF ? (
@@ -2793,26 +2779,21 @@ function MahjongApp({
               </div>
             </div>
             <button
-              className={`mobile-activity-ribbon notice-${activityNoticeTone} ${mobileActivityExpanded ? "is-expanded" : "is-compact"}`}
+              className={`mobile-activity-ribbon notice-${activityNoticeTone}`}
               aria-live="polite"
               type="button"
               onClick={() => setActivityHistoryOpen(true)}
             >
-              <span>
-                {mobileActivityExpanded ? centerStatusLabel : "Activity"}
-              </span>
+              <span>{centerStatusLabel}</span>
               <strong>{activityText}</strong>
-              {focusedActivityTile ? (
+              {activity.tile ? (
                 <span
-                  className={`tile mobile-activity-tile ${focusedActivityTile.suit}`}
-                  aria-label={focusedActivityTile.label}
+                  className={`tile mobile-activity-tile ${activity.tile.suit}`}
+                  aria-label={activity.tile.label}
                 >
-                  <TileFace tile={focusedActivityTile} />
+                  <TileFace tile={activity.tile} />
                 </span>
               ) : null}
-              <i className="activity-open-mark" aria-hidden="true">
-                ›
-              </i>
             </button>
             <div
               className="human-revealed-shelf"
@@ -2834,7 +2815,6 @@ function MahjongApp({
                       type="button"
                       onClick={() => {
                         setChoosingChi(false);
-                        trackHumanAction("chi");
                         claim("chi", option);
                       }}
                     >
@@ -2855,7 +2835,7 @@ function MahjongApp({
                 </div>
               </div>
             ) : null}
-            <div className={`human-hand ${humanHandDensity}`}>
+            <div className="human-hand">
               {human.hand.map((tile) => (
                 <TileView
                   key={tile.id}
@@ -2885,7 +2865,6 @@ function MahjongApp({
                   onDoubleClick={() => {
                     if (game.phase !== "discard" || game.turn !== SELF) return;
                     setUiSelectedTileId(tile.id);
-                    trackHumanAction("discard_double_tap");
                     discard(tile.id);
                     setUiSelectedTileId(undefined);
                   }}
@@ -2929,13 +2908,69 @@ function MahjongApp({
                 </span>
                 <strong>{activityText}</strong>
               </button>
-              {focusedActivityTile ? (
+              {activity.tile ? (
                 <div className="last-discard">
-                  <TileView tile={focusedActivityTile} large disabled />
+                  <TileView tile={activity.tile} large disabled />
                 </div>
               ) : null}
             </div>
           </div>
+          {playMode === "online" ? (
+            <div className="lobby-chat-panel" aria-label="Lobby chat">
+              <button
+                className="lobby-chat-toggle"
+                type="button"
+                onClick={() => setChatOpen((current) => !current)}
+              >
+                <span>Chat</span>
+                {unreadChatCount > 0 && !chatOpen ? (
+                  <em
+                    className="notice-count"
+                    aria-label={`${unreadChatCount} unread messages`}
+                  >
+                    {unreadChatCount}
+                  </em>
+                ) : null}
+                <strong>{chatPreviewText}</strong>
+              </button>
+              {chatOpen ? (
+                <div className="lobby-chat-card">
+                  <div className="lobby-chat-messages" aria-live="polite">
+                    {chatMessages.length === 0 ? (
+                      <p className="lobby-chat-empty">No chat yet.</p>
+                    ) : (
+                      [...chatMessages].slice(-5).map((message) => (
+                        <div key={message.id} className="lobby-chat-message">
+                          <strong>{message.playerName}</strong>
+                          <span>{message.text}</span>
+                        </div>
+                      ))
+                    )}
+                    <div ref={chatMessagesEndRef} />
+                  </div>
+                  <div className="lobby-chat-input-row">
+                    <input
+                      aria-label="Lobby chat input"
+                      maxLength={140}
+                      placeholder="Type a message"
+                      type="text"
+                      value={chatDraft}
+                      onChange={(event) => setChatDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          submitLobbyChat();
+                        }
+                      }}
+                    />
+                    <button type="button" onClick={submitLobbyChat}>
+                      Send
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <Opponent
             player={{ ...game.players[rightSeat], name: seatName(rightSeat) }}
             active={game.turn === rightSeat}
@@ -3076,19 +3111,6 @@ function MahjongApp({
                     type="checkbox"
                     checked={soundEnabled}
                     onChange={(event) => setSoundEnabled(event.target.checked)}
-                  />
-                </label>
-                <label className="sound-setting">
-                  <span>
-                    <strong>Usage analytics</strong>
-                    <small>No player names or room names are collected.</small>
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={analyticsEnabled}
-                    onChange={(event) =>
-                      onAnalyticsConsentChange(event.target.checked)
-                    }
                   />
                 </label>
               </section>
@@ -3282,6 +3304,7 @@ function MahjongApp({
               type="button"
               onClick={() => {
                 newHand(nextDealer, false);
+                clearLobbyChatForCurrentRoom();
                 setSettingsOpen(false);
               }}
             >
@@ -3436,6 +3459,7 @@ function MahjongApp({
                     } else {
                       newHand(nextDealer, false);
                     }
+                    clearLobbyChatForCurrentRoom();
                   }}
                 >
                   {playMode === "online" &&
@@ -3455,73 +3479,26 @@ function MahjongApp({
           </section>
         </div>
       ) : null}
+      {authOpen ? (
+        <AuthScreen
+          auth={auth}
+          initialMode={authInitialMode}
+          onClose={() => setAuthOpen(false)}
+        />
+      ) : null}
     </main>
-  );
-}
-
-function AnalyticsConsentPrompt({
-  onChoose,
-}: {
-  onChoose: (enabled: boolean) => void;
-}) {
-  return (
-    <div className="analytics-consent-backdrop" role="presentation">
-      <section
-        className="analytics-consent-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="analytics-consent-title"
-      >
-        <div>
-          <p className="eyebrow">Privacy choice</p>
-          <h2 id="analytics-consent-title">Help improve Table One</h2>
-          <p>
-            Allow usage analytics so we can understand active players, game
-            duration, and returning visits. Player names and room names are not
-            sent.
-          </p>
-        </div>
-        <div className="analytics-consent-actions">
-          <button
-            autoFocus
-            className="analytics-consent-allow"
-            type="button"
-            onClick={() => onChoose(true)}
-          >
-            Yes, allow analytics
-          </button>
-          <button
-            className="analytics-consent-decline"
-            type="button"
-            onClick={() => onChoose(false)}
-          >
-            No, not now
-          </button>
-        </div>
-      </section>
-    </div>
   );
 }
 
 export default function Home() {
   const [ready, setReady] = useState(false);
-  const [analyticsConsent, setAnalyticsConsentState] =
-    useState<AnalyticsConsent>(() => getAnalyticsConsent());
+  const auth = useAuth();
 
   useEffect(() => {
     setReady(true);
   }, []);
 
-  useEffect(() => {
-    if (analyticsConsent === "granted") initializeAnalytics();
-  }, [analyticsConsent]);
-
-  const updateAnalyticsConsent = (enabled: boolean) => {
-    setAnalyticsConsent(enabled);
-    setAnalyticsConsentState(enabled ? "granted" : "denied");
-  };
-
-  if (!ready) {
+  if (!ready || auth.status === "loading") {
     return (
       <main className="app-shell">
         <header className="topbar">
@@ -3535,15 +3512,5 @@ export default function Home() {
     );
   }
 
-  return (
-    <>
-      <MahjongApp
-        analyticsEnabled={analyticsConsent === "granted"}
-        onAnalyticsConsentChange={updateAnalyticsConsent}
-      />
-      {analyticsConsent === null ? (
-        <AnalyticsConsentPrompt onChoose={updateAnalyticsConsent} />
-      ) : null}
-    </>
-  );
+  return <MahjongApp auth={auth} />;
 }
