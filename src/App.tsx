@@ -35,6 +35,12 @@ import {
   waitCodesForHand,
 } from "./game-logic/validation";
 import { canDeclareReady } from "./game-logic/flow";
+import {
+  type CoachLesson,
+  type CoachTarget,
+  type GuidanceMode,
+  recommendDiscard,
+} from "./game-logic/learning";
 import { useGame } from "./hooks/useGame";
 import {
   createScenarioSnapshot,
@@ -42,12 +48,6 @@ import {
   saveScenarioSnapshot,
   type ScenarioSnapshot,
 } from "./game-logic/snapshot";
-import {
-  clearLobbyChatHistory,
-  getStoredLobbyMessages,
-  saveLobbyMessages,
-  type StoredLobbyChatMessage,
-} from "./game-logic/lobbyChatStorage";
 import html2canvas from "html2canvas";
 import oneBambooBird from "./assets/one-bamboo-bird.png";
 import {
@@ -55,10 +55,31 @@ import {
   getAnalyticsConsent,
   initializeAnalytics,
   setAnalyticsConsent,
+  trackAnalyticsEvent,
 } from "./analytics";
 
 const SOUND_SETTING_KEY = "table-one-sound-enabled";
+const GUIDANCE_SETTING_KEY = "table-one-guidance-mode";
+const HIDDEN_LESSONS_KEY = "table-one-hidden-lessons";
 type GameSound = "discard" | "chi" | "pong" | "gong" | "hu" | "turn";
+
+function loadGuidanceMode(): GuidanceMode {
+  if (typeof window === "undefined") return "off";
+  const saved = window.localStorage.getItem(GUIDANCE_SETTING_KEY);
+  return saved === "rules" || saved === "strategy" ? saved : "off";
+}
+
+function loadHiddenLessons() {
+  if (typeof window === "undefined") return new Set<string>();
+  try {
+    const saved = JSON.parse(
+      window.localStorage.getItem(HIDDEN_LESSONS_KEY) ?? "[]",
+    );
+    return new Set<string>(Array.isArray(saved) ? saved : []);
+  } catch {
+    return new Set<string>();
+  }
+}
 
 type TileFlight = {
   id: string;
@@ -78,6 +99,13 @@ function prefersReducedMotion() {
     typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
+}
+
+function analyticsDeviceFormat() {
+  if (typeof window === "undefined") return "unknown";
+  if (window.innerWidth <= 760) return "mobile";
+  if (window.innerWidth <= 1100) return "tablet";
+  return "desktop";
 }
 
 function claimedTileBetween(previous: Game, current: Game, actor: number) {
@@ -701,6 +729,7 @@ function TileView({
   revealed,
   waiting,
   winning,
+  coachHighlighted,
   large,
   disabled,
   onMouseDown,
@@ -715,6 +744,7 @@ function TileView({
   revealed?: boolean;
   waiting?: boolean;
   winning?: boolean;
+  coachHighlighted?: boolean;
   large?: boolean;
   disabled?: boolean;
   onMouseDown?: () => void;
@@ -731,7 +761,7 @@ function TileView({
   }
   return (
     <button
-      className={`tile ${tile.suit} ${selected ? "selected" : ""} ${drawn ? "drawn tile-motion-draw" : ""} ${latest ? "discard-latest tile-motion-discard" : ""} ${revealed ? "tile-motion-reveal" : ""} ${waiting ? "waiting" : ""} ${winning ? "winning-tile" : ""} ${large ? "large" : ""}`}
+      className={`tile ${tile.suit} ${selected ? "selected" : ""} ${drawn ? "drawn tile-motion-draw" : ""} ${latest ? "discard-latest tile-motion-discard" : ""} ${revealed ? "tile-motion-reveal" : ""} ${waiting ? "waiting" : ""} ${winning ? "winning-tile" : ""} ${coachHighlighted ? "coach-tile-focus" : ""} ${large ? "large" : ""}`}
       aria-label={`${tile.label}${drawn ? ", newly drawn" : ""}${latest ? ", latest discard" : ""}${waiting ? ", part of a waiting set" : ""}${winning ? ", winning tile" : ""}`}
       disabled={disabled}
       onMouseDown={onMouseDown}
@@ -741,7 +771,7 @@ function TileView({
       type="button"
     >
       <TileFace tile={tile} />
-      {drawn ? <span className="drawn-badge">New</span> : null}
+      {drawn ? <span className="drawn-badge" aria-hidden="true" /> : null}
     </button>
   );
 }
@@ -892,7 +922,15 @@ function Opponent({
   presence?: "connected" | "reconnecting" | "ai";
   onInspect: () => void;
 }) {
-  const revealedCount = player.flowers.length + player.melds.length;
+  const revealedTileCount =
+    player.flowers.length +
+    player.melds.reduce((total, meld) => total + meld.tiles.length, 0);
+  const revealedDensity =
+    revealedTileCount > 8
+      ? "revealed-density-compact"
+      : revealedTileCount > 6
+        ? "revealed-density-condensed"
+        : "revealed-density-roomy";
   const wallTileCount = Math.min(player.hand.length, 18);
   return (
     <section
@@ -929,6 +967,13 @@ function Opponent({
         <span>{player.score} pts</span>
       </div>
       <div className="opponent-rack">
+        <span
+          className="opponent-hand-count"
+          aria-label={`${player.name} has ${player.hand.length} concealed tiles`}
+        >
+          <i aria-hidden="true" />
+          {player.hand.length} tiles
+        </span>
         <div
           className="opponent-wall-row"
           aria-label={`${player.name} has ${player.hand.length} concealed tiles`}
@@ -937,10 +982,11 @@ function Opponent({
             <i key={index} />
           ))}
         </div>
-        {revealedCount > 0 ? (
+        {revealedTileCount > 0 ? (
           <div
-            className="opponent-revealed-strip"
+            className={`opponent-revealed-strip ${revealedDensity}`}
             aria-label={`${player.name} revealed tiles`}
+            data-revealed-tiles={revealedTileCount}
           >
             <SeatSets flowers={player.flowers} melds={player.melds} />
           </div>
@@ -1118,6 +1164,21 @@ function MahjongApp({
   const [playMode, setPlayMode] = useState<"solo" | "online">(
     restoredActiveSession?.playMode ?? "solo",
   );
+  const [guidanceMode, setGuidanceMode] = useState<GuidanceMode>(() => {
+    const saved = loadGuidanceMode();
+    return restoredActiveSession?.playMode === "online" && saved === "strategy"
+      ? "rules"
+      : saved;
+  });
+  const [activeCoachLesson, setActiveCoachLesson] =
+    useState<CoachLesson | null>(null);
+  const [coachFocusTarget, setCoachFocusTarget] =
+    useState<CoachTarget | null>(null);
+  const [seenCoachLessons, setSeenCoachLessons] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [hiddenCoachLessons, setHiddenCoachLessons] =
+    useState<Set<string>>(loadHiddenLessons);
   const [connection, setConnection] = useState(() => ({
     roomId: restoredActiveSession?.roomId ?? createSoloRoomId(),
     playerIndex: restoredActiveSession?.playerIndex ?? 0,
@@ -1193,6 +1254,20 @@ function MahjongApp({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    window.localStorage.setItem(GUIDANCE_SETTING_KEY, guidanceMode);
+  }, [guidanceMode]);
+
+  const changeGuidanceMode = (mode: GuidanceMode) => {
+    const allowedMode =
+      playMode === "online" && mode === "strategy" ? "rules" : mode;
+    setGuidanceMode(allowedMode);
+    setActiveCoachLesson(null);
+    setCoachFocusTarget(null);
+    setSeenCoachLessons(new Set());
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     if (!connection.joined) {
       window.sessionStorage.removeItem(ACTIVE_SESSION_KEY);
       return;
@@ -1218,6 +1293,7 @@ function MahjongApp({
     initialGame: activeScenario?.game,
     initialRules: activeScenario?.rules,
     initialHouseRules: activeScenario?.houseRules,
+    pauseLocalAI: isLocalReplay && activeCoachLesson !== null,
   });
   const {
     game,
@@ -1279,17 +1355,9 @@ function MahjongApp({
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activityHistoryOpen, setActivityHistoryOpen] = useState(false);
+  const [mobileActivityExpanded, setMobileActivityExpanded] = useState(true);
   const [inspectedSeat, setInspectedSeat] = useState<number | undefined>();
   const [choosingChi, setChoosingChi] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const chatSocketRef = useRef<WebSocket | null>(null);
-  const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
-  const [chatDraft, setChatDraft] = useState("");
-  const [chatMessages, setChatMessages] = useState<StoredLobbyChatMessage[]>(
-    [],
-  );
-  const [unreadChatCount, setUnreadChatCount] = useState(0);
-  const activeChatRoomRef = useRef<string | null>(null);
   const [choosingKong, setChoosingKong] = useState(false);
   const [selectedKongCode, setSelectedKongCode] = useState<
     string | undefined
@@ -1304,12 +1372,27 @@ function MahjongApp({
   const audioUnlocked = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const previousPresentationGame = useRef<Game | undefined>(undefined);
+  const latestAnalyticsGame = useRef<Game | undefined>(undefined);
+  const analyticsSessionKey = useRef<string | undefined>(undefined);
+  const analyticsSessionStartedAt = useRef<number | undefined>(undefined);
+  const analyticsHandKey = useRef<string | undefined>(undefined);
+  const analyticsHandStartedAt = useRef<number | undefined>(undefined);
+  const completedAnalyticsHandKey = useRef<string | undefined>(undefined);
   const winModalRef = useRef<HTMLElement | null>(null);
   const [tileFlight, setTileFlight] = useState<TileFlight | undefined>();
   const [showWinModal, setShowWinModal] = useState(false);
   const [winStage, setWinStage] = useState<0 | 1 | 2>(0);
   const [scoreDeltas, setScoreDeltas] = useState<number[]>([0, 0, 0, 0]);
   const [animatedWinTotal, setAnimatedWinTotal] = useState(0);
+
+  latestAnalyticsGame.current = game ?? undefined;
+
+  const analyticsContext = () => ({
+    game_mode: playMode,
+    device_format: analyticsDeviceFormat(),
+    round_number: game?.round ?? 0,
+    dealer_streak: game?.dealerStreak ?? 0,
+  });
 
   const getAudioContext = () => {
     if (!soundEnabled || !audioUnlocked.current) return null;
@@ -1352,6 +1435,335 @@ function MahjongApp({
   useEffect(() => {
     window.localStorage.setItem(SOUND_SETTING_KEY, String(soundEnabled));
   }, [soundEnabled]);
+
+  useEffect(() => {
+    if (!analyticsEnabled || !connection.joined || !game) {
+      if (!connection.joined) {
+        analyticsSessionKey.current = undefined;
+        analyticsSessionStartedAt.current = undefined;
+        analyticsHandKey.current = undefined;
+        analyticsHandStartedAt.current = undefined;
+        completedAnalyticsHandKey.current = undefined;
+      }
+      return;
+    }
+
+    const sessionKey = `${playMode}:${game.tableId}:${SELF}`;
+    if (analyticsSessionKey.current === sessionKey) return;
+    analyticsSessionKey.current = sessionKey;
+    analyticsSessionStartedAt.current = Date.now();
+    trackAnalyticsEvent("game_started", {
+      ...analyticsContext(),
+      human_player_count: game.players.filter(
+        (player) => player.controller === "human",
+      ).length,
+    });
+  }, [analyticsEnabled, connection.joined, game?.tableId, playMode, SELF]);
+
+  useEffect(() => {
+    if (!analyticsEnabled || !connection.joined || !game) return;
+
+    const handKey = `${game.tableId}:${game.round}:${game.dealerStreak}`;
+    if (analyticsHandKey.current !== handKey) {
+      analyticsHandKey.current = handKey;
+      analyticsHandStartedAt.current = Date.now();
+      completedAnalyticsHandKey.current = undefined;
+      trackAnalyticsEvent("hand_started", analyticsContext());
+    }
+
+    if (
+      !game.winSummary ||
+      completedAnalyticsHandKey.current === handKey
+    ) {
+      return;
+    }
+
+    completedAnalyticsHandKey.current = handKey;
+    const result =
+      game.winSummary.winner === undefined
+        ? "draw"
+        : game.winSummary.winner === SELF
+          ? "win"
+          : "loss";
+    trackAnalyticsEvent("hand_completed", {
+      ...analyticsContext(),
+      result,
+      win_method:
+        game.winSummary.winner === undefined
+          ? "draw"
+          : /self-draw/i.test(game.winSummary.detail)
+            ? "self_draw"
+            : "discard",
+      points: game.winSummary.points,
+      total_payment: game.winSummary.total,
+      duration_seconds: Math.max(
+        0,
+        Math.round(
+          (Date.now() - (analyticsHandStartedAt.current ?? Date.now())) / 1000,
+        ),
+      ),
+    });
+  }, [
+    analyticsEnabled,
+    connection.joined,
+    game?.tableId,
+    game?.round,
+    game?.dealerStreak,
+    game?.winSummary,
+    playMode,
+    SELF,
+  ]);
+
+  const coachHuman = game?.players[SELF];
+  const coachCanSelfHu = Boolean(
+    game &&
+      coachHuman &&
+      game.phase === "discard" &&
+      game.turn === SELF &&
+      isWinningHand(coachHuman.hand, coachHuman.melds.length),
+  );
+  const coachHumanKongs = coachHuman
+    ? [
+        ...new Set([
+          ...concealedKongOptions(coachHuman.hand),
+          ...addedKongOptions(coachHuman),
+        ]),
+      ]
+    : [];
+  const coachHumanIsWaiting = Boolean(
+    game &&
+      coachHuman &&
+      game.phase === "discard" &&
+      game.turn !== SELF &&
+      waitCodesForHand(coachHuman.hand, coachHuman.melds.length).length > 0,
+  );
+  const coachIsSelfDiscardTurn =
+    game?.phase === "discard" && game.turn === SELF;
+
+  useEffect(() => {
+    if (
+      guidanceMode === "off" ||
+      !connection.joined ||
+      !game ||
+      !coachHuman ||
+      game.phase === "round-over"
+    ) {
+      if (activeCoachLesson) setActiveCoachLesson(null);
+      if (coachFocusTarget) setCoachFocusTarget(null);
+      return;
+    }
+
+    const lessons: CoachLesson[] = [];
+    const addLesson = (lesson: CoachLesson) => lessons.push(lesson);
+    const rulesEyebrow = "Rules guide" as const;
+
+    if (coachCanSelfHu) {
+      addLesson({
+        id: "rules-self-hu",
+        eyebrow: rulesEyebrow,
+        title: "Your hand is complete",
+        body: "You drew the winning tile. Select Hu to finish the hand and collect payment from all three players.",
+        target: "hu",
+      });
+    } else if (
+      game.phase === "claim" &&
+      game.pendingClaim?.claimer === SELF &&
+      game.pendingClaim.canHu
+    ) {
+      addLesson({
+        id: "rules-discard-hu",
+        eyebrow: rulesEyebrow,
+        title: "You can declare Hu",
+        body: "This discard completes your hand. Hu has priority over every other claim, and payment comes from the discarding player.",
+        target: "hu",
+      });
+    } else if (
+      game.phase === "claim" &&
+      game.pendingClaim?.claimer === SELF &&
+      game.pendingClaim.canKong
+    ) {
+      addLesson({
+        id: "rules-claim-gong",
+        eyebrow: rulesEyebrow,
+        title: "You can claim a Gong",
+        body: "Claim the discard to reveal four matching tiles, then draw a replacement tile before discarding.",
+        target: "gong",
+      });
+    } else if (
+      game.phase === "claim" &&
+      game.pendingClaim?.claimer === SELF &&
+      game.pendingClaim.canPong
+    ) {
+      addLesson({
+        id: "rules-pong",
+        eyebrow: rulesEyebrow,
+        title: "You can Pong",
+        body: "A Pong uses this discard with two matching tiles from your hand. Any player may Pong, and the set is revealed.",
+        target: "pong",
+      });
+    } else if (
+      game.phase === "claim" &&
+      game.pendingClaim?.claimer === SELF &&
+      game.pendingClaim.canChi
+    ) {
+      addLesson({
+        id: "rules-chi",
+        eyebrow: rulesEyebrow,
+        title: "You can Chi",
+        body: "A Chi makes a three-tile sequence. You may only Chi the discard from the player immediately before you.",
+        target: "chi",
+      });
+    }
+
+    addLesson({
+      id: "rules-goal",
+      eyebrow: rulesEyebrow,
+      title: "Build five sets and a pair",
+      body: "A Taiwanese Mahjong hand normally wins with 17 tiles: five Chis, Pongs, or Gongs plus one pair. Draw one tile, then discard one.",
+    });
+
+    if (
+      coachHumanKongs.length > 0 &&
+      game.phase === "discard" &&
+      game.turn === SELF
+    ) {
+      addLesson({
+        id: "rules-hand-gong",
+        eyebrow: rulesEyebrow,
+        title: "A Gong is available",
+        body: "You hold four matching tiles. Choose Gong, then decide whether to keep it concealed or reveal it before drawing a replacement.",
+        target: "gong",
+      });
+    }
+
+    if (coachHuman.flowers.length > 0) {
+      addLesson({
+        id: "rules-flowers",
+        eyebrow: rulesEyebrow,
+        title: "Flowers are bonus tiles",
+        body: "Flowers are displayed outside your hand and replaced immediately. Matching flowers and complete flower groups can add points.",
+      });
+    }
+
+    if (coachHumanIsWaiting) {
+      addLesson({
+        id: "rules-waiting",
+        eyebrow: rulesEyebrow,
+        title: "Your hand is waiting",
+        body: "After your last discard, one or more tiles can now complete your hand. The red outlines show the groups those winning tiles support.",
+      });
+    }
+
+    if (coachIsSelfDiscardTurn) {
+      if (guidanceMode === "strategy") {
+        const recommendation = recommendDiscard(
+          coachHuman.hand,
+          coachHuman.melds.length,
+        );
+        if (recommendation) {
+          addLesson({
+            id: `strategy-discard-${game.round}`,
+            eyebrow: "Strategy coach",
+            title: `Consider discarding ${recommendation.tile.label}`,
+            body: recommendation.reason,
+            target: "suggested-tile",
+            tileId: recommendation.tile.id,
+          });
+        }
+      } else {
+        const drawnTileId = game.drawnTileId;
+        addLesson({
+          id: "rules-draw-discard",
+          eyebrow: rulesEyebrow,
+          title: "Choose a discard",
+          body: drawnTileId
+            ? "Select a tile in your hand, then select Discard. The small gold marker identifies the tile you just drew."
+            : "As Dealer, you begin with an extra tile. Select one tile in your hand, then select Discard.",
+          target: drawnTileId ? "drawn-tile" : undefined,
+          tileId: drawnTileId,
+        });
+      }
+    }
+
+    const availableLessons = lessons.filter(
+      (lesson) =>
+        !seenCoachLessons.has(lesson.id) && !hiddenCoachLessons.has(lesson.id),
+    );
+    if (
+      activeCoachLesson &&
+      availableLessons.some((lesson) => lesson.id === activeCoachLesson.id)
+    ) {
+      return;
+    }
+
+    setCoachFocusTarget(null);
+    setActiveCoachLesson(availableLessons[0] ?? null);
+  }, [
+    SELF,
+    activeCoachLesson,
+    coachCanSelfHu,
+    coachHuman,
+    coachHumanIsWaiting,
+    coachHumanKongs,
+    coachIsSelfDiscardTurn,
+    coachFocusTarget,
+    connection.joined,
+    game,
+    guidanceMode,
+    hiddenCoachLessons,
+    seenCoachLessons,
+  ]);
+
+  const dismissCoachLesson = (hidePermanently = false) => {
+    if (!activeCoachLesson) return;
+    const lessonId = activeCoachLesson.id;
+    setSeenCoachLessons((current) => new Set(current).add(lessonId));
+    if (hidePermanently) {
+      setHiddenCoachLessons((current) => {
+        const next = new Set(current).add(lessonId);
+        window.localStorage.setItem(
+          HIDDEN_LESSONS_KEY,
+          JSON.stringify([...next]),
+        );
+        return next;
+      });
+    }
+    setActiveCoachLesson(null);
+    setCoachFocusTarget(null);
+  };
+
+  const showCoachTarget = () => {
+    if (!activeCoachLesson?.target) return;
+    setCoachFocusTarget(activeCoachLesson.target);
+    if (activeCoachLesson.tileId) {
+      setUiSelectedTileId(activeCoachLesson.tileId);
+      selectTile(activeCoachLesson.tileId);
+    }
+  };
+
+  useEffect(() => {
+    if (!analyticsEnabled || !connection.joined || !game?.tableId) return;
+    const heartbeat = window.setInterval(() => {
+      const current = latestAnalyticsGame.current;
+      if (!current || current.phase === "round-over") return;
+      if (document.visibilityState !== "visible") return;
+      trackAnalyticsEvent("game_heartbeat", {
+        game_mode: playMode,
+        device_format: analyticsDeviceFormat(),
+        round_number: current.round,
+        dealer_streak: current.dealerStreak,
+        active_seconds: Math.max(
+          0,
+          Math.round(
+            (Date.now() -
+              (analyticsSessionStartedAt.current ?? Date.now())) /
+              1000,
+          ),
+        ),
+      });
+    }, 60_000);
+    return () => window.clearInterval(heartbeat);
+  }, [analyticsEnabled, connection.joined, game?.tableId, playMode]);
 
   useEffect(() => {
     const latestAction = game?.actionLog.at(-1);
@@ -1548,6 +1960,43 @@ function MahjongApp({
     undefined,
   );
   const human = game?.players[SELF];
+  const humanName = human?.name.trim();
+  const soloHumanName =
+    humanName && humanName.toLowerCase() !== "you"
+      ? humanName
+      : connection.playerName.trim() || "Player";
+  const humanDisplayName =
+    playMode === "solo" ? soloHumanName : `${humanName || "You"} (You)`;
+  const humanHandDensity =
+    (human?.hand.length ?? 17) >= 16
+      ? "human-hand-density-compact"
+      : (human?.hand.length ?? 17) >= 13
+        ? "human-hand-density-standard"
+        : "human-hand-density-roomy";
+
+  useEffect(() => {
+    const requestedName = connection.playerName.trim();
+    if (
+      playMode !== "solo" ||
+      !connection.joined ||
+      activeScenario ||
+      !requestedName ||
+      !human ||
+      human.name.trim().toLowerCase() !== "you"
+    ) {
+      return;
+    }
+    updatePlayerName(SELF, requestedName);
+  }, [
+    SELF,
+    activeScenario,
+    connection.joined,
+    connection.playerName,
+    human,
+    playMode,
+    updatePlayerName,
+  ]);
+
   const effectiveSelectedTileId =
     uiSelectedTileId ?? selectedTileId ?? game?.selectedId;
   const concealedHumanKongs = human ? concealedKongOptions(human.hand) : [];
@@ -1609,27 +2058,6 @@ function MahjongApp({
   }, [game?.phase, game?.turn, SELF, humanKongs.join("|")]);
 
   useEffect(() => {
-    if (!chatOpen) return;
-    setUnreadChatCount(0);
-    chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatOpen, chatMessages.length]);
-
-  useEffect(() => {
-    if (playMode !== "online" || !connection.joined || !connection.roomId) {
-      activeChatRoomRef.current = null;
-      return;
-    }
-
-    if (activeChatRoomRef.current === connection.roomId) {
-      return;
-    }
-
-    setChatMessages([]);
-    setUnreadChatCount(0);
-    activeChatRoomRef.current = connection.roomId;
-  }, [playMode, connection.joined, connection.roomId]);
-
-  useEffect(() => {
     if (!game || !human) {
       setUiSelectedTileId(undefined);
       return;
@@ -1646,102 +2074,6 @@ function MahjongApp({
       setUiSelectedTileId(undefined);
     }
   }, [game?.turn, game?.phase, human, uiSelectedTileId]);
-
-  useEffect(() => {
-    if (playMode !== "online" || !connection.joined) {
-      chatSocketRef.current?.close();
-      chatSocketRef.current = null;
-      setChatDraft("");
-      activeChatRoomRef.current = null;
-      return;
-    }
-
-    const socket = new WebSocket(DEFAULT_SERVER_URL);
-    chatSocketRef.current = socket;
-
-    const handleMessage = (event: MessageEvent) => {
-      if (typeof event.data !== "string") return;
-      try {
-        const payload = JSON.parse(event.data) as {
-          type?: string;
-          message?: unknown;
-        };
-        if (
-          payload.type === "lobby-chat-message" &&
-          typeof payload.message === "object" &&
-          payload.message !== null
-        ) {
-          const messagePayload = payload.message as {
-            id?: string;
-            playerIndex?: number;
-            playerName?: string;
-            text?: string;
-            createdAt?: number;
-          };
-          const normalizedMessage = {
-            id:
-              messagePayload.id ??
-              `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-            playerIndex: messagePayload.playerIndex ?? -1,
-            playerName: messagePayload.playerName ?? "Player",
-            text: messagePayload.text ?? "",
-            createdAt: messagePayload.createdAt ?? Date.now(),
-          };
-          setChatMessages((current) => {
-            const next = [...current, normalizedMessage].slice(-50);
-            saveLobbyMessages(connection.roomId, next);
-            return next;
-          });
-          if (messagePayload.playerIndex !== connection.playerIndex) {
-            setUnreadChatCount((current) => Math.min(99, current + 1));
-          }
-        }
-
-        if (
-          payload.type === "system" &&
-          typeof payload.message === "string" &&
-          payload.message === "Room reset: chat cleared"
-        ) {
-          clearLobbyChatHistory(connection.roomId);
-          activeChatRoomRef.current = null;
-          setChatMessages([]);
-          setUnreadChatCount(0);
-        }
-      } catch {
-        // Ignore malformed chat payloads.
-      }
-    };
-
-    socket.addEventListener("open", () => {
-      socket.send(
-        JSON.stringify({
-          type: "join-lobby-chat",
-          roomId: connection.roomId,
-          playerIndex: connection.playerIndex,
-          playerName: connection.playerName.trim() || "Player",
-        }),
-      );
-    });
-    socket.addEventListener("message", handleMessage);
-    socket.addEventListener("close", () => {
-      if (chatSocketRef.current === socket) {
-        chatSocketRef.current = null;
-      }
-    });
-
-    return () => {
-      socket.close();
-      if (chatSocketRef.current === socket) {
-        chatSocketRef.current = null;
-      }
-    };
-  }, [
-    playMode,
-    connection.joined,
-    connection.roomId,
-    connection.playerIndex,
-    connection.playerName,
-  ]);
 
   const nextDealer = game ? nextDealerForRound(game) : SELF;
   const dealerStatus = game
@@ -1768,6 +2100,9 @@ function MahjongApp({
   const currentClaimer = game?.pendingClaim?.claimer;
   const isSelfDiscardTurn = currentPhase === "discard" && currentTurn === SELF;
   const isSelfClaimTurn = currentPhase === "claim" && currentClaimer === SELF;
+  const focusedActivityTile = isSelfClaimTurn
+    ? game?.pendingClaim?.tile
+    : activity.tile;
   const activityIsTurnCall = /is taking a turn\.?$/i.test(activity.text);
   const activityIndicatesSelfAction =
     activity.player === SELF &&
@@ -1810,6 +2145,23 @@ function MahjongApp({
       : currentPhase === "claim"
         ? "decision"
         : "info";
+
+  useEffect(() => {
+    const requiresAttention = isSelfDiscardTurn || isSelfClaimTurn;
+    setMobileActivityExpanded(true);
+    if (requiresAttention) return;
+
+    const timer = window.setTimeout(() => {
+      setMobileActivityExpanded(false);
+    }, 2600);
+    return () => window.clearTimeout(timer);
+  }, [
+    game?.actionSeq,
+    game?.round,
+    isSelfDiscardTurn,
+    isSelfClaimTurn,
+  ]);
+
   const ruleRows = useMemo(() => [["Base win", "baseWin"]] as const, []);
   const activeRuleCount = houseRules.filter((rule) => rule.enabled).length;
 
@@ -2136,6 +2488,9 @@ function MahjongApp({
       : 0;
 
     setLobbySeatError(null);
+    setActiveCoachLesson(null);
+    setCoachFocusTarget(null);
+    setSeenCoachLessons(new Set());
     setActiveScenario(null);
     setScenarioFeedback(null);
     setConnection((current) => ({
@@ -2214,6 +2569,9 @@ function MahjongApp({
                 type="button"
                 onClick={() => {
                   setPlayMode("online");
+                  if (guidanceMode === "strategy") {
+                    changeGuidanceMode("rules");
+                  }
                   setConnection((current) => ({
                     ...current,
                     roomId: "table-one",
@@ -2223,6 +2581,51 @@ function MahjongApp({
               >
                 Shared room
               </button>
+            </div>
+            <div className="guidance-picker">
+              <div className="guidance-picker-heading">
+                <strong>Learning guidance</strong>
+                <span>Choose how much help appears during play.</span>
+              </div>
+              <div
+                className="guidance-mode-control"
+                aria-label="Learning guidance"
+              >
+                <button
+                  className={guidanceMode === "off" ? "active" : ""}
+                  type="button"
+                  onClick={() => changeGuidanceMode("off")}
+                >
+                  Off
+                </button>
+                <button
+                  className={guidanceMode === "rules" ? "active" : ""}
+                  type="button"
+                  onClick={() => changeGuidanceMode("rules")}
+                >
+                  Learn rules
+                </button>
+                <button
+                  className={guidanceMode === "strategy" ? "active" : ""}
+                  type="button"
+                  disabled={playMode === "online"}
+                  title={
+                    playMode === "online"
+                      ? "Strategy coaching is available in Solo vs AI"
+                      : undefined
+                  }
+                  onClick={() => changeGuidanceMode("strategy")}
+                >
+                  Strategy coach
+                </button>
+              </div>
+              <p>
+                {guidanceMode === "off"
+                  ? "Play without teaching prompts."
+                  : guidanceMode === "strategy"
+                    ? "Rules plus private discard suggestions. Solo games only."
+                    : "Short explanations appear when a rule becomes relevant."}
+              </p>
             </div>
             <div className="join-fields">
               <label>
@@ -2374,7 +2777,7 @@ function MahjongApp({
                 </div>
               )}
             </div>
-            {lobbySeatError ? (
+            {playMode === "online" && lobbySeatError ? (
               <p style={{ fontSize: "0.9rem", color: "#a33" }}>
                 {lobbySeatError}
               </p>
@@ -2387,6 +2790,9 @@ function MahjongApp({
                 onClick={() => {
                   setActiveScenario(null);
                   setScenarioFeedback(null);
+                  setActiveCoachLesson(null);
+                  setCoachFocusTarget(null);
+                  setSeenCoachLessons(new Set());
                   setConnection((current) => ({ ...current, joined: true }));
                 }}
               >
@@ -2464,41 +2870,15 @@ function MahjongApp({
     );
   }
 
-  const clearLobbyChatForCurrentRoom = () => {
-    if (!connection.roomId) return;
-    clearLobbyChatHistory(connection.roomId);
-    setChatMessages([]);
-  };
-
-  const submitLobbyChat = () => {
-    const trimmed = chatDraft.trim();
-    const socket = chatSocketRef.current;
-    if (!trimmed || playMode !== "online") {
-      return;
-    }
-
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      setChatDraft("");
-      return;
-    }
-
-    socket.send(
-      JSON.stringify({
-        type: "lobby-chat",
-        roomId: connection.roomId,
-        playerIndex: connection.playerIndex,
-        playerName: connection.playerName.trim() || "Player",
-        text: trimmed,
-      }),
-    );
-    setChatDraft("");
-  };
+  const coachActionClass = (target: CoachTarget) =>
+    coachFocusTarget === target ? "coach-action-focus" : undefined;
 
   const claimActions =
     game.phase === "claim" && game.pendingClaim?.claimer === SELF ? (
       <>
         {!game.pendingClaim?.canHu && game.pendingClaim?.canPong ? (
           <button
+            className={coachActionClass("pong")}
             onClick={() => {
               setChoosingChi(false);
               claim("pong");
@@ -2510,6 +2890,7 @@ function MahjongApp({
         ) : null}
         {!game.pendingClaim?.canHu && game.pendingClaim?.canChi ? (
           <button
+            className={coachActionClass("chi")}
             onClick={() => {
               if (humanChiOptions.length > 1) {
                 setChoosingChi(true);
@@ -2525,6 +2906,7 @@ function MahjongApp({
         ) : null}
         {game.pendingClaim?.canHu ? (
           <button
+            className={coachActionClass("hu")}
             onClick={() => {
               setChoosingChi(false);
               hu("discard");
@@ -2536,6 +2918,7 @@ function MahjongApp({
         ) : null}
         {!game.pendingClaim?.canHu && game.pendingClaim?.canKong ? (
           <button
+            className={coachActionClass("gong")}
             onClick={() => {
               setChoosingChi(false);
               claim("kong");
@@ -2585,6 +2968,7 @@ function MahjongApp({
         </button>
         {canSelfHu ? (
           <button
+            className={coachActionClass("hu")}
             onClick={() => {
               hu("self-draw");
             }}
@@ -2597,6 +2981,7 @@ function MahjongApp({
         humanKongs.length > 0 &&
         game.phase === "discard" ? (
           <button
+            className={coachActionClass("gong")}
             onClick={() => {
               if (!activeHumanKong) return;
               setSelectedKongCode(activeHumanKong);
@@ -2623,11 +3008,6 @@ function MahjongApp({
     ) : null;
 
   const actionControls = game.phase === "claim" ? claimActions : defaultActions;
-  const chatPreviewText =
-    chatMessages.length > 0
-      ? `${chatMessages[chatMessages.length - 1].playerName}: ${chatMessages[chatMessages.length - 1].text}`
-      : "No messages yet";
-
   const kongChoiceControls =
     choosingKong &&
     game.phase === "discard" &&
@@ -2694,7 +3074,10 @@ function MahjongApp({
   return (
     <main className="app-shell">
       <section className="game-layout">
-        <section className="table" aria-label="Mahjong table">
+        <section
+          className={`table ${isSelfClaimTurn ? "claim-decision-active" : ""}`}
+          aria-label="Mahjong table"
+        >
           <div className="board-toolbar">
             <div className="toolbar-left">
               <div className="tiles-remaining">
@@ -2761,7 +3144,7 @@ function MahjongApp({
             onInspect={() => setInspectedSeat(topSeat)}
           />
           <section
-            className={`human-seat ${game.turn === SELF ? "turn-active" : ""} ${game.dealer === SELF ? "dealer-seat" : ""}`}
+            className={`human-seat ${game.turn === SELF ? "turn-active" : ""} ${game.dealer === SELF ? "dealer-seat" : ""} ${activeCoachLesson ? "learning-active" : ""}`}
             aria-current={game.turn === SELF ? "true" : undefined}
           >
             <div className="human-profile">
@@ -2776,7 +3159,7 @@ function MahjongApp({
                     Your turn
                   </span>
                 ) : null}
-                <strong>{human.name} (You)</strong>
+                <strong>{humanDisplayName}</strong>
               </button>
               <div className="seat-badges">
                 {game.dealer === SELF ? (
@@ -2795,23 +3178,67 @@ function MahjongApp({
                 <span>{human.score} pts</span>
               </div>
             </div>
-            <button
-              className={`mobile-activity-ribbon notice-${activityNoticeTone}`}
-              aria-live="polite"
-              type="button"
-              onClick={() => setActivityHistoryOpen(true)}
-            >
-              <span>{centerStatusLabel}</span>
-              <strong>{activityText}</strong>
-              {activity.tile ? (
-                <span
-                  className={`tile mobile-activity-tile ${activity.tile.suit}`}
-                  aria-label={activity.tile.label}
-                >
-                  <TileFace tile={activity.tile} />
+            {!activeCoachLesson ? (
+              <button
+                className={`mobile-activity-ribbon notice-${activityNoticeTone} ${mobileActivityExpanded ? "is-expanded" : "is-compact"}`}
+                aria-live="polite"
+                type="button"
+                onClick={() => setActivityHistoryOpen(true)}
+              >
+                <span>
+                  {mobileActivityExpanded ? centerStatusLabel : "Activity"}
                 </span>
-              ) : null}
-            </button>
+                <strong>{activityText}</strong>
+                {focusedActivityTile ? (
+                  <span
+                    className={`tile mobile-activity-tile ${focusedActivityTile.suit}`}
+                    aria-label={focusedActivityTile.label}
+                  >
+                    <TileFace tile={focusedActivityTile} />
+                  </span>
+                ) : null}
+                <i className="activity-open-mark" aria-hidden="true">
+                  ›
+                </i>
+              </button>
+            ) : null}
+            {activeCoachLesson ? (
+              <aside
+                className={`learning-coach learning-coach-${guidanceMode}`}
+                aria-live="polite"
+                aria-label={activeCoachLesson.eyebrow}
+              >
+                <div className="learning-coach-copy">
+                  <span>{activeCoachLesson.eyebrow}</span>
+                  <strong>{activeCoachLesson.title}</strong>
+                  <p>{activeCoachLesson.body}</p>
+                </div>
+                <div className="learning-coach-actions">
+                  <button type="button" onClick={() => dismissCoachLesson()}>
+                    Got it
+                  </button>
+                  {activeCoachLesson.target &&
+                  (!["drawn-tile", "suggested-tile"].includes(
+                    activeCoachLesson.target,
+                  ) || activeCoachLesson.tileId) ? (
+                    <button
+                      className="secondary-action"
+                      type="button"
+                      onClick={showCoachTarget}
+                    >
+                      Show me
+                    </button>
+                  ) : null}
+                  <button
+                    className="coach-hide-action"
+                    type="button"
+                    onClick={() => dismissCoachLesson(true)}
+                  >
+                    Don't show again
+                  </button>
+                </div>
+              </aside>
+            ) : null}
             <div
               className="human-revealed-shelf"
               aria-label="Your revealed tiles"
@@ -2852,7 +3279,7 @@ function MahjongApp({
                 </div>
               </div>
             ) : null}
-            <div className="human-hand">
+            <div className={`human-hand ${humanHandDensity}`}>
               {human.hand.map((tile) => (
                 <TileView
                   key={tile.id}
@@ -2864,6 +3291,10 @@ function MahjongApp({
                     game.phase === "discard"
                   }
                   waiting={humanIsWaiting && waitingTileIds.has(tile.id)}
+                  coachHighlighted={
+                    coachFocusTarget !== null &&
+                    tile.id === activeCoachLesson?.tileId
+                  }
                   disabled={
                     game.phase !== "discard" ||
                     game.turn !== SELF ||
@@ -2932,62 +3363,6 @@ function MahjongApp({
               ) : null}
             </div>
           </div>
-          {playMode === "online" ? (
-            <div className="lobby-chat-panel" aria-label="Lobby chat">
-              <button
-                className="lobby-chat-toggle"
-                type="button"
-                onClick={() => setChatOpen((current) => !current)}
-              >
-                <span>Chat</span>
-                {unreadChatCount > 0 && !chatOpen ? (
-                  <em
-                    className="notice-count"
-                    aria-label={`${unreadChatCount} unread messages`}
-                  >
-                    {unreadChatCount}
-                  </em>
-                ) : null}
-                <strong>{chatPreviewText}</strong>
-              </button>
-              {chatOpen ? (
-                <div className="lobby-chat-card">
-                  <div className="lobby-chat-messages" aria-live="polite">
-                    {chatMessages.length === 0 ? (
-                      <p className="lobby-chat-empty">No chat yet.</p>
-                    ) : (
-                      [...chatMessages].slice(-5).map((message) => (
-                        <div key={message.id} className="lobby-chat-message">
-                          <strong>{message.playerName}</strong>
-                          <span>{message.text}</span>
-                        </div>
-                      ))
-                    )}
-                    <div ref={chatMessagesEndRef} />
-                  </div>
-                  <div className="lobby-chat-input-row">
-                    <input
-                      aria-label="Lobby chat input"
-                      maxLength={140}
-                      placeholder="Type a message"
-                      type="text"
-                      value={chatDraft}
-                      onChange={(event) => setChatDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          submitLobbyChat();
-                        }
-                      }}
-                    />
-                    <button type="button" onClick={submitLobbyChat}>
-                      Send
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
           <Opponent
             player={{ ...game.players[rightSeat], name: seatName(rightSeat) }}
             active={game.turn === rightSeat}
@@ -3085,7 +3460,6 @@ function MahjongApp({
                 type="button"
                 onClick={() => {
                   newHand(nextDealer, false);
-                  clearLobbyChatForCurrentRoom();
                   setSettingsOpen(false);
                 }}
               >
@@ -3154,6 +3528,44 @@ function MahjongApp({
                     onChange={(event) => setSoundEnabled(event.target.checked)}
                   />
                 </label>
+                <div className="in-game-guidance-setting">
+                  <span>
+                    <strong>Learning guidance</strong>
+                    <small>
+                      {playMode === "online"
+                        ? "Rules guidance is available in shared rooms."
+                        : "Change the amount of help shown at the table."}
+                    </small>
+                  </span>
+                  <span className="guidance-setting-controls">
+                    <select
+                      aria-label="Learning guidance"
+                      value={guidanceMode}
+                      onChange={(event) =>
+                        changeGuidanceMode(event.target.value as GuidanceMode)
+                      }
+                    >
+                      <option value="off">Off</option>
+                      <option value="rules">Learn rules</option>
+                      {playMode === "solo" ? (
+                        <option value="strategy">Strategy coach</option>
+                      ) : null}
+                    </select>
+                    {hiddenCoachLessons.size > 0 ? (
+                      <button
+                        className="text-button"
+                        type="button"
+                        onClick={() => {
+                          setHiddenCoachLessons(new Set());
+                          setSeenCoachLessons(new Set());
+                          window.localStorage.removeItem(HIDDEN_LESSONS_KEY);
+                        }}
+                      >
+                        Restore hidden tips
+                      </button>
+                    ) : null}
+                  </span>
+                </div>
                 <label className="sound-setting">
                   <span>
                     <strong>Usage analytics</strong>
@@ -3512,7 +3924,6 @@ function MahjongApp({
                     } else {
                       newHand(nextDealer, false);
                     }
-                    clearLobbyChatForCurrentRoom();
                   }}
                 >
                   {playMode === "online" &&

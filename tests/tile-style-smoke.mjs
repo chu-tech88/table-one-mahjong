@@ -227,6 +227,26 @@ assert.match(
 );
 assert.match(
   app,
+  /Learning guidance[\s\S]*Learn rules[\s\S]*disabled=\{playMode === "online"\}[\s\S]*Strategy coach/,
+  "The lobby must offer rules guidance while keeping private strategy coaching out of shared rooms",
+);
+assert.match(
+  app,
+  /className=\{`learning-coach[\s\S]*Got it[\s\S]*Show me[\s\S]*Don't show again/,
+  "Contextual lessons must provide clear, non-automatic teaching controls",
+);
+assert.match(
+  css,
+  /\.human-seat\.learning-active[\s\S]*grid-template-rows:[\s\S]*\.learning-coach[\s\S]*grid-row:\s*2;/,
+  "Compact learning prompts must receive dedicated space above the playable hand",
+);
+assert.match(
+  app,
+  /pauseLocalAI:\s*isLocalReplay && activeCoachLesson !== null/,
+  "Open solo lessons must pause AI play without pausing multiplayer",
+);
+assert.match(
+  app,
   /className="opponent-hand-count"[\s\S]*player\.hand\.length[\s\S]*className="opponent-wall-row"/,
   "Compact seats must replace decorative walls with a useful tile count",
 );

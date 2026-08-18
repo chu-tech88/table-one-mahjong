@@ -8,6 +8,7 @@ type UseGameOptions =
       initialGame?: Game;
       initialRules?: Rules;
       initialHouseRules?: HouseRule[];
+      pauseLocalAI?: boolean;
     }
   | {
       mode: "networked";
@@ -19,6 +20,7 @@ type UseGameOptions =
       initialGame?: Game;
       initialRules?: Rules;
       initialHouseRules?: HouseRule[];
+      pauseLocalAI?: boolean;
     };
 
 /**
@@ -41,6 +43,7 @@ export function useGame(options: UseGameOptions) {
     initialGame: options.initialGame,
     initialRules: options.initialRules,
     initialHouseRules: options.initialHouseRules,
+    pauseAI: options.pauseLocalAI,
   });
 
   const networkedGame = useNetworkedGame(

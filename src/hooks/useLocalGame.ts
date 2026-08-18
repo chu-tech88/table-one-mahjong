@@ -24,6 +24,7 @@ type UseLocalGameOptions = {
   initialGame?: Game;
   initialRules?: Rules;
   initialHouseRules?: HouseRule[];
+  pauseAI?: boolean;
 };
 
 type UseLocalGameReturn = {
@@ -96,6 +97,7 @@ export function useLocalGame(
   useEffect(() => {
     window.clearTimeout(timerRef.current);
     if (
+      options.pauseAI ||
       game.phase !== "discard" ||
       game.turn === HUMAN ||
       game.winner !== undefined
@@ -118,7 +120,7 @@ export function useLocalGame(
       game.players[game.turn].difficulty === "sharp" ? 1250 : 1700,
     );
     return () => window.clearTimeout(timerRef.current);
-  }, [game, rules, houseRules]);
+  }, [game, rules, houseRules, options.pauseAI]);
 
   const selectTile = useCallback((tileId: string) => {
     setGame((current) => {
