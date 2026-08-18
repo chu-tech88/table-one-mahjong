@@ -61,7 +61,9 @@ export function AuthScreen({
   return (
     <main className={onClose ? "modal-backdrop" : "app-shell"}>
       <section
-        className={onClose ? "settings-modal auth-modal" : "game-layout lobby-layout"}
+        className={
+          onClose ? "settings-modal auth-modal" : "game-layout lobby-layout"
+        }
       >
         <header className="auth-header">
           <div>

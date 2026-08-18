@@ -5415,8 +5415,11 @@ textarea {
       "center center center"
       "human human human";
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows:
-      44px 92px 92px minmax(108px, 1fr) clamp(242px, 35svh, 292px);
+    grid-template-rows: 44px 92px 92px minmax(108px, 1fr) clamp(
+        242px,
+        35svh,
+        292px
+      );
     gap: 3px;
     padding: 5px 5px 8px;
   }
@@ -5648,8 +5651,11 @@ textarea {
 
 @media (max-width: 760px) {
   .table {
-    grid-template-rows:
-      44px 90px 90px minmax(100px, 1fr) clamp(248px, 38svh, 300px);
+    grid-template-rows: 44px 90px 90px minmax(100px, 1fr) clamp(
+        248px,
+        38svh,
+        300px
+      );
   }
 
   .opponent .seat-heading,
@@ -5686,8 +5692,11 @@ textarea {
   .table {
     --hand-tile-w: clamp(19px, 6vw, 25px);
     --hand-tile-h: clamp(34px, 9.8vw, 42px);
-    grid-template-rows:
-      44px 70px 70px minmax(140px, 1fr) clamp(248px, 38svh, 300px);
+    grid-template-rows: 44px 70px 70px minmax(140px, 1fr) clamp(
+        248px,
+        38svh,
+        300px
+      );
   }
 
   .opponent .seat-heading,

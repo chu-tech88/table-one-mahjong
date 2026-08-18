@@ -2215,7 +2215,9 @@ function MahjongApp({ auth }: { auth: ReturnType<typeof useAuth> }) {
                 <input
                   autoComplete="nickname"
                   maxLength={18}
-                  placeholder={auth.user ? "From your account" : "Enter your name"}
+                  placeholder={
+                    auth.user ? "From your account" : "Enter your name"
+                  }
                   readOnly={Boolean(auth.user)}
                   type="text"
                   value={auth.user ? signedInPlayerName : connection.playerName}
