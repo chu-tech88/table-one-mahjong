@@ -2,7 +2,7 @@ import { Tile } from "./types";
 import { countCodes } from "./helpers";
 import { handProgressScore, highValueHandPotential } from "./ai";
 
-export type GuidanceMode = "off" | "rules" | "strategy";
+export type GuidanceMode = "off" | "strategy";
 
 export type CoachTarget =
   | "drawn-tile"

@@ -227,8 +227,13 @@ assert.match(
 );
 assert.match(
   app,
-  /Learning guidance[\s\S]*Learn rules[\s\S]*disabled=\{playMode === "online"\}[\s\S]*Strategy coach/,
-  "The lobby must offer rules guidance while keeping private strategy coaching out of shared rooms",
+  /Your name[\s\S]*className="guidance-picker"[\s\S]*Strategy Coach[\s\S]*disabled=\{playMode === "online"\}/,
+  "The lobby must place its solo-only Strategy Coach control below the name field",
+);
+assert.doesNotMatch(
+  app,
+  /Learn rules/,
+  "The retired Learn rules mode must not appear in the lobby or settings",
 );
 assert.match(
   app,

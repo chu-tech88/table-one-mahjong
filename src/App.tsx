@@ -66,7 +66,7 @@ type GameSound = "discard" | "chi" | "pong" | "gong" | "hu" | "turn";
 function loadGuidanceMode(): GuidanceMode {
   if (typeof window === "undefined") return "off";
   const saved = window.localStorage.getItem(GUIDANCE_SETTING_KEY);
-  return saved === "rules" || saved === "strategy" ? saved : "off";
+  return saved === "strategy" ? "strategy" : "off";
 }
 
 function loadHiddenLessons() {
@@ -1167,7 +1167,7 @@ function MahjongApp({
   const [guidanceMode, setGuidanceMode] = useState<GuidanceMode>(() => {
     const saved = loadGuidanceMode();
     return restoredActiveSession?.playMode === "online" && saved === "strategy"
-      ? "rules"
+      ? "off"
       : saved;
   });
   const [activeCoachLesson, setActiveCoachLesson] =
@@ -1259,7 +1259,7 @@ function MahjongApp({
 
   const changeGuidanceMode = (mode: GuidanceMode) => {
     const allowedMode =
-      playMode === "online" && mode === "strategy" ? "rules" : mode;
+      playMode === "online" && mode === "strategy" ? "off" : mode;
     setGuidanceMode(allowedMode);
     setActiveCoachLesson(null);
     setCoachFocusTarget(null);
@@ -2570,7 +2570,7 @@ function MahjongApp({
                 onClick={() => {
                   setPlayMode("online");
                   if (guidanceMode === "strategy") {
-                    changeGuidanceMode("rules");
+                    changeGuidanceMode("off");
                   }
                   setConnection((current) => ({
                     ...current,
@@ -2581,51 +2581,6 @@ function MahjongApp({
               >
                 Shared room
               </button>
-            </div>
-            <div className="guidance-picker">
-              <div className="guidance-picker-heading">
-                <strong>Learning guidance</strong>
-                <span>Choose how much help appears during play.</span>
-              </div>
-              <div
-                className="guidance-mode-control"
-                aria-label="Learning guidance"
-              >
-                <button
-                  className={guidanceMode === "off" ? "active" : ""}
-                  type="button"
-                  onClick={() => changeGuidanceMode("off")}
-                >
-                  Off
-                </button>
-                <button
-                  className={guidanceMode === "rules" ? "active" : ""}
-                  type="button"
-                  onClick={() => changeGuidanceMode("rules")}
-                >
-                  Learn rules
-                </button>
-                <button
-                  className={guidanceMode === "strategy" ? "active" : ""}
-                  type="button"
-                  disabled={playMode === "online"}
-                  title={
-                    playMode === "online"
-                      ? "Strategy coaching is available in Solo vs AI"
-                      : undefined
-                  }
-                  onClick={() => changeGuidanceMode("strategy")}
-                >
-                  Strategy coach
-                </button>
-              </div>
-              <p>
-                {guidanceMode === "off"
-                  ? "Play without teaching prompts."
-                  : guidanceMode === "strategy"
-                    ? "Rules plus private discard suggestions. Solo games only."
-                    : "Short explanations appear when a rule becomes relevant."}
-              </p>
             </div>
             <div className="join-fields">
               <label>
@@ -2649,6 +2604,38 @@ function MahjongApp({
                   }
                 />
               </label>
+              <div className="guidance-picker">
+                <div className="guidance-picker-heading">
+                  <strong>Learning guidance</strong>
+                  <span>
+                    Strategy Coach explains relevant rules and offers private
+                    discard suggestions.
+                  </span>
+                </div>
+                <label className="strategy-coach-toggle">
+                  <span>
+                    <strong>Strategy Coach</strong>
+                    <small>
+                      {playMode === "online"
+                        ? "Available in Solo vs AI"
+                        : guidanceMode === "strategy"
+                          ? "On"
+                          : "Off"}
+                    </small>
+                  </span>
+                  <input
+                    aria-label="Strategy Coach"
+                    type="checkbox"
+                    checked={guidanceMode === "strategy"}
+                    disabled={playMode === "online"}
+                    onChange={(event) =>
+                      changeGuidanceMode(
+                        event.target.checked ? "strategy" : "off",
+                      )
+                    }
+                  />
+                </label>
+              </div>
               {playMode === "online" ? (
                 <>
                   <div
@@ -3530,27 +3517,25 @@ function MahjongApp({
                 </label>
                 <div className="in-game-guidance-setting">
                   <span>
-                    <strong>Learning guidance</strong>
+                    <strong>Strategy Coach</strong>
                     <small>
                       {playMode === "online"
-                        ? "Rules guidance is available in shared rooms."
-                        : "Change the amount of help shown at the table."}
+                        ? "Available in Solo vs AI"
+                        : "Show rules guidance and private discard suggestions."}
                     </small>
                   </span>
                   <span className="guidance-setting-controls">
-                    <select
-                      aria-label="Learning guidance"
-                      value={guidanceMode}
+                    <input
+                      aria-label="Strategy Coach"
+                      type="checkbox"
+                      checked={guidanceMode === "strategy"}
+                      disabled={playMode === "online"}
                       onChange={(event) =>
-                        changeGuidanceMode(event.target.value as GuidanceMode)
+                        changeGuidanceMode(
+                          event.target.checked ? "strategy" : "off",
+                        )
                       }
-                    >
-                      <option value="off">Off</option>
-                      <option value="rules">Learn rules</option>
-                      {playMode === "solo" ? (
-                        <option value="strategy">Strategy coach</option>
-                      ) : null}
-                    </select>
+                    />
                     {hiddenCoachLessons.size > 0 ? (
                       <button
                         className="text-button"
