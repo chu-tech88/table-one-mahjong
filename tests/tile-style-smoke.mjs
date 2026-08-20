@@ -117,8 +117,8 @@ assert.match(
 );
 assert.match(
   app,
-  /function CompactSeatSets[\s\S]*compact-flower-summary[\s\S]*player\.melds\.map/,
-  "Compact revealed lanes must summarize flowers without hiding declared sets",
+  /function CompactSeatSets[\s\S]*ResizeObserver[\s\S]*compact-reveal-overflow[\s\S]*player\.melds\.map/,
+  "Compact revealed lanes must measure complete sets and preserve overflow access",
 );
 assert.match(
   app,
@@ -550,10 +550,12 @@ assert.match(
   /game\.winSummary && showWinModal[\s\S]*?win-stage-\$\{winStage\}[\s\S]*?winStage >= 1[\s\S]*?winStage >= 2/,
   "The hand-complete experience must reveal the result in deliberate stages",
 );
+assert.match(app, /className="score-transfers"/, "Point transfers must be shown");
+assert.match(app, /animatedWinTotal/, "The winning total must count into view");
 assert.match(
   app,
-  /className="score-transfers"[\s\S]*?animatedWinTotal/,
-  "The hand-complete experience must show point transfers and a counting total",
+  /winning-tile-focus[\s\S]*win-review-toggle[\s\S]*win-modal-footer/,
+  "Compact hand-complete screens must keep the winning tile, review, and next-hand footer distinct",
 );
 assert.match(
   css,

@@ -3,6 +3,7 @@ import {
   type ChangeEvent,
   type ReactNode,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -961,9 +962,80 @@ function CompactSeatSets({
   player: Player;
   onInspect: () => void;
 }) {
+  const setsRef = useRef<HTMLDivElement>(null);
+  const [visibleGroupCount, setVisibleGroupCount] = useState(
+    player.melds.length + (player.flowers.length > 0 ? 1 : 0),
+  );
+  const totalGroupCount =
+    player.melds.length + (player.flowers.length > 0 ? 1 : 0);
+
+  useLayoutEffect(() => {
+    const sets = setsRef.current;
+    if (!sets) return;
+
+    const updateCapacity = () => {
+      const measurementGroups = Array.from(
+        sets.querySelectorAll<HTMLElement>("[data-reveal-measure-group]"),
+      );
+      const overflowMeasure = sets.querySelector<HTMLElement>(
+        "[data-reveal-overflow-measure]",
+      );
+      const styles = window.getComputedStyle(sets);
+      const gap = Number.parseFloat(styles.columnGap || styles.gap) || 3;
+      const groupWidths = measurementGroups.map(
+        (group) => group.getBoundingClientRect().width,
+      );
+      const totalWidth =
+        groupWidths.reduce((sum, width) => sum + width, 0) +
+        Math.max(0, groupWidths.length - 1) * gap;
+
+      if (totalWidth <= sets.clientWidth) {
+        setVisibleGroupCount(groupWidths.length);
+        return;
+      }
+
+      const overflowWidth =
+        overflowMeasure?.getBoundingClientRect().width ?? 28;
+      const availableWidth = Math.max(0, sets.clientWidth - overflowWidth - gap);
+      let usedWidth = 0;
+      let nextVisibleCount = 0;
+
+      for (const width of groupWidths) {
+        const nextWidth = usedWidth + (nextVisibleCount > 0 ? gap : 0) + width;
+        if (nextWidth > availableWidth) break;
+        usedWidth = nextWidth;
+        nextVisibleCount += 1;
+      }
+
+      setVisibleGroupCount(nextVisibleCount);
+    };
+
+    updateCapacity();
+    const observer = new ResizeObserver(updateCapacity);
+    observer.observe(sets);
+    return () => observer.disconnect();
+  }, [player.flowers.length, player.melds, totalGroupCount]);
+
+  const visibleMeldCount = Math.min(
+    visibleGroupCount,
+    player.melds.length,
+  );
+  const showFlowers =
+    player.flowers.length > 0 && visibleGroupCount > player.melds.length;
+  const hiddenTileCount =
+    player.melds
+      .slice(visibleMeldCount)
+      .reduce((total, meld) => total + meld.tiles.length, 0) +
+    (showFlowers ? 0 : player.flowers.length);
+
   return (
-    <div className="compact-seat-sets">
-      {player.flowers.length > 0 ? (
+    <div className="compact-seat-sets" ref={setsRef}>
+      <div className="compact-meld-row">
+        {player.melds.slice(0, visibleMeldCount).map((meld, index) => (
+          <MeldView key={`${meld.type}-${index}`} meld={meld} />
+        ))}
+      </div>
+      {showFlowers ? (
         <button
           className="compact-flower-summary"
           type="button"
@@ -974,14 +1046,41 @@ function CompactSeatSets({
           <strong>×{player.flowers.length}</strong>
         </button>
       ) : null}
-      <div className="compact-meld-row">
-        {player.melds.map((meld, index) => (
-          <MeldView key={`${meld.type}-${index}`} meld={meld} />
-        ))}
-      </div>
+      {hiddenTileCount > 0 ? (
+        <button
+          className="compact-reveal-overflow"
+          type="button"
+          aria-label={`Inspect ${player.name}'s ${hiddenTileCount} additional revealed tiles`}
+          onClick={onInspect}
+        >
+          +{hiddenTileCount}
+        </button>
+      ) : null}
       {player.flowers.length === 0 && player.melds.length === 0 ? (
         <span className="compact-sets-empty">No reveals</span>
       ) : null}
+      <div className="compact-reveal-measure compact-meld-row" aria-hidden="true">
+        {player.melds.map((meld, index) => (
+          <div data-reveal-measure-group key={`${meld.type}-${index}`}>
+            <MeldView meld={meld} />
+          </div>
+        ))}
+        {player.flowers.length > 0 ? (
+          <span
+            className="compact-flower-summary"
+            data-reveal-measure-group
+          >
+            <span>✿</span>
+            <strong>×{player.flowers.length}</strong>
+          </span>
+        ) : null}
+        <span
+          className="compact-reveal-overflow"
+          data-reveal-overflow-measure
+        >
+          +99
+        </span>
+      </div>
     </div>
   );
 }
@@ -1546,6 +1645,7 @@ function MahjongApp({
   const [tileFlight, setTileFlight] = useState<TileFlight | undefined>();
   const [showWinModal, setShowWinModal] = useState(false);
   const [winStage, setWinStage] = useState<0 | 1 | 2>(0);
+  const [winReviewOpen, setWinReviewOpen] = useState(false);
   const [scoreDeltas, setScoreDeltas] = useState<number[]>([0, 0, 0, 0]);
   const [animatedWinTotal, setAnimatedWinTotal] = useState(0);
 
@@ -1952,6 +2052,7 @@ function MahjongApp({
     };
 
     if (game.winSummary && !previous?.winSummary) {
+      setWinReviewOpen(false);
       setScoreDeltas(
         game.players.map(
           (player, index) =>
@@ -1972,6 +2073,7 @@ function MahjongApp({
     } else if (!game.winSummary) {
       setShowWinModal(false);
       setWinStage(0);
+      setWinReviewOpen(false);
       setScoreDeltas([0, 0, 0, 0]);
       setAnimatedWinTotal(0);
     }
@@ -2237,6 +2339,14 @@ function MahjongApp({
     game?.winSummary?.winner === undefined
       ? undefined
       : game.players[game.winSummary.winner];
+  const winningTile = game?.winSummary?.winningTileId
+    ? [
+        ...(winningPlayer?.hand ?? []),
+        ...(winningPlayer?.melds.flatMap((meld) => meld.tiles) ?? []),
+        ...(winningPlayer?.flowers ?? []),
+        ...(game.lastDiscard ? [game.lastDiscard.tile] : []),
+      ].find((tile) => tile.id === game.winSummary?.winningTileId)
+    : undefined;
   const humanIsWaiting =
     !!game &&
     !!human &&
@@ -3994,121 +4104,154 @@ function MahjongApp({
             aria-labelledby="win-title"
             tabIndex={-1}
           >
-            <div className="win-announcement">
-              <span className="win-call" aria-hidden="true">
-                {winningPlayer ? "HU" : "DRAW"}
-              </span>
-              <div>
-                <p className="eyebrow">Hand complete</p>
-                <h2 id="win-title">
-                  {game.winSummary.winner === undefined
-                    ? game.winSummary.title
-                    : game.winSummary.winner === SELF
-                      ? "You win"
-                      : `${seatName(game.winSummary.winner)} wins`}
-                </h2>
+            <div className="win-modal-scroll">
+              <div className="win-announcement">
+                <span className="win-call" aria-hidden="true">
+                  {winningPlayer ? "HU" : "DRAW"}
+                </span>
+                <div>
+                  <p className="eyebrow">Hand complete</p>
+                  <h2 id="win-title">
+                    {game.winSummary.winner === undefined
+                      ? game.winSummary.title
+                      : game.winSummary.winner === SELF
+                        ? "You win"
+                        : `${seatName(game.winSummary.winner)} wins`}
+                  </h2>
+                </div>
               </div>
-            </div>
-            <p className="win-detail">{game.winSummary.detail}</p>
-            {winStage >= 1 &&
-            winningPlayer &&
-            game.winSummary.winner !== undefined ? (
+              <p className="win-detail">{game.winSummary.detail}</p>
+              {winStage >= 1 && winningTile ? (
+                <div className="winning-tile-focus" aria-label="Winning tile">
+                  <span>Winning tile</span>
+                  <TileView tile={winningTile} winning disabled />
+                </div>
+              ) : null}
+              {winStage >= 2 && winningPlayer ? (
+                <div className="win-total">
+                  <span>{game.winSummary.points} points</span>
+                  <strong>+{animatedWinTotal} total</strong>
+                </div>
+              ) : null}
+              {winStage >= 1 && winningPlayer ? (
+                <button
+                  className="win-review-toggle"
+                  type="button"
+                  aria-expanded={winReviewOpen}
+                  aria-controls="win-review-content"
+                  onClick={() => setWinReviewOpen((open) => !open)}
+                >
+                  <span>Review hand and scoring</span>
+                  <span aria-hidden="true">{winReviewOpen ? "−" : "+"}</span>
+                </button>
+              ) : null}
               <div
-                className="winning-hand-review"
-                aria-label={`${winningPlayer.name} revealed winning hand`}
+                className={`win-review-content ${winReviewOpen ? "is-open" : ""}`}
+                id="win-review-content"
               >
-                <span>{seatName(game.winSummary.winner)}'s hand</span>
-                <div className="winning-review-section">
-                  <strong>Concealed tiles</strong>
-                  <div className="winning-tile-row">
-                    {winningPlayer.hand.map((tile) => (
-                      <TileView
-                        key={tile.id}
-                        tile={tile}
-                        winning={tile.id === game.winSummary?.winningTileId}
-                        disabled
-                      />
+                {winStage >= 1 &&
+                winningPlayer &&
+                game.winSummary.winner !== undefined ? (
+                  <div className="winning-review-section">
+                    <div
+                      className="winning-hand-review"
+                      aria-label={`${winningPlayer.name} revealed winning hand`}
+                    >
+                      <span>{seatName(game.winSummary.winner)}'s hand</span>
+                      <div className="winning-review-section">
+                        <strong>Concealed tiles</strong>
+                        <div className="winning-tile-row">
+                          {winningPlayer.hand.map((tile) => (
+                            <TileView
+                              key={tile.id}
+                              tile={tile}
+                              winning={
+                                tile.id === game.winSummary?.winningTileId
+                              }
+                              disabled
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      {winningPlayer.melds.length > 0 ? (
+                        <div className="winning-review-section">
+                          <strong>Revealed sets</strong>
+                          <div className="winning-meld-row">
+                            {winningPlayer.melds.map((meld, index) => (
+                              <MeldView
+                                key={`${meld.type}-${index}`}
+                                meld={meld}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      {winningPlayer.flowers.length > 0 ? (
+                        <div className="winning-review-section">
+                          <strong>Flowers</strong>
+                          <div className="winning-tile-row">
+                            {winningPlayer.flowers.map((tile) => (
+                              <TileView key={tile.id} tile={tile} disabled />
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                {winStage >= 2 && winningPlayer ? (
+                  <div className="score-breakdown">
+                    <span
+                      className="score-item"
+                      tabIndex={0}
+                      title="Points awarded for every completed Hu."
+                    >
+                      Base win: {rules.baseWin}
+                      <small role="tooltip">
+                        Points awarded for every completed Hu.
+                      </small>
+                    </span>
+                    {game.winSummary.scoreItems.map((item) => (
+                      <span
+                        className="score-item"
+                        key={`${item.name}-${item.points}`}
+                        tabIndex={0}
+                        title={item.description}
+                      >
+                        {item.name}
+                        {item.multiplier > 1 ? ` x${item.multiplier}` : ""}: +
+                        {item.points}
+                        <small role="tooltip">{item.description}</small>
+                      </span>
                     ))}
                   </div>
-                </div>
-                {winningPlayer.melds.length > 0 ? (
-                  <div className="winning-review-section">
-                    <strong>Revealed sets</strong>
-                    <div className="winning-meld-row">
-                      {winningPlayer.melds.map((meld, index) => (
-                        <MeldView key={`${meld.type}-${index}`} meld={meld} />
-                      ))}
+                ) : null}
+                {winStage >= 2 &&
+                scoreDeltas.some((delta) => delta !== 0) ? (
+                  <div className="score-transfers" aria-label="Point transfers">
+                    <strong>Point transfer</strong>
+                    <div>
+                      {scoreDeltas.map((delta, index) =>
+                        delta !== 0 ? (
+                          <span
+                            className={delta > 0 ? "score-gain" : "score-loss"}
+                            key={`${game.players[index].name}-${index}`}
+                          >
+                            <small>{seatName(index)}</small>
+                            <b>
+                              {delta > 0 ? "+" : ""}
+                              {delta}
+                            </b>
+                          </span>
+                        ) : null,
+                      )}
                     </div>
                   </div>
                 ) : null}
-                {winningPlayer.flowers.length > 0 ? (
-                  <div className="winning-review-section">
-                    <strong>Flowers</strong>
-                    <div className="winning-tile-row">
-                      {winningPlayer.flowers.map((tile) => (
-                        <TileView key={tile.id} tile={tile} disabled />
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </div>
-            ) : null}
-            {winStage >= 2 && winningPlayer ? (
-              <div className="score-breakdown">
-                <span
-                  className="score-item"
-                  tabIndex={0}
-                  title="Points awarded for every completed Hu."
-                >
-                  Base win: {rules.baseWin}
-                  <small role="tooltip">
-                    Points awarded for every completed Hu.
-                  </small>
-                </span>
-                {game.winSummary.scoreItems.map((item) => (
-                  <span
-                    className="score-item"
-                    key={`${item.name}-${item.points}`}
-                    tabIndex={0}
-                    title={item.description}
-                  >
-                    {item.name}
-                    {item.multiplier > 1 ? ` x${item.multiplier}` : ""}: +
-                    {item.points}
-                    <small role="tooltip">{item.description}</small>
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            {winStage >= 2 && scoreDeltas.some((delta) => delta !== 0) ? (
-              <div className="score-transfers" aria-label="Point transfers">
-                <strong>Point transfer</strong>
-                <div>
-                  {scoreDeltas.map((delta, index) =>
-                    delta !== 0 ? (
-                      <span
-                        className={delta > 0 ? "score-gain" : "score-loss"}
-                        key={`${game.players[index].name}-${index}`}
-                      >
-                        <small>{seatName(index)}</small>
-                        <b>
-                          {delta > 0 ? "+" : ""}
-                          {delta}
-                        </b>
-                      </span>
-                    ) : null,
-                  )}
-                </div>
-              </div>
-            ) : null}
-            {winStage >= 2 && winningPlayer ? (
-              <div className="win-total">
-                <span>{game.winSummary.points} points</span>
-                <strong>+{animatedWinTotal} total</strong>
-              </div>
-            ) : null}
+            </div>
             {winStage >= 2 ? (
-              <>
+              <div className="win-modal-footer">
                 <button
                   className="full-width-button"
                   type="button"
@@ -4136,7 +4279,7 @@ function MahjongApp({
                       : "The next hand begins after every player selects Next Hand."}
                   </p>
                 ) : null}
-              </>
+              </div>
             ) : null}
           </section>
         </div>
