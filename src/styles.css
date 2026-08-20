@@ -6018,6 +6018,12 @@ textarea {
   }
 }
 
+@media (min-width: 901px) and (max-width: 1100px) {
+  .human-seat {
+    grid-template-rows: 28px auto minmax(72px, 1fr) auto;
+  }
+}
+
 @media (max-width: 760px) {
   .table {
     grid-template-rows: 44px 90px 90px minmax(100px, 1fr) clamp(
@@ -6583,8 +6589,8 @@ textarea {
   (orientation: portrait) and (min-width: 600px) and (max-width: 900px),
   (orientation: landscape) and (max-width: 900px) and (max-height: 760px) {
   .table {
-    --compact-tile-w: clamp(20px, 3.25cqw, 30px);
-    --compact-tile-h: clamp(28px, 4.35cqw, 40px);
+    --compact-tile-w: clamp(16px, min(3.25cqw, 5.4svh), 30px);
+    --compact-tile-h: clamp(22px, min(4.35cqw, 7.2svh), 40px);
     --hand-tile-w: clamp(27px, 4.6cqw, 40px);
     --hand-tile-h: clamp(40px, 6.15cqw, 54px);
     grid-template-areas:
@@ -6760,9 +6766,10 @@ textarea {
 
   .compact-discard-lane,
   .compact-revealed-lane {
+    container-type: size;
     min-width: 0;
     min-height: 0;
-    padding: 2px;
+    padding: 2px 3px;
     overflow: hidden;
   }
 
@@ -6802,18 +6809,18 @@ textarea {
   }
 
   .compact-discard-lane .discard-river .tile {
-    flex: 0 0 var(--compact-tile-w);
-    width: var(--compact-tile-w);
-    height: var(--compact-tile-h);
+    flex: 0 0 min(var(--compact-tile-w), 62cqh);
+    width: min(var(--compact-tile-w), 62cqh);
+    height: min(var(--compact-tile-h), 86cqh);
     border-bottom-width: 2px;
   }
 
   .compact-discard-lane .discard-overflow-count {
     display: grid;
-    flex: 0 0 var(--compact-tile-w);
-    width: var(--compact-tile-w);
-    min-width: var(--compact-tile-w);
-    height: var(--compact-tile-h);
+    flex: 0 0 min(var(--compact-tile-w), 62cqh);
+    width: min(var(--compact-tile-w), 62cqh);
+    min-width: min(var(--compact-tile-w), 62cqh);
+    height: min(var(--compact-tile-h), 86cqh);
   }
 
   .compact-revealed-lane {
@@ -6830,16 +6837,24 @@ textarea {
     overflow: hidden;
   }
 
+  .compact-revealed-lane .compact-meld-row,
+  .compact-revealed-lane .compact-meld-row .meld,
+  .compact-revealed-lane .compact-meld-row .meld div {
+    height: 100%;
+    min-height: 0;
+  }
+
   .compact-revealed-lane .compact-meld-row .tile,
   .human-revealed-compact .compact-meld-row .tile {
-    flex: 0 0 var(--compact-tile-w);
-    width: var(--compact-tile-w);
-    height: var(--compact-tile-h);
+    flex: 0 0 min(var(--compact-tile-w), 62cqh);
+    width: min(var(--compact-tile-w), 62cqh);
+    height: min(var(--compact-tile-h), 86cqh);
     border-bottom-width: 2px;
   }
 
   .compact-revealed-lane .compact-flower-summary {
-    height: var(--compact-tile-h);
+    min-width: min(28px, 74cqh);
+    height: min(var(--compact-tile-h), 86cqh);
   }
 
   .center-table {
@@ -7001,6 +7016,7 @@ textarea {
   }
 
   .human-revealed-shelf {
+    container-type: size;
     grid-row: 4;
     height: 23px;
     padding: 0 3px 1px;
@@ -7027,10 +7043,13 @@ textarea {
   .human-revealed-compact .compact-meld-row .tile {
     --compact-tile-w: 15px;
     --compact-tile-h: 21px;
+    flex-basis: min(var(--compact-tile-w), 65cqh);
+    width: min(var(--compact-tile-w), 65cqh);
+    height: min(var(--compact-tile-h), 90cqh);
   }
 
   .human-revealed-compact .compact-flower-summary {
-    height: 21px;
+    height: min(21px, 90cqh);
   }
 
   .human-hand {
@@ -7148,6 +7167,12 @@ textarea {
   .claim-decision-active .human-action-bar button:not(:disabled) {
     border-color: rgba(255, 220, 69, 0.72);
     box-shadow: 0 0 0 2px rgba(255, 220, 69, 0.16);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  .compact-revealed-lane .compact-meld-row .meld > span {
+    display: none;
   }
 }
 

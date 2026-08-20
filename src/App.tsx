@@ -61,6 +61,7 @@ import {
 const SOUND_SETTING_KEY = "table-one-sound-enabled";
 const GUIDANCE_SETTING_KEY = "table-one-guidance-mode";
 const HIDDEN_LESSONS_KEY = "table-one-hidden-lessons";
+const COACH_VIEWPORT_QUERY = "(min-width: 1100px) and (min-height: 650px)";
 type GameSound = "discard" | "chi" | "pong" | "gong" | "hu" | "turn";
 
 function loadGuidanceMode(): GuidanceMode {
@@ -79,6 +80,14 @@ function loadHiddenLessons() {
   } catch {
     return new Set<string>();
   }
+}
+
+function coachViewportIsSupported() {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia(COACH_VIEWPORT_QUERY).matches
+  );
 }
 
 type TileFlight = {
@@ -1320,6 +1329,9 @@ function MahjongApp({
   );
   const [hiddenCoachLessons, setHiddenCoachLessons] =
     useState<Set<string>>(loadHiddenLessons);
+  const [coachViewportSupported, setCoachViewportSupported] = useState(
+    coachViewportIsSupported,
+  );
   const [connection, setConnection] = useState(() => ({
     roomId: restoredActiveSession?.roomId ?? createSoloRoomId(),
     playerIndex: restoredActiveSession?.playerIndex ?? 0,
@@ -1398,9 +1410,20 @@ function MahjongApp({
     window.localStorage.setItem(GUIDANCE_SETTING_KEY, guidanceMode);
   }, [guidanceMode]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia(COACH_VIEWPORT_QUERY);
+    const updateSupport = () => setCoachViewportSupported(media.matches);
+    updateSupport();
+    media.addEventListener("change", updateSupport);
+    return () => media.removeEventListener("change", updateSupport);
+  }, []);
+
   const changeGuidanceMode = (mode: GuidanceMode) => {
     const allowedMode =
-      playMode === "online" && mode === "strategy" ? "off" : mode;
+      (playMode === "online" || !coachViewportSupported) && mode === "strategy"
+        ? "off"
+        : mode;
     setGuidanceMode(allowedMode);
     setActiveCoachLesson(null);
     setCoachFocusTarget(null);
@@ -1684,6 +1707,7 @@ function MahjongApp({
   useEffect(() => {
     if (
       guidanceMode === "off" ||
+      !coachViewportSupported ||
       !connection.joined ||
       !game ||
       !coachHuman ||
@@ -1756,13 +1780,6 @@ function MahjongApp({
       });
     }
 
-    addLesson({
-      id: "rules-goal",
-      eyebrow: rulesEyebrow,
-      title: "Build five sets and a pair",
-      body: "A Taiwanese Mahjong hand normally wins with 17 tiles: five Chis, Pongs, or Gongs plus one pair. Draw one tile, then discard one.",
-    });
-
     if (
       coachHumanKongs.length > 0 &&
       game.phase === "discard" &&
@@ -1776,6 +1793,30 @@ function MahjongApp({
         target: "gong",
       });
     }
+
+    if (coachIsSelfDiscardTurn && guidanceMode === "strategy") {
+      const recommendation = recommendDiscard(
+        coachHuman.hand,
+        coachHuman.melds.length,
+      );
+      if (recommendation) {
+        addLesson({
+          id: `strategy-discard-${game.tableId}-${game.round}-${game.dealer}-${game.dealerStreak}`,
+          eyebrow: "Strategy coach",
+          title: `Consider discarding ${recommendation.tile.label}`,
+          body: recommendation.reason,
+          target: "suggested-tile",
+          tileId: recommendation.tile.id,
+        });
+      }
+    }
+
+    addLesson({
+      id: "rules-goal",
+      eyebrow: rulesEyebrow,
+      title: "Build five sets and a pair",
+      body: "A Taiwanese Mahjong hand normally wins with 17 tiles: five Chis, Pongs, or Gongs plus one pair. Draw one tile, then discard one.",
+    });
 
     if (coachHuman.flowers.length > 0) {
       addLesson({
@@ -1793,37 +1834,6 @@ function MahjongApp({
         title: "Your hand is waiting",
         body: "After your last discard, one or more tiles can now complete your hand. The red outlines show the groups those winning tiles support.",
       });
-    }
-
-    if (coachIsSelfDiscardTurn) {
-      if (guidanceMode === "strategy") {
-        const recommendation = recommendDiscard(
-          coachHuman.hand,
-          coachHuman.melds.length,
-        );
-        if (recommendation) {
-          addLesson({
-            id: `strategy-discard-${game.round}`,
-            eyebrow: "Strategy coach",
-            title: `Consider discarding ${recommendation.tile.label}`,
-            body: recommendation.reason,
-            target: "suggested-tile",
-            tileId: recommendation.tile.id,
-          });
-        }
-      } else {
-        const drawnTileId = game.drawnTileId;
-        addLesson({
-          id: "rules-draw-discard",
-          eyebrow: rulesEyebrow,
-          title: "Choose a discard",
-          body: drawnTileId
-            ? "Select a tile in your hand, then select Discard. The small gold marker identifies the tile you just drew."
-            : "As Dealer, you begin with an extra tile. Select one tile in your hand, then select Discard.",
-          target: drawnTileId ? "drawn-tile" : undefined,
-          tileId: drawnTileId,
-        });
-      }
     }
 
     const availableLessons = lessons.filter(
@@ -1848,6 +1858,7 @@ function MahjongApp({
     coachHumanKongs,
     coachIsSelfDiscardTurn,
     coachFocusTarget,
+    coachViewportSupported,
     connection.joined,
     game,
     guidanceMode,
@@ -2754,13 +2765,18 @@ function MahjongApp({
                 </strong>
               </div>
               <div className="guidance-picker">
-                <p>Explains relevant rules and offers suggestions.</p>
+                <p>
+                  Explains relevant rules and offers suggestions. Available on
+                  laptop and desktop screens.
+                </p>
                 <label className="strategy-coach-toggle">
                   <span>
                     <strong>Strategy Coach</strong>
                     <small>
                       {playMode === "online"
                         ? "Available in Solo vs AI"
+                        : !coachViewportSupported
+                          ? "Requires a larger screen"
                         : guidanceMode === "strategy"
                           ? "On"
                           : "Off"}
@@ -2770,7 +2786,9 @@ function MahjongApp({
                     aria-label="Strategy Coach"
                     type="checkbox"
                     checked={guidanceMode === "strategy"}
-                    disabled={playMode === "online"}
+                    disabled={
+                      playMode === "online" || !coachViewportSupported
+                    }
                     onChange={(event) =>
                       changeGuidanceMode(
                         event.target.checked ? "strategy" : "off",
@@ -3396,9 +3414,15 @@ function MahjongApp({
                   <button
                     className="coach-hide-action"
                     type="button"
-                    onClick={() => dismissCoachLesson(true)}
+                    onClick={() =>
+                      dismissCoachLesson(
+                        activeCoachLesson.eyebrow !== "Strategy coach",
+                      )
+                    }
                   >
-                    Don't show again
+                    {activeCoachLesson.eyebrow === "Strategy coach"
+                      ? "Dismiss for this hand"
+                      : "Don't show again"}
                   </button>
                 </div>
               </aside>
@@ -3706,7 +3730,9 @@ function MahjongApp({
                     <small>
                       {playMode === "online"
                         ? "Available in Solo vs AI"
-                        : "Show rules guidance and private discard suggestions."}
+                        : !coachViewportSupported
+                          ? "Available on laptop and desktop screens."
+                          : "Show rules guidance and private discard suggestions on every hand."}
                     </small>
                   </span>
                   <span className="guidance-setting-controls">
@@ -3714,7 +3740,9 @@ function MahjongApp({
                       aria-label="Strategy Coach"
                       type="checkbox"
                       checked={guidanceMode === "strategy"}
-                      disabled={playMode === "online"}
+                      disabled={
+                        playMode === "online" || !coachViewportSupported
+                      }
                       onChange={(event) =>
                         changeGuidanceMode(
                           event.target.checked ? "strategy" : "off",

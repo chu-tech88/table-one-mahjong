@@ -141,6 +141,21 @@ assert.match(
   "Adaptive opponent lanes must use equal columns with reveals above discards",
 );
 assert.match(
+  css,
+  /--compact-tile-w:\s*clamp\(16px, min\(3\.25cqw, 5\.4svh\), 30px\);[\s\S]*\.compact-discard-lane,[\s\S]*container-type:\s*size;[\s\S]*height:\s*min\(var\(--compact-tile-h\), 86cqh\);/,
+  "Compact tiles must respect both the screen and their measured lane height",
+);
+assert.match(
+  css,
+  /@media \(orientation: landscape\) and \(max-height: 600px\)[\s\S]*\.compact-revealed-lane \.compact-meld-row \.meld > span\s*\{[^}]*display:\s*none;/,
+  "Short landscape reveals must reserve their full height for tile artwork",
+);
+assert.match(
+  css,
+  /@media \(min-width: 901px\) and \(max-width: 1100px\)[\s\S]*\.human-seat\s*\{[^}]*grid-template-rows:\s*28px auto minmax\(72px, 1fr\) auto;/,
+  "Tablet landscape must reserve an expanding row for the playable hand",
+);
+assert.match(
   app,
   /maximumSlots[\s\S]*river\.clientWidth[\s\S]*maximumSlots - 1[\s\S]*new ResizeObserver\(updateCapacity\)[\s\S]*data-adaptive/,
   "Adaptive discard lanes must measure available width before replacing history with a counter",
@@ -282,7 +297,7 @@ assert.match(
 );
 assert.match(
   app,
-  /Your name[\s\S]*className="seat-assignment-summary"[\s\S]*Your seat[\s\S]*Assigned randomly[\s\S]*className="guidance-picker"[\s\S]*Explains relevant rules and offers suggestions\.[\s\S]*Strategy Coach/,
+  /Your name[\s\S]*className="seat-assignment-summary"[\s\S]*Your seat[\s\S]*Assigned randomly[\s\S]*className="guidance-picker"[\s\S]*Explains relevant rules and offers suggestions\.[\s\S]*laptop and desktop screens[\s\S]*Strategy Coach/,
   "The lobby must pair Name and Seat above concise Strategy Coach guidance",
 );
 assert.doesNotMatch(
@@ -294,6 +309,11 @@ assert.match(
   app,
   /className=\{`learning-coach[\s\S]*Got it[\s\S]*Show me[\s\S]*Don't show again/,
   "Contextual lessons must provide clear, non-automatic teaching controls",
+);
+assert.match(
+  app,
+  /COACH_VIEWPORT_QUERY[\s\S]*coachViewportSupported[\s\S]*strategy-discard-\$\{game\.tableId\}-\$\{game\.round\}-\$\{game\.dealer\}-\$\{game\.dealerStreak\}[\s\S]*Dismiss for this hand/,
+  "Strategy Coach must be limited to larger screens and return once per hand",
 );
 assert.match(
   css,
