@@ -111,9 +111,59 @@ assert.match(
   "Compact rivers must preserve access to the full discard history",
 );
 assert.match(
+  app,
+  /className="compact-opponents-board"[\s\S]*\[leftSeat, topSeat, rightSeat\]\.map[\s\S]*<CompactOpponentLane/,
+  "Constrained tables must present all three opponents in one consistent rail",
+);
+assert.match(
+  app,
+  /function CompactSeatSets[\s\S]*compact-flower-summary[\s\S]*player\.melds\.map/,
+  "Compact revealed lanes must summarize flowers without hiding declared sets",
+);
+assert.match(
+  app,
+  /className="compact-self-discard-lane"[\s\S]*<DiscardRiver[\s\S]*player=\{\{ \.\.\.human/,
+  "The player's three-tile discard lane must remain attached to the player dock",
+);
+assert.match(
+  app,
+  /className="mobile-portrait-gate"[\s\S]*Rotate to play[\s\S]*Turn your phone sideways/,
+  "Portrait phones must explain the landscape requirement",
+);
+assert.match(
   css,
   /@media \(max-width: 1100px\)[\s\S]*\.table-discard-lane \.discard-river \.tile:nth-of-type\(n \+ 4\)[\s\S]*\.discard-overflow-count\s*\{\s*display:\s*grid;/,
   "Tablet and mobile rivers must prioritize the three newest discards",
+);
+assert.match(
+  css,
+  /Adaptive table composition[\s\S]*\.compact-opponents-board\s*\{[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)[\s\S]*\.compact-discard-lane \.discard-river \.tile:nth-of-type\(n \+ 4\)/,
+  "Adaptive opponent lanes must stay equal-width and show only the latest three discards",
+);
+assert.match(
+  css,
+  /\.human-hand \.tile\.drawn\s*\{[^}]*transform:\s*translateY\(-6px\);[^}]*animation:\s*none;[\s\S]*\.human-hand \.drawn-badge\s*\{[^}]*display:\s*none;/,
+  "Compact hands must lift the drawn tile without covering its artwork",
+);
+assert.match(
+  css,
+  /\.claim-decision-active \.compact-discard-lane \.tile[\s\S]*opacity:\s*0\.2;[\s\S]*\.tile\.discard-latest[\s\S]*opacity:\s*1;[\s\S]*transform:\s*scale\(1\.12\)/,
+  "Claim decisions must quiet unrelated table tiles and emphasize the offered discard",
+);
+assert.match(
+  css,
+  /@media \(orientation: portrait\) and \(min-width: 600px\) and \(max-width: 900px\)[\s\S]*\.mobile-activity-ribbon[\s\S]*display:\s*none;[\s\S]*\.center-table \.center-activity\s*\{[^}]*display:\s*grid;/,
+  "Portrait tablets must retain table activity in the table center",
+);
+assert.match(
+  css,
+  /@media \(orientation: portrait\) and \(max-width: 599px\)[\s\S]*\.game-layout > \.table\s*\{[^}]*visibility:\s*hidden;[\s\S]*\.mobile-portrait-gate\s*\{[^}]*position:\s*fixed;[^}]*display:\s*grid;/,
+  "Portrait phones must replace the unplayable table with a rotation gate",
+);
+assert.match(
+  css,
+  /@media \(orientation: landscape\) and \(max-width: 900px\) and \(max-height: 350px\)[\s\S]*grid-template-rows:\s*30px minmax\(56px, 1fr\) 0 193px;[\s\S]*\.center-table\s*\{[^}]*display:\s*none;/,
+  "Short mobile browser viewports must reserve a fixed dock for the hand and actions",
 );
 assert.match(
   css,

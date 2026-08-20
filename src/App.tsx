@@ -823,12 +823,12 @@ function DiscardRiver({
           disabled
         />
       ))}
-      {discards.length > 4 ? (
+      {discards.length > 3 ? (
         <span
           className="discard-overflow-count"
-          aria-label={`${discards.length - 4} earlier discards`}
+          aria-label={`${discards.length - 3} earlier discards`}
         >
-          +{discards.length - 4}
+          +{discards.length - 3}
         </span>
       ) : null}
     </div>
@@ -898,6 +898,99 @@ function SeatSets({
         ))}
       </div>
     </div>
+  );
+}
+
+function CompactSeatSets({
+  player,
+  onInspect,
+}: {
+  player: Player;
+  onInspect: () => void;
+}) {
+  return (
+    <div className="compact-seat-sets">
+      {player.flowers.length > 0 ? (
+        <button
+          className="compact-flower-summary"
+          type="button"
+          aria-label={`Inspect ${player.name}'s ${player.flowers.length} flowers`}
+          onClick={onInspect}
+        >
+          <span aria-hidden="true">✿</span>
+          <strong>×{player.flowers.length}</strong>
+        </button>
+      ) : null}
+      <div className="compact-meld-row">
+        {player.melds.map((meld, index) => (
+          <MeldView key={`${meld.type}-${index}`} meld={meld} />
+        ))}
+      </div>
+      {player.flowers.length === 0 && player.melds.length === 0 ? (
+        <span className="compact-sets-empty">No reveals</span>
+      ) : null}
+    </div>
+  );
+}
+
+function CompactOpponentLane({
+  player,
+  active,
+  dealer,
+  dealerStreak,
+  latestDiscardId,
+  onInspect,
+}: {
+  player: Player;
+  active: boolean;
+  dealer: boolean;
+  dealerStreak: number;
+  latestDiscardId?: string;
+  onInspect: () => void;
+}) {
+  return (
+    <section
+      className={`compact-opponent-lane ${active ? "turn-active" : ""} ${dealer ? "dealer-seat" : ""}`}
+      aria-current={active ? "true" : undefined}
+    >
+      <button
+        className="compact-opponent-heading"
+        type="button"
+        onClick={onInspect}
+      >
+        <span className="compact-opponent-name">
+          {active ? <i className="compact-turn-dot" aria-hidden="true" /> : null}
+          <strong>{player.name}</strong>
+        </span>
+        <span className="compact-opponent-meta">
+          {dealer ? (
+            <b className="compact-dealer-badge">
+              Dealer{dealerStreak > 0 ? ` +${dealerStreak * 2}` : ""}
+            </b>
+          ) : null}
+          <span>{player.score} pts</span>
+        </span>
+      </button>
+      <div className="compact-opponent-content">
+        <div
+          className="compact-discard-lane"
+        >
+          <DiscardRiver player={player} latestDiscardId={latestDiscardId} />
+          <button
+            className="compact-lane-inspect"
+            type="button"
+            aria-label={`Inspect ${player.name}'s discard history`}
+            onClick={onInspect}
+          />
+        </div>
+        <div
+          className="compact-revealed-lane"
+          aria-label={`${player.name}'s revealed sets`}
+        >
+          <CompactSeatSets player={player} onInspect={onInspect} />
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -3061,6 +3154,13 @@ function MahjongApp({
   return (
     <main className="app-shell">
       <section className="game-layout">
+        <aside className="mobile-portrait-gate" aria-label="Landscape required">
+          <span className="rotate-device-icon" aria-hidden="true">
+            <i />
+          </span>
+          <strong>Rotate to play</strong>
+          <p>Turn your phone sideways for the full table.</p>
+        </aside>
         <section
           className={`table ${isSelfClaimTurn ? "claim-decision-active" : ""}`}
           aria-label="Mahjong table"
@@ -3130,6 +3230,22 @@ function MahjongApp({
             position="top"
             onInspect={() => setInspectedSeat(topSeat)}
           />
+          <div className="compact-opponents-board" aria-label="Opponents">
+            {[leftSeat, topSeat, rightSeat].map((seat) => {
+              const player = { ...game.players[seat], name: seatName(seat) };
+              return (
+                <CompactOpponentLane
+                  key={seat}
+                  player={player}
+                  active={game.turn === seat}
+                  dealer={game.dealer === seat}
+                  dealerStreak={game.dealerStreak}
+                  latestDiscardId={game.lastDiscard?.tile.id}
+                  onInspect={() => setInspectedSeat(seat)}
+                />
+              );
+            })}
+          </div>
           <section
             className={`human-seat ${game.turn === SELF ? "turn-active" : ""} ${game.dealer === SELF ? "dealer-seat" : ""} ${activeCoachLesson ? "learning-active" : ""}`}
             aria-current={game.turn === SELF ? "true" : undefined}
@@ -3164,6 +3280,21 @@ function MahjongApp({
               <div className="seat-meta">
                 <span>{human.score} pts</span>
               </div>
+            </div>
+            <div
+              className="compact-self-discard-lane"
+            >
+              <span className="compact-self-discard-label">Your discards</span>
+              <DiscardRiver
+                player={{ ...human, name: humanDisplayName }}
+                latestDiscardId={game.lastDiscard?.tile.id}
+              />
+              <button
+                className="compact-lane-inspect"
+                type="button"
+                aria-label={`Inspect your discard history, ${human.discards.length} tiles`}
+                onClick={() => setInspectedSeat(SELF)}
+              />
             </div>
             {!activeCoachLesson ? (
               <button
@@ -3230,7 +3361,15 @@ function MahjongApp({
               className="human-revealed-shelf"
               aria-label="Your revealed tiles"
             >
-              <SeatSets flowers={human.flowers} melds={human.melds} />
+              <div className="human-revealed-desktop">
+                <SeatSets flowers={human.flowers} melds={human.melds} />
+              </div>
+              <div className="human-revealed-compact">
+                <CompactSeatSets
+                  player={{ ...human, name: humanDisplayName }}
+                  onInspect={() => setInspectedSeat(SELF)}
+                />
+              </div>
             </div>
             {choosingChi && humanChiOptions.length > 1 ? (
               <div
