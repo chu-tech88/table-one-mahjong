@@ -137,8 +137,13 @@ assert.match(
 );
 assert.match(
   css,
-  /Adaptive table composition[\s\S]*\.compact-opponents-board\s*\{[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)[\s\S]*\.compact-discard-lane \.discard-river \.tile:nth-of-type\(n \+ 4\)/,
-  "Adaptive opponent lanes must stay equal-width and show only the latest three discards",
+  /Adaptive table composition[\s\S]*\.compact-opponents-board\s*\{[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)[\s\S]*\.compact-opponent-content\s*\{[^}]*grid-template-rows:\s*repeat\(2, minmax\(0, 1fr\)\);[\s\S]*\.compact-discard-lane\s*\{[^}]*grid-row:\s*2;[\s\S]*\.compact-revealed-lane\s*\{[^}]*grid-row:\s*1;/,
+  "Adaptive opponent lanes must use equal columns with reveals above discards",
+);
+assert.match(
+  app,
+  /maximumSlots[\s\S]*river\.clientWidth[\s\S]*maximumSlots - 1[\s\S]*new ResizeObserver\(updateCapacity\)[\s\S]*data-adaptive/,
+  "Adaptive discard lanes must measure available width before replacing history with a counter",
 );
 assert.match(
   css,
@@ -277,8 +282,8 @@ assert.match(
 );
 assert.match(
   app,
-  /Your name[\s\S]*className="guidance-picker"[\s\S]*Strategy Coach[\s\S]*disabled=\{playMode === "online"\}/,
-  "The lobby must place its solo-only Strategy Coach control below the name field",
+  /Your name[\s\S]*className="seat-assignment-summary"[\s\S]*Your seat[\s\S]*Assigned randomly[\s\S]*className="guidance-picker"[\s\S]*Explains relevant rules and offers suggestions\.[\s\S]*Strategy Coach/,
+  "The lobby must pair Name and Seat above concise Strategy Coach guidance",
 );
 assert.doesNotMatch(
   app,

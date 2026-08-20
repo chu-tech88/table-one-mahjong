@@ -808,14 +808,58 @@ function MeldView({ meld }: { meld: Meld }) {
 function DiscardRiver({
   player,
   latestDiscardId,
+  adaptive = false,
 }: {
   player: Player;
   latestDiscardId?: string;
+  adaptive?: boolean;
 }) {
   const discards = [...player.discards].reverse();
+  const riverRef = useRef<HTMLDivElement>(null);
+  const [visibleDiscardCount, setVisibleDiscardCount] = useState(3);
+
+  useEffect(() => {
+    if (!adaptive) return;
+    const river = riverRef.current;
+    if (!river) return;
+
+    const updateCapacity = () => {
+      const firstTile = river.querySelector<HTMLElement>(".tile");
+      const styles = window.getComputedStyle(river);
+      const gap = Number.parseFloat(styles.columnGap || styles.gap) || 2;
+      const tileWidth = firstTile?.getBoundingClientRect().width || 28;
+      const maximumSlots = Math.max(
+        1,
+        Math.floor((river.clientWidth + gap) / (tileWidth + gap)),
+      );
+      const nextCount =
+        discards.length <= maximumSlots
+          ? discards.length
+          : Math.max(1, maximumSlots - 1);
+      setVisibleDiscardCount(nextCount);
+    };
+
+    updateCapacity();
+    const observer = new ResizeObserver(updateCapacity);
+    observer.observe(river);
+    return () => observer.disconnect();
+  }, [adaptive, discards.length]);
+
+  const renderedDiscards = adaptive
+    ? discards.slice(0, visibleDiscardCount)
+    : discards;
+  const hiddenDiscardCount = adaptive
+    ? Math.max(0, discards.length - renderedDiscards.length)
+    : Math.max(0, discards.length - 3);
+
   return (
-    <div className="discard-river" aria-label={`${player.name} discard pile`}>
-      {discards.map((tile) => (
+    <div
+      className="discard-river"
+      aria-label={`${player.name} discard pile`}
+      data-adaptive={adaptive || undefined}
+      ref={riverRef}
+    >
+      {renderedDiscards.map((tile) => (
         <TileView
           key={tile.id}
           tile={tile}
@@ -823,12 +867,12 @@ function DiscardRiver({
           disabled
         />
       ))}
-      {discards.length > 3 ? (
+      {hiddenDiscardCount > 0 ? (
         <span
           className="discard-overflow-count"
-          aria-label={`${discards.length - 3} earlier discards`}
+          aria-label={`${hiddenDiscardCount} earlier discards`}
         >
-          +{discards.length - 3}
+          +{hiddenDiscardCount}
         </span>
       ) : null}
     </div>
@@ -975,7 +1019,11 @@ function CompactOpponentLane({
         <div
           className="compact-discard-lane"
         >
-          <DiscardRiver player={player} latestDiscardId={latestDiscardId} />
+          <DiscardRiver
+            player={player}
+            latestDiscardId={latestDiscardId}
+            adaptive
+          />
           <button
             className="compact-lane-inspect"
             type="button"
@@ -2676,7 +2724,7 @@ function MahjongApp({
               </button>
             </div>
             <div className="join-fields">
-              <label>
+              <label className="lobby-name-field">
                 <span>{auth.user ? "Account display name" : "Your name"}</span>
                 <input
                   autoComplete="nickname"
@@ -2697,14 +2745,16 @@ function MahjongApp({
                   }
                 />
               </label>
+              <div className="seat-assignment-summary">
+                <span>Your seat</span>
+                <strong>
+                  {playMode === "solo"
+                    ? "East · 3 AI opponents"
+                    : "Assigned randomly"}
+                </strong>
+              </div>
               <div className="guidance-picker">
-                <div className="guidance-picker-heading">
-                  <strong>Learning guidance</strong>
-                  <span>
-                    Strategy Coach explains relevant rules and offers private
-                    discard suggestions.
-                  </span>
-                </div>
+                <p>Explains relevant rules and offers suggestions.</p>
                 <label className="strategy-coach-toggle">
                   <span>
                     <strong>Strategy Coach</strong>
@@ -2850,12 +2900,7 @@ function MahjongApp({
                     Press Enter or choose a room above to join.
                   </p>
                 </>
-              ) : (
-                <div className="solo-table-summary">
-                  <span>Your seat</span>
-                  <strong>East · 3 AI opponents</strong>
-                </div>
-              )}
+              ) : null}
             </div>
             {playMode === "online" && lobbySeatError ? (
               <p style={{ fontSize: "0.9rem", color: "#a33" }}>
@@ -3288,6 +3333,7 @@ function MahjongApp({
               <DiscardRiver
                 player={{ ...human, name: humanDisplayName }}
                 latestDiscardId={game.lastDiscard?.tile.id}
+                adaptive
               />
               <button
                 className="compact-lane-inspect"
