@@ -471,6 +471,28 @@ const httpServer = createServer((req, res) => {
 // Create WebSocket server attached to HTTP server
 const wss = new WebSocketServer({ server: httpServer });
 
+// Detect half-open connections (e.g. laptop sleep, network switch, dead
+// proxies) that never fire a "close" event. Without this, a stale socket
+// still passes isOpenSocket() checks and silently swallows broadcasts,
+// leaving that player's client frozen until they manually refresh.
+type LiveWebSocket = WebSocket & { isAlive?: boolean };
+const HEARTBEAT_INTERVAL_MS = 25_000;
+
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((client) => {
+    const liveClient = client as LiveWebSocket;
+    if (liveClient.isAlive === false) {
+      console.log("[Heartbeat] Terminating unresponsive connection");
+      liveClient.terminate();
+      return;
+    }
+    liveClient.isAlive = false;
+    liveClient.ping();
+  });
+}, HEARTBEAT_INTERVAL_MS);
+
+wss.on("close", () => clearInterval(heartbeatInterval));
+
 httpServer.listen(PORT, () => {
   console.log("🎮 Mahjong Game Server");
   console.log(`🌐 HTTP listening on http://localhost:${PORT}`);
@@ -483,6 +505,11 @@ wss.on("connection", (socket) => {
   let isLeavingRoom = false;
 
   console.log(`[Connected] New client connected`);
+
+  (socket as LiveWebSocket).isAlive = true;
+  socket.on("pong", () => {
+    (socket as LiveWebSocket).isAlive = true;
+  });
 
   socket.on("message", (data) => {
     try {

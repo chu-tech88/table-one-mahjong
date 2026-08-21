@@ -166,6 +166,27 @@ export function useNetworkedGame(
     };
   }, [enabled, serverUrl, roomId, preferredPlayerIndex, playerName]);
 
+  // Backgrounded/sleeping tabs can leave a WebSocket in a half-open state
+  // that the server heartbeat hasn't caught yet. Proactively resync as soon
+  // as the tab becomes visible or the browser regains network, instead of
+  // waiting on the next heartbeat cycle or requiring a manual refresh.
+  useEffect(() => {
+    if (!enabled) return;
+    const resync = () => {
+      if (document.visibilityState === "visible") {
+        clientRef.current?.requestState();
+      }
+    };
+    document.addEventListener("visibilitychange", resync);
+    window.addEventListener("focus", resync);
+    window.addEventListener("online", resync);
+    return () => {
+      document.removeEventListener("visibilitychange", resync);
+      window.removeEventListener("focus", resync);
+      window.removeEventListener("online", resync);
+    };
+  }, [enabled]);
+
   const selectTile = useCallback(
     (tileId: string) => {
       if (!clientRef.current || !game) return;
