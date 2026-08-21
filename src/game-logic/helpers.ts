@@ -94,6 +94,14 @@ export function structuredCloneGame(game: Game): Game {
     wall: [...game.wall],
     lastDiscard: game.lastDiscard ? { ...game.lastDiscard } : undefined,
     pendingClaim: game.pendingClaim ? { ...game.pendingClaim } : undefined,
+    pendingHuClaims: game.pendingHuClaims
+      ? {
+          ...game.pendingHuClaims,
+          candidates: [...game.pendingHuClaims.candidates],
+          accepted: [...game.pendingHuClaims.accepted],
+          passed: [...game.pendingHuClaims.passed],
+        }
+      : undefined,
     claimPasses: game.claimPasses ? [...game.claimPasses] : undefined,
     pendingAddedGong: game.pendingAddedGong
       ? {
@@ -117,6 +125,14 @@ export function structuredCloneGame(game: Game): Game {
           lineItems: [...game.winSummary.lineItems],
           scoreItems: game.winSummary.scoreItems.map((item) => ({ ...item })),
         }
+      : undefined,
+    winners: game.winners ? [...game.winners] : undefined,
+    winSummaries: game.winSummaries
+      ? game.winSummaries.map((summary) => ({
+          ...summary,
+          lineItems: [...summary.lineItems],
+          scoreItems: summary.scoreItems.map((item) => ({ ...item })),
+        }))
       : undefined,
   };
 }
@@ -179,7 +195,10 @@ export function nextRoundNumber(game: Game) {
 }
 
 export function dealerContinues(game: Game) {
-  return game.handResult === "draw" || game.winner === game.dealer;
+  return (
+    game.handResult === "draw" ||
+    (game.winners?.includes(game.dealer) ?? game.winner === game.dealer)
+  );
 }
 
 export function nextDealerStreak(game: Game) {

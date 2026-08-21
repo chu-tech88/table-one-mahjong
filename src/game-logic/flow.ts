@@ -18,6 +18,7 @@ import {
 import { chooseDiscard, shouldCall } from "./ai";
 import {
   finishExhaustedHand,
+  scoreMultipleWinners,
   scoreRound,
   settleAllEightFlowers,
 } from "./scoring";
@@ -41,33 +42,49 @@ export function advanceAfterDiscard(
   const order = [1, 2, 3].map((offset) => (discardedBy + offset) % 4);
   const passed = new Set(next.claimPasses ?? []);
   const eligibleOrder = order.filter((index) => !passed.has(index));
-  const hu = eligibleOrder.find((index) =>
+  const huCandidates = eligibleOrder.filter((index) =>
     isWinningHand(
       [...next.players[index].hand, discard.tile],
       next.players[index].melds.length,
     ),
   );
-  if (hu !== undefined) {
-    if (isHumanSeat(hu)) {
-      next.pendingClaim = {
-        tile: discard.tile,
-        by: discardedBy,
-        claimer: hu,
-        canHu: true,
-        canPong: false,
-        canKong: false,
-        canChi: false,
-      };
-      next.phase = "claim";
-      next.message = `${next.players[discardedBy].name} discarded ${discard.tile.label}. ${next.players[hu].name} can win on this discard.`;
-      next.activity = {
-        player: discardedBy,
-        text: `${next.players[hu].name} can win on this discard.`,
-        tile: discard.tile,
-      };
-      return next;
+  if (huCandidates.length > 0) {
+    const accepted = huCandidates.filter((index) => !isHumanSeat(index));
+    const pendingHumans = huCandidates.filter((index) => isHumanSeat(index));
+    if (pendingHumans.length === 0) {
+      return scoreMultipleWinners(
+        next,
+        accepted,
+        "discard",
+        rules,
+        houseRules,
+      );
     }
-    return scoreRound(next, hu, "discard", rules, houseRules);
+    next.pendingHuClaims = {
+      tile: discard.tile,
+      by: discardedBy,
+      candidates: huCandidates,
+      accepted,
+      passed: [],
+    };
+    const firstPending = pendingHumans[0];
+    next.pendingClaim = {
+      tile: discard.tile,
+      by: discardedBy,
+      claimer: firstPending,
+      canHu: true,
+      canPong: false,
+      canKong: false,
+      canChi: false,
+    };
+    next.phase = "claim";
+    next.message = `Waiting for responses to ${next.players[discardedBy].name}'s discard.`;
+    next.activity = {
+      player: discardedBy,
+      text: next.message,
+      tile: discard.tile,
+    };
+    return next;
   }
 
   for (const playerIndex of eligibleOrder) {
@@ -171,7 +188,7 @@ export function applyClaim(
   const next = structuredCloneGame(game);
   const discard = next.lastDiscard;
   if (!discard) return next;
-  if (next.pendingClaim?.canHu) return next;
+  if (next.pendingClaim?.canHu || next.pendingHuClaims) return next;
   const player = next.players[playerIndex];
 
   if (type === "pong") {
@@ -219,6 +236,7 @@ export function applyClaim(
   next.turn = playerIndex;
   next.phase = "discard";
   next.pendingClaim = undefined;
+  next.pendingHuClaims = undefined;
   next.claimPasses = undefined;
   next.lastDiscard = undefined;
   next.drawnTileId = undefined;
@@ -278,6 +296,7 @@ export function startTurn(
   next.turn = playerIndex;
   next.lastDiscard = undefined;
   next.pendingClaim = undefined;
+  next.pendingHuClaims = undefined;
   next.claimPasses = undefined;
 
   const player = next.players[playerIndex];
@@ -385,6 +404,7 @@ export function discardTile(
   player.discards.push(tile);
   next.lastDiscard = { tile, by: playerIndex };
   next.claimPasses = undefined;
+  next.pendingHuClaims = undefined;
   next.selectedId = undefined;
   next.drawnTileId = undefined;
   next.drawContext = undefined;
@@ -537,6 +557,16 @@ export function passClaim(
     next.pendingClaim = undefined;
     return resolveAddedGong(next, rules, houseRules, isHumanSeat);
   }
+  if (game.pendingHuClaims) {
+    return respondToHuClaim(
+      game,
+      playerIndex,
+      false,
+      rules,
+      houseRules,
+      isHumanSeat,
+    );
+  }
   if (game.phase !== "claim" || !game.lastDiscard) return game;
   const discardedBy = game.lastDiscard.by;
   const next = structuredCloneGame(game);
@@ -544,6 +574,88 @@ export function passClaim(
     new Set([...(next.claimPasses ?? []), playerIndex]),
   );
   next.pendingClaim = undefined;
+  return advanceAfterDiscard(
+    next,
+    discardedBy,
+    rules,
+    houseRules,
+    isHumanSeat,
+  );
+}
+
+export function respondToHuClaim(
+  game: Game,
+  playerIndex: number,
+  accept: boolean,
+  rules: Rules,
+  houseRules: HouseRule[],
+  isHumanSeat: HumanSeatCheck = defaultIsHumanSeat,
+) {
+  const pending = game.pendingHuClaims;
+  if (
+    !pending ||
+    !pending.candidates.includes(playerIndex) ||
+    pending.accepted.includes(playerIndex) ||
+    pending.passed.includes(playerIndex)
+  ) {
+    return game;
+  }
+
+  const next = structuredCloneGame(game);
+  const nextPending = next.pendingHuClaims!;
+  if (accept) {
+    nextPending.accepted = [...nextPending.accepted, playerIndex];
+  } else {
+    nextPending.passed = [...nextPending.passed, playerIndex];
+  }
+
+  const unresolved = nextPending.candidates.filter(
+    (candidate) =>
+      !nextPending.accepted.includes(candidate) &&
+      !nextPending.passed.includes(candidate),
+  );
+  if (unresolved.length > 0) {
+    const nextHuman = unresolved.find((candidate) => isHumanSeat(candidate));
+    next.pendingClaim =
+      nextHuman === undefined
+        ? undefined
+        : {
+            tile: nextPending.tile,
+            by: nextPending.by,
+            claimer: nextHuman,
+            canHu: true,
+            canPong: false,
+            canKong: false,
+            canChi: false,
+          };
+    next.phase = "claim";
+    next.message = `Waiting for responses to ${next.players[nextPending.by].name}'s discard.`;
+    next.activity = {
+      player: nextPending.by,
+      text: next.message,
+      tile: nextPending.tile,
+    };
+    return next;
+  }
+
+  const winners = [...nextPending.accepted];
+  const discardedBy = nextPending.by;
+  const allHuCandidates = [...nextPending.candidates];
+  next.pendingHuClaims = undefined;
+  next.pendingClaim = undefined;
+  if (winners.length > 0) {
+    return scoreMultipleWinners(
+      next,
+      winners,
+      "discard",
+      rules,
+      houseRules,
+    );
+  }
+
+  next.claimPasses = Array.from(
+    new Set([...(next.claimPasses ?? []), ...allHuCandidates]),
+  );
   return advanceAfterDiscard(
     next,
     discardedBy,

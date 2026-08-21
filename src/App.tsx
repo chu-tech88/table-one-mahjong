@@ -23,6 +23,7 @@ import {
   tableNarration,
   sortTiles,
   kongLabel,
+  tilePrototypeFromCode,
 } from "./game-logic/helpers";
 import { useAuth, displayNameOf } from "./hooks/useAuth";
 import { AuthScreen } from "./components/AuthScreen";
@@ -64,6 +65,17 @@ const GUIDANCE_SETTING_KEY = "table-one-guidance-mode";
 const HIDDEN_LESSONS_KEY = "table-one-hidden-lessons";
 const COACH_VIEWPORT_QUERY = "(min-width: 1100px) and (min-height: 650px)";
 type GameSound = "discard" | "chi" | "pong" | "gong" | "hu" | "turn";
+type LearnTopic =
+  | "history"
+  | "objective"
+  | "tiles"
+  | "turn"
+  | "chi"
+  | "pong"
+  | "gong"
+  | "hu"
+  | "dealer"
+  | "scoring";
 
 function loadGuidanceMode(): GuidanceMode {
   if (typeof window === "undefined") return "off";
@@ -1402,10 +1414,12 @@ function MahjongApp({
   auth,
   analyticsEnabled,
   onAnalyticsConsentChange,
+  onOpenLearn,
 }: {
   auth: ReturnType<typeof useAuth>;
   analyticsEnabled: boolean;
   onAnalyticsConsentChange: (enabled: boolean) => void;
+  onOpenLearn: () => void;
 }) {
   const restoredActiveSession = useMemo(loadActiveSession, []);
   const accountDisplayName = displayNameOf(auth.user);
@@ -1421,8 +1435,10 @@ function MahjongApp({
   });
   const [activeCoachLesson, setActiveCoachLesson] =
     useState<CoachLesson | null>(null);
+  const [learnTopic, setLearnTopic] = useState<LearnTopic | null>(null);
   const [coachFocusTarget, setCoachFocusTarget] =
     useState<CoachTarget | null>(null);
+  const [coachDetailsOpen, setCoachDetailsOpen] = useState(false);
   const [seenCoachLessons, setSeenCoachLessons] = useState<Set<string>>(
     () => new Set(),
   );
@@ -1604,9 +1620,9 @@ function MahjongApp({
     };
     window.sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(snapshot));
   }, [assignedPlayerIndex, connection, playMode]);
-  const leftSeat = (SELF + 1) % 4;
+  const leftSeat = (SELF + 3) % 4;
   const topSeat = (SELF + 2) % 4;
-  const rightSeat = (SELF + 3) % 4;
+  const rightSeat = (SELF + 1) % 4;
   const seatName = (index: number) => {
     if (index === SELF) return "You";
     const player = game?.players[index];
@@ -1646,6 +1662,7 @@ function MahjongApp({
   const [showWinModal, setShowWinModal] = useState(false);
   const [winStage, setWinStage] = useState<0 | 1 | 2>(0);
   const [winReviewOpen, setWinReviewOpen] = useState(false);
+  const [reviewWinnerIndex, setReviewWinnerIndex] = useState(0);
   const [scoreDeltas, setScoreDeltas] = useState<number[]>([0, 0, 0, 0]);
   const [animatedWinTotal, setAnimatedWinTotal] = useState(0);
 
@@ -1743,10 +1760,16 @@ function MahjongApp({
     }
 
     completedAnalyticsHandKey.current = handKey;
+    const analyticsWinners =
+      game.winners ??
+      (game.winSummary.winner === undefined ? [] : [game.winSummary.winner]);
+    const selfSummary = game.winSummaries?.find(
+      (summary) => summary.winner === SELF,
+    );
     const result =
       game.winSummary.winner === undefined
         ? "draw"
-        : game.winSummary.winner === SELF
+        : analyticsWinners.includes(SELF)
           ? "win"
           : "loss";
     trackAnalyticsEvent("hand_completed", {
@@ -1758,8 +1781,9 @@ function MahjongApp({
           : /self-draw/i.test(game.winSummary.detail)
             ? "self_draw"
             : "discard",
-      points: game.winSummary.points,
-      total_payment: game.winSummary.total,
+      winner_count: analyticsWinners.length,
+      points: selfSummary?.points ?? game.winSummary.points,
+      total_payment: selfSummary?.total ?? game.winSummary.total,
       duration_seconds: Math.max(
         0,
         Math.round(
@@ -1829,6 +1853,7 @@ function MahjongApp({
         title: "Your hand is complete",
         body: "You drew the winning tile. Select Hu to finish the hand and collect payment from all three players.",
         target: "hu",
+        learnTopic: "hu",
       });
     } else if (
       game.phase === "claim" &&
@@ -1841,6 +1866,7 @@ function MahjongApp({
         title: "You can declare Hu",
         body: "This discard completes your hand. Hu has priority over every other claim, and payment comes from the discarding player.",
         target: "hu",
+        learnTopic: "hu",
       });
     } else if (
       game.phase === "claim" &&
@@ -1853,6 +1879,7 @@ function MahjongApp({
         title: "You can claim a Gong",
         body: "Claim the discard to reveal four matching tiles, then draw a replacement tile before discarding.",
         target: "gong",
+        learnTopic: "gong",
       });
     } else if (
       game.phase === "claim" &&
@@ -1865,6 +1892,7 @@ function MahjongApp({
         title: "You can Pong",
         body: "A Pong uses this discard with two matching tiles from your hand. Any player may Pong, and the set is revealed.",
         target: "pong",
+        learnTopic: "pong",
       });
     } else if (
       game.phase === "claim" &&
@@ -1877,6 +1905,7 @@ function MahjongApp({
         title: "You can Chi",
         body: "A Chi makes a three-tile sequence. You may only Chi the discard from the player immediately before you.",
         target: "chi",
+        learnTopic: "chi",
       });
     }
 
@@ -1891,6 +1920,7 @@ function MahjongApp({
         title: "A Gong is available",
         body: "You hold four matching tiles. Choose Gong, then decide whether to keep it concealed or reveal it before drawing a replacement.",
         target: "gong",
+        learnTopic: "gong",
       });
     }
 
@@ -1898,6 +1928,14 @@ function MahjongApp({
       const recommendation = recommendDiscard(
         coachHuman.hand,
         coachHuman.melds.length,
+        [
+          ...coachHuman.hand,
+          ...game.players.flatMap((player) => [
+            ...player.discards,
+            ...player.flowers,
+            ...player.melds.flatMap((meld) => meld.tiles),
+          ]),
+        ],
       );
       if (recommendation) {
         addLesson({
@@ -1907,6 +1945,17 @@ function MahjongApp({
           body: recommendation.reason,
           target: "suggested-tile",
           tileId: recommendation.tile.id,
+          details: [
+            recommendation.plan,
+            recommendation.impact,
+            recommendation.visibilityNote,
+          ],
+          alternatives: recommendation.alternatives.map((alternative) => ({
+            tileId: alternative.tile.id,
+            label: alternative.tile.label,
+            reason: alternative.reason,
+          })),
+          learnTopic: "turn",
         });
       }
     }
@@ -1915,7 +1964,8 @@ function MahjongApp({
       id: "rules-goal",
       eyebrow: rulesEyebrow,
       title: "Build five sets and a pair",
-      body: "A Taiwanese Mahjong hand normally wins with 17 tiles: five Chis, Pongs, or Gongs plus one pair. Draw one tile, then discard one.",
+      body: "A Taiwanese Mahjong hand normally wins with 17 tiles: five sets of three tiles plus one pair. A Gong uses four matching tiles and includes a replacement draw.",
+      learnTopic: "objective",
     });
 
     if (coachHuman.flowers.length > 0) {
@@ -1982,6 +2032,7 @@ function MahjongApp({
     }
     setActiveCoachLesson(null);
     setCoachFocusTarget(null);
+    setCoachDetailsOpen(false);
   };
 
   const showCoachTarget = () => {
@@ -1992,6 +2043,10 @@ function MahjongApp({
       selectTile(activeCoachLesson.tileId);
     }
   };
+
+  useEffect(() => {
+    setCoachDetailsOpen(false);
+  }, [activeCoachLesson?.id]);
 
   useEffect(() => {
     if (!analyticsEnabled || !connection.joined || !game?.tableId) return;
@@ -2053,6 +2108,7 @@ function MahjongApp({
 
     if (game.winSummary && !previous?.winSummary) {
       setWinReviewOpen(false);
+      setReviewWinnerIndex(0);
       setScoreDeltas(
         game.players.map(
           (player, index) =>
@@ -2074,6 +2130,7 @@ function MahjongApp({
       setShowWinModal(false);
       setWinStage(0);
       setWinReviewOpen(false);
+      setReviewWinnerIndex(0);
       setScoreDeltas([0, 0, 0, 0]);
       setAnimatedWinTotal(0);
     }
@@ -2335,17 +2392,25 @@ function MahjongApp({
       ? `You are Dealer${game.dealerStreak > 0 ? ` · String +${game.dealerStreak * 2}` : ""}`
       : `${seatName(game.dealer)} deals${game.dealerStreak > 0 ? ` · String +${game.dealerStreak * 2}` : ""}`
     : "Waiting for server";
+  const roundWinSummaries = game?.winSummaries?.length
+    ? game.winSummaries
+    : game?.winSummary
+      ? [game.winSummary]
+      : [];
+  const activeWinSummary =
+    roundWinSummaries[Math.min(reviewWinnerIndex, roundWinSummaries.length - 1)] ??
+    game?.winSummary;
   const winningPlayer =
-    game?.winSummary?.winner === undefined
+    activeWinSummary?.winner === undefined
       ? undefined
-      : game.players[game.winSummary.winner];
-  const winningTile = game?.winSummary?.winningTileId
+      : game?.players[activeWinSummary.winner];
+  const winningTile = activeWinSummary?.winningTileId
     ? [
         ...(winningPlayer?.hand ?? []),
         ...(winningPlayer?.melds.flatMap((meld) => meld.tiles) ?? []),
         ...(winningPlayer?.flowers ?? []),
-        ...(game.lastDiscard ? [game.lastDiscard.tile] : []),
-      ].find((tile) => tile.id === game.winSummary?.winningTileId)
+        ...(game?.lastDiscard ? [game.lastDiscard.tile] : []),
+      ].find((tile) => tile.id === activeWinSummary?.winningTileId)
     : undefined;
   const humanIsWaiting =
     !!game &&
@@ -3052,6 +3117,13 @@ function MahjongApp({
                 Start game
               </button>
             ) : null}
+            <button
+              className="lobby-learn-link"
+              type="button"
+              onClick={onOpenLearn}
+            >
+              Learn how Taiwanese Mahjong works
+            </button>
           </div>
         </section>
         {authOpen ? (
@@ -3362,7 +3434,7 @@ function MahjongApp({
                 aria-label="Open settings"
                 onClick={() => setSettingsOpen(true)}
               >
-                ⚙
+                <span className="gear-glyph" aria-hidden="true">⚙</span>
               </button>
             </div>
           </div>
@@ -3399,7 +3471,7 @@ function MahjongApp({
             dealer={game.dealer === topSeat}
             dealerStreak={game.dealerStreak}
             ready={game.declaredReady?.includes(topSeat) ?? false}
-            reveal={game.winner === topSeat}
+            reveal={game.winners?.includes(topSeat) ?? game.winner === topSeat}
             position="top"
             onInspect={() => setInspectedSeat(topSeat)}
           />
@@ -3496,7 +3568,7 @@ function MahjongApp({
             ) : null}
             {activeCoachLesson ? (
               <aside
-                className={`learning-coach learning-coach-${guidanceMode}`}
+                className={`learning-coach learning-coach-${guidanceMode} ${coachDetailsOpen ? "coach-expanded" : ""}`}
                 aria-live="polite"
                 aria-label={activeCoachLesson.eyebrow}
               >
@@ -3504,6 +3576,31 @@ function MahjongApp({
                   <span>{activeCoachLesson.eyebrow}</span>
                   <strong>{activeCoachLesson.title}</strong>
                   <p>{activeCoachLesson.body}</p>
+                  {coachDetailsOpen && activeCoachLesson.details ? (
+                    <div className="coach-details">
+                      {activeCoachLesson.details.map((detail) => (
+                        <p key={detail}>{detail}</p>
+                      ))}
+                      {activeCoachLesson.alternatives?.length ? (
+                        <div className="coach-alternatives">
+                          <span>Other reasonable choices</span>
+                          {activeCoachLesson.alternatives.map((alternative) => (
+                            <button
+                              key={alternative.tileId}
+                              type="button"
+                              title={alternative.reason}
+                              onClick={() => {
+                                setUiSelectedTileId(alternative.tileId);
+                                selectTile(alternative.tileId);
+                              }}
+                            >
+                              {alternative.label}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="learning-coach-actions">
                   <button type="button" onClick={() => dismissCoachLesson()}>
@@ -3519,6 +3616,24 @@ function MahjongApp({
                       onClick={showCoachTarget}
                     >
                       Show me
+                    </button>
+                  ) : null}
+                  {activeCoachLesson.details ? (
+                    <button
+                      className="secondary-action"
+                      type="button"
+                      onClick={() => setCoachDetailsOpen((current) => !current)}
+                    >
+                      {coachDetailsOpen ? "Less" : "Why?"}
+                    </button>
+                  ) : null}
+                  {activeCoachLesson.learnTopic ? (
+                    <button
+                      className="secondary-action"
+                      type="button"
+                      onClick={() => setLearnTopic(activeCoachLesson.learnTopic!)}
+                    >
+                      Learn this concept
                     </button>
                   ) : null}
                   <button
@@ -3639,7 +3754,7 @@ function MahjongApp({
             dealer={game.dealer === leftSeat}
             dealerStreak={game.dealerStreak}
             ready={game.declaredReady?.includes(leftSeat) ?? false}
-            reveal={game.winner === leftSeat}
+            reveal={game.winners?.includes(leftSeat) ?? game.winner === leftSeat}
             position="left"
             onInspect={() => setInspectedSeat(leftSeat)}
           />
@@ -3676,12 +3791,36 @@ function MahjongApp({
             dealer={game.dealer === rightSeat}
             dealerStreak={game.dealerStreak}
             ready={game.declaredReady?.includes(rightSeat) ?? false}
-            reveal={game.winner === rightSeat}
+            reveal={game.winners?.includes(rightSeat) ?? game.winner === rightSeat}
             position="right"
             onInspect={() => setInspectedSeat(rightSeat)}
           />
         </section>
+        <button
+          className="game-learn-button"
+          type="button"
+          onClick={() => setLearnTopic("objective")}
+        >
+          Learn
+        </button>
       </section>
+
+      {learnTopic ? (
+        <div className="modal-backdrop learn-overlay-backdrop" role="presentation">
+          <section
+            className="learn-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Learn Taiwanese Mahjong"
+          >
+            <LearningReference
+              compact
+              initialTopic={learnTopic}
+              onClose={() => setLearnTopic(null)}
+            />
+          </section>
+        </div>
+      ) : null}
 
       {inspectedSeat !== undefined ? (
         <PlayerInspector
@@ -3692,7 +3831,7 @@ function MahjongApp({
           isSelf={inspectedSeat === SELF}
           dealer={game.dealer === inspectedSeat}
           ready={game.declaredReady?.includes(inspectedSeat) ?? false}
-          reveal={game.winner === inspectedSeat}
+          reveal={game.winners?.includes(inspectedSeat) ?? game.winner === inspectedSeat}
           onClose={() => setInspectedSeat(undefined)}
         />
       ) : null}
@@ -4112,7 +4251,9 @@ function MahjongApp({
                 <div>
                   <p className="eyebrow">Hand complete</p>
                   <h2 id="win-title">
-                    {game.winSummary.winner === undefined
+                    {roundWinSummaries.length > 1
+                      ? `${roundWinSummaries.map((summary) => summary.winner === SELF ? "You" : summary.winner === undefined ? "" : seatName(summary.winner)).filter(Boolean).join(" and ")} win`
+                      : game.winSummary.winner === undefined
                       ? game.winSummary.title
                       : game.winSummary.winner === SELF
                         ? "You win"
@@ -4120,7 +4261,25 @@ function MahjongApp({
                   </h2>
                 </div>
               </div>
-              <p className="win-detail">{game.winSummary.detail}</p>
+              <p className="win-detail">{game.message}</p>
+              {roundWinSummaries.length > 1 ? (
+                <div className="winner-tabs" aria-label="Winning hands">
+                  {roundWinSummaries.map((summary, index) => (
+                    <button
+                      className={reviewWinnerIndex === index ? "active" : ""}
+                      key={summary.winner}
+                      type="button"
+                      onClick={() => setReviewWinnerIndex(index)}
+                    >
+                      {summary.winner === SELF
+                        ? "Your hand"
+                        : summary.winner === undefined
+                          ? "Hand"
+                          : `${seatName(summary.winner)}'s hand`}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {winStage >= 1 && winningTile ? (
                 <div className="winning-tile-focus" aria-label="Winning tile">
                   <span>Winning tile</span>
@@ -4129,8 +4288,12 @@ function MahjongApp({
               ) : null}
               {winStage >= 2 && winningPlayer ? (
                 <div className="win-total">
-                  <span>{game.winSummary.points} points</span>
-                  <strong>+{animatedWinTotal} total</strong>
+                  <span>{activeWinSummary?.points ?? 0} points</span>
+                  <strong>
+                    +{roundWinSummaries.length > 1
+                      ? activeWinSummary?.total ?? 0
+                      : animatedWinTotal} total
+                  </strong>
                 </div>
               ) : null}
               {winStage >= 1 && winningPlayer ? (
@@ -4151,13 +4314,13 @@ function MahjongApp({
               >
                 {winStage >= 1 &&
                 winningPlayer &&
-                game.winSummary.winner !== undefined ? (
+                activeWinSummary?.winner !== undefined ? (
                   <div className="winning-review-section">
                     <div
                       className="winning-hand-review"
                       aria-label={`${winningPlayer.name} revealed winning hand`}
                     >
-                      <span>{seatName(game.winSummary.winner)}'s hand</span>
+                      <span>{seatName(activeWinSummary.winner)}'s hand</span>
                       <div className="winning-review-section">
                         <strong>Concealed tiles</strong>
                         <div className="winning-tile-row">
@@ -4166,7 +4329,7 @@ function MahjongApp({
                               key={tile.id}
                               tile={tile}
                               winning={
-                                tile.id === game.winSummary?.winningTileId
+                                tile.id === activeWinSummary?.winningTileId
                               }
                               disabled
                             />
@@ -4211,7 +4374,7 @@ function MahjongApp({
                         Points awarded for every completed Hu.
                       </small>
                     </span>
-                    {game.winSummary.scoreItems.map((item) => (
+                    {(activeWinSummary?.scoreItems ?? []).map((item) => (
                       <span
                         className="score-item"
                         key={`${item.name}-${item.points}`}
@@ -4339,8 +4502,241 @@ function AnalyticsConsentPrompt({
   );
 }
 
+function learnTile(code: string, copy: number) {
+  return { ...tilePrototypeFromCode(code), id: `learn-${code}-${copy}` };
+}
+
+function LearningTileRow({
+  codes,
+  label,
+}: {
+  codes: string[];
+  label: string;
+}) {
+  return (
+    <div className="learn-tile-example" aria-label={label}>
+      {codes.map((code, index) => (
+        <TileView key={`${code}-${index}`} tile={learnTile(code, index)} disabled />
+      ))}
+    </div>
+  );
+}
+
+function LearningReference({
+  compact = false,
+  initialTopic = "history",
+  onClose,
+}: {
+  compact?: boolean;
+  initialTopic?: LearnTopic;
+  onClose?: () => void;
+}) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const target = contentRef.current?.querySelector<HTMLElement>(
+      `[data-learn-topic="${initialTopic}"]`,
+    );
+    target?.scrollIntoView({ block: "start" });
+  }, [initialTopic]);
+
+  const jumpTo = (topic: LearnTopic) => {
+    contentRef.current
+      ?.querySelector<HTMLElement>(`[data-learn-topic="${topic}"]`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  return (
+    <main className={compact ? "learn-reference compact" : "learn-reference"}>
+      <header className="learn-header">
+        <div>
+          <p className="eyebrow">Table One Mahjong</p>
+          <h1>Learn Taiwanese Mahjong</h1>
+          <p>Build a winning 17-tile hand, one clear decision at a time.</p>
+        </div>
+        <button
+          className="learn-close-button"
+          type="button"
+          aria-label={compact ? "Close Learn" : "Return to lobby"}
+          onClick={onClose}
+        >
+          {compact ? "Close" : "Back to lobby"}
+        </button>
+      </header>
+
+      <nav className="learn-nav" aria-label="Learning topics">
+        {([
+          ["objective", "Start here"],
+          ["turn", "Your turn"],
+          ["chi", "Chi"],
+          ["pong", "Pong"],
+          ["gong", "Gong"],
+          ["hu", "Hu"],
+          ["scoring", "Scoring"],
+        ] as Array<[LearnTopic, string]>).map(([topic, label]) => (
+          <button key={topic} type="button" onClick={() => jumpTo(topic)}>
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="learn-content" ref={contentRef}>
+        <section data-learn-topic="history">
+          <p className="eyebrow">A brief history</p>
+          <h2>A Taiwanese table tradition</h2>
+          <p>
+            Mahjong reached Taiwan from mainland China and developed a distinct
+            16-tile style. Today it remains a social game of observation,
+            probability, memory, and table conversation.
+          </p>
+        </section>
+
+        <section data-learn-topic="objective">
+          <p className="eyebrow">The objective</p>
+          <h2>Complete five sets of three tiles and one pair</h2>
+          <p>
+            A standard winning hand has 17 tiles: five sets of three tiles plus
+            one matching pair. A Gong uses four identical tiles and includes a
+            replacement draw.
+          </p>
+          <LearningTileRow
+            label="Example winning hand structure"
+            codes={[
+              "D2", "D3", "D4",
+              "B3", "B4", "B5",
+              "C6", "C7", "C8",
+              "W1", "W1", "W1",
+              "G2", "G2", "G2",
+              "D9", "D9",
+            ]}
+          />
+        </section>
+
+        <section data-learn-topic="tiles">
+          <p className="eyebrow">Know the tiles</p>
+          <h2>Three numbered suits, honors, and flowers</h2>
+          <p>
+            Dots, Bamboo, and Characters run from one through nine. Winds and
+            Dragons are honor tiles. Flowers are revealed immediately and
+            replaced from the wall.
+          </p>
+          <LearningTileRow
+            label="Dots, Bamboo, Characters, Wind, and Dragon tiles"
+            codes={["D1", "D5", "B1", "B7", "C3", "C9", "W1", "G1"]}
+          />
+        </section>
+
+        <section data-learn-topic="turn">
+          <p className="eyebrow">The rhythm of play</p>
+          <h2>Draw, evaluate, discard</h2>
+          <p>
+            On your turn, draw one tile and discard one tile. Play moves
+            counterclockwise. Watch the most recent discards and revealed sets
+            to judge which tiles may still be available.
+          </p>
+        </section>
+
+        <section data-learn-topic="chi">
+          <p className="eyebrow">Claiming a discard</p>
+          <h2>Chi completes a numbered sequence</h2>
+          <p>
+            Claim the immediately previous player's discard to make three
+            consecutive tiles in the same suit. Chi is lower priority than Hu,
+            Pong, and Gong.
+          </p>
+          <LearningTileRow label="Chi with three, four, and five Dots" codes={["D3", "D4", "D5"]} />
+        </section>
+
+        <section data-learn-topic="pong">
+          <p className="eyebrow">Claiming a discard</p>
+          <h2>Pong makes three identical tiles</h2>
+          <p>
+            Any player may claim the latest discard to complete three matching
+            tiles. The set is revealed, and the claiming player discards next.
+          </p>
+          <LearningTileRow label="Pong with three seven Bamboo tiles" codes={["B7", "B7", "B7"]} />
+        </section>
+
+        <section data-learn-topic="gong">
+          <p className="eyebrow">Four of a kind</p>
+          <h2>Gong reveals or conceals four identical tiles</h2>
+          <p>
+            A Gong uses four matching tiles. After declaring it, draw a
+            replacement tile before discarding. Available Gong choices appear
+            only when they are legal.
+          </p>
+          <LearningTileRow label="Gong with four Red Dragons" codes={["G1", "G1", "G1", "G1"]} />
+        </section>
+
+        <section data-learn-topic="hu">
+          <p className="eyebrow">Winning</p>
+          <h2>Hu completes your hand</h2>
+          <p>
+            Choose Hu when your drawn tile or another player's discard completes
+            five sets of three tiles and a pair. More than one player may Hu on
+            the same discard; the discarder pays each winner independently.
+          </p>
+          <LearningTileRow label="Pair of White Dragons completing a hand" codes={["G3", "G3"]} />
+        </section>
+
+        <section data-learn-topic="dealer">
+          <p className="eyebrow">Dealer and rounds</p>
+          <h2>The dealer continues after a win</h2>
+          <p>
+            When the dealer wins, or a hand ends with no playable tiles, the
+            dealer continues and the consecutive-dealer bonus increases. If the
+            dealer does not win, the deal moves to the next seat.
+          </p>
+        </section>
+
+        <section data-learn-topic="scoring">
+          <p className="eyebrow">Scoring basics</p>
+          <h2>Base points plus the patterns you made</h2>
+          <p>
+            Every Hu begins with the table's base win. Enabled bonuses add points
+            for patterns such as self-draw, flowers, dealer status, concealed
+            sets, and higher-value hands. Open Settings to audit every enabled
+            rule and its description.
+          </p>
+        </section>
+
+        <section className="learn-practice" data-learn-topic="practice">
+          <p className="eyebrow">Try it</p>
+          <h2>Three quick checks</h2>
+          <details>
+            <summary>Who may Chi a discarded 5 Bamboo?</summary>
+            <p>Only the next player in turn order, and only with a legal sequence such as 3-4-5 or 4-5-6.</p>
+          </details>
+          <details>
+            <summary>What happens after a Gong?</summary>
+            <p>The player draws a replacement tile, then chooses a discard.</p>
+          </details>
+          <details>
+            <summary>Can two players Hu on the same discard?</summary>
+            <p>Yes. Each eligible player chooses Hu or Pass, and the discarder pays every winner independently.</p>
+          </details>
+        </section>
+
+        <footer className="learn-footer">
+          <strong>English terms used at this table</strong>
+          <p>Chi (吃), Pong (碰), Gong (槓), and Hu (胡).</p>
+          <p>
+            Rules vary by table. Table One follows its enabled scoring settings,
+            which can be reviewed before or during play.
+          </p>
+        </footer>
+      </div>
+    </main>
+  );
+}
+
 export default function Home() {
   const [ready, setReady] = useState(false);
+  const [page, setPage] = useState<"game" | "learn">(() =>
+    typeof window !== "undefined" && window.location.pathname === "/learn"
+      ? "learn"
+      : "game",
+  );
   const auth = useAuth();
   const [analyticsConsent, setAnalyticsConsentState] =
     useState<AnalyticsConsent>(() => getAnalyticsConsent());
@@ -4350,12 +4746,24 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const handleNavigation = () =>
+      setPage(window.location.pathname === "/learn" ? "learn" : "game");
+    window.addEventListener("popstate", handleNavigation);
+    return () => window.removeEventListener("popstate", handleNavigation);
+  }, []);
+
+  useEffect(() => {
     if (analyticsConsent === "granted") initializeAnalytics();
   }, [analyticsConsent]);
 
   const updateAnalyticsConsent = (enabled: boolean) => {
     setAnalyticsConsent(enabled);
     setAnalyticsConsentState(enabled ? "granted" : "denied");
+  };
+
+  const navigate = (nextPage: "game" | "learn") => {
+    window.history.pushState({}, "", nextPage === "learn" ? "/learn" : "/");
+    setPage(nextPage);
   };
 
   if (!ready || auth.status === "loading") {
@@ -4372,12 +4780,17 @@ export default function Home() {
     );
   }
 
+  if (page === "learn") {
+    return <LearningReference onClose={() => navigate("game")} />;
+  }
+
   return (
     <>
       <MahjongApp
         auth={auth}
         analyticsEnabled={analyticsConsent === "granted"}
         onAnalyticsConsentChange={updateAnalyticsConsent}
+        onOpenLearn={() => navigate("learn")}
       />
       {analyticsConsent === null ? (
         <AnalyticsConsentPrompt onChoose={updateAnalyticsConsent} />

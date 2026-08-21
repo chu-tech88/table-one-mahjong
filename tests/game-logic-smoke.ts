@@ -7,6 +7,7 @@ import {
   canDeclareReady,
   declareReadyAndDiscard,
   passClaim,
+  respondToHuClaim,
   startTurn,
 } from "../src/game-logic/flow";
 import {
@@ -23,6 +24,7 @@ import {
   nextDealerForRound,
   nextDealerStreak,
   possessiveName,
+  structuredCloneGame,
   tableNarration,
   tilePrototypeFromCode,
 } from "../src/game-logic/helpers";
@@ -266,6 +268,35 @@ const secondHuOffer = passClaim(
 assert.equal(secondHuOffer.pendingClaim?.claimer, 2);
 assert.equal(secondHuOffer.pendingClaim?.canHu, true);
 
+const firstHuAccepted = respondToHuClaim(
+  firstHuOffer,
+  1,
+  true,
+  firstHuOffer.rules,
+  firstHuOffer.houseRules,
+  () => true,
+);
+assert.equal(firstHuAccepted.phase, "claim");
+assert.deepEqual(firstHuAccepted.pendingHuClaims?.accepted, [1]);
+assert.equal(firstHuAccepted.pendingClaim?.claimer, 2);
+const bothHuAccepted = respondToHuClaim(
+  firstHuAccepted,
+  2,
+  true,
+  firstHuAccepted.rules,
+  firstHuAccepted.houseRules,
+  () => true,
+);
+assert.equal(bothHuAccepted.phase, "round-over");
+assert.deepEqual(bothHuAccepted.winners, [1, 2]);
+assert.equal(bothHuAccepted.winSummaries?.length, 2);
+assert.ok(bothHuAccepted.players[1].score > 250);
+assert.ok(bothHuAccepted.players[2].score > 250);
+assert.equal(
+  250 - bothHuAccepted.players[0].score,
+  bothHuAccepted.players[1].score - 250 + bothHuAccepted.players[2].score - 250,
+);
+
 const huOverPongGame = dealRound();
 const huOverPongDiscard = tiles(["D5"])[0];
 huOverPongGame.players[1].hand = tiles(["D5", "D5"]);
@@ -432,6 +463,17 @@ dealerWinResult.winner = dealerWinResult.dealer;
 dealerWinResult.handResult = "win";
 assert.equal(nextDealerForRound(dealerWinResult), dealerWinResult.dealer);
 assert.equal(nextDealerStreak(dealerWinResult), 1);
+
+const dealerAmongMultipleWinners = structuredCloneGame(dealerWinResult);
+dealerAmongMultipleWinners.winner = (dealerAmongMultipleWinners.dealer + 1) % 4;
+dealerAmongMultipleWinners.winners = [
+  dealerAmongMultipleWinners.winner,
+  dealerAmongMultipleWinners.dealer,
+];
+assert.equal(
+  nextDealerForRound(dealerAmongMultipleWinners),
+  dealerAmongMultipleWinners.dealer,
+);
 
 const dealerLossResult = dealRound();
 dealerLossResult.winner = (dealerLossResult.dealer + 1) % 4;

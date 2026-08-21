@@ -13,6 +13,7 @@ import {
   canDeclareReady,
   declareReadyAndDiscard,
   passClaim,
+  respondToHuClaim,
 } from "../src/game-logic/flow";
 import { chooseDiscard } from "../src/game-logic/ai";
 import { scoreRound } from "../src/game-logic/scoring";
@@ -157,6 +158,33 @@ function activeHumanSeats(room: GameRoom) {
 }
 
 function gameForPlayer(game: Game, recipient: number) {
+  if (game.phase === "claim" && game.pendingHuClaims) {
+    const visible = structuredCloneGame(game);
+    const pending = visible.pendingHuClaims!;
+    const recipientMustRespond =
+      pending.candidates.includes(recipient) &&
+      !pending.accepted.includes(recipient) &&
+      !pending.passed.includes(recipient);
+    visible.pendingClaim = recipientMustRespond
+      ? {
+          tile: pending.tile,
+          by: pending.by,
+          claimer: recipient,
+          canHu: true,
+          canPong: false,
+          canKong: false,
+          canChi: false,
+        }
+      : undefined;
+    visible.pendingHuClaims = undefined;
+    visible.message = `Waiting for responses to ${visible.players[pending.by].name}'s discard.`;
+    visible.activity = {
+      player: pending.by,
+      text: visible.message,
+      tile: pending.tile,
+    };
+    return visible;
+  }
   if (
     game.phase !== "claim" ||
     !game.pendingClaim ||
@@ -823,7 +851,12 @@ wss.on("connection", (socket) => {
             );
             return;
           }
-          if (room.game.pendingClaim?.claimer !== playerIndex) {
+          const pendingHu = room.game.pendingHuClaims;
+          const canRespondToHu =
+            pendingHu?.candidates.includes(playerIndex) &&
+            !pendingHu.accepted.includes(playerIndex) &&
+            !pendingHu.passed.includes(playerIndex);
+          if (!canRespondToHu && room.game.pendingClaim?.claimer !== playerIndex) {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
@@ -832,7 +865,10 @@ wss.on("connection", (socket) => {
             );
             return;
           }
-          if (msg.action.type === "claim" && room.game.pendingClaim.canHu) {
+          if (
+            msg.action.type === "claim" &&
+            (room.game.pendingHuClaims || room.game.pendingClaim?.canHu)
+          ) {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
@@ -847,8 +883,13 @@ wss.on("connection", (socket) => {
           if (msg.action.winBy === "discard") {
             if (
               room.game.phase !== "claim" ||
-              room.game.pendingClaim?.claimer !== playerIndex ||
-              !room.game.pendingClaim.canHu
+              !(
+                (room.game.pendingHuClaims?.candidates.includes(playerIndex) &&
+                  !room.game.pendingHuClaims.accepted.includes(playerIndex) &&
+                  !room.game.pendingHuClaims.passed.includes(playerIndex)) ||
+                (room.game.pendingClaim?.claimer === playerIndex &&
+                  room.game.pendingClaim.canHu)
+              )
             ) {
               socket.send(
                 JSON.stringify({
@@ -966,13 +1007,23 @@ wss.on("connection", (socket) => {
             console.log(
               `[Action] Player ${playerIndex} wins by ${action.winBy}`,
             );
-            nextGame = scoreRound(
-              room.game,
-              playerIndex,
-              action.winBy,
-              room.game.rules,
-              room.game.houseRules,
-            );
+            nextGame =
+              action.winBy === "discard" && room.game.pendingHuClaims
+                ? respondToHuClaim(
+                    room.game,
+                    playerIndex,
+                    true,
+                    room.game.rules,
+                    room.game.houseRules,
+                    (index) => isHumanSeat(room, index),
+                  )
+                : scoreRound(
+                    room.game,
+                    playerIndex,
+                    action.winBy,
+                    room.game.rules,
+                    room.game.houseRules,
+                  );
           }
 
           if (action.type === "declare-ready") {
@@ -1205,13 +1256,42 @@ function playAITurnIfNeeded(roomId: string) {
 
   const { game } = room;
 
-  // If claim is waiting on a disconnected claimant, auto-pass and continue.
+  if (game.phase === "claim" && game.pendingHuClaims) {
+    const unresolvedAiCandidates = game.pendingHuClaims.candidates.filter(
+      (candidate) =>
+        !isHumanSeat(room, candidate) &&
+        !game.pendingHuClaims!.accepted.includes(candidate) &&
+        !game.pendingHuClaims!.passed.includes(candidate),
+    );
+    if (unresolvedAiCandidates.length > 0) {
+      let nextGame = game;
+      unresolvedAiCandidates.forEach((candidate) => {
+        nextGame = respondToHuClaim(
+          nextGame,
+          candidate,
+          true,
+          nextGame.rules,
+          nextGame.houseRules,
+          (index) => isHumanSeat(room, index),
+        );
+      });
+      room.game = nextGame;
+      broadcastGame(room);
+      if (nextGame.phase === "discard") {
+        setTimeout(() => playAITurnIfNeeded(roomId), 1500);
+      }
+    }
+    return;
+  }
+
+  // If a lower-priority claim is waiting on a disconnected claimant, pass it
+  // through the normal queue so later eligible players still get a chance.
   if (game.phase === "claim" && game.pendingClaim && game.lastDiscard) {
     const activeClaimant = game.pendingClaim.claimer;
     if (!isHumanSeat(room, activeClaimant)) {
-      const nextGame = startTurn(
+      const nextGame = passClaim(
         game,
-        (game.lastDiscard.by + 1) % 4,
+        activeClaimant,
         game.rules,
         game.houseRules,
         (index) => isHumanSeat(room, index),

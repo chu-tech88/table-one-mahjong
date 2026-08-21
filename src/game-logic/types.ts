@@ -65,6 +65,14 @@ export type PendingClaim = {
   canChi: boolean;
 };
 
+export type PendingHuClaims = {
+  tile: Tile;
+  by: number;
+  candidates: number[];
+  accepted: number[];
+  passed: number[];
+};
+
 export type PendingAddedGong = {
   player: number;
   tile: Tile;
@@ -200,6 +208,7 @@ export type Game = {
   phase: Phase;
   lastDiscard?: LastDiscard;
   pendingClaim?: PendingClaim;
+  pendingHuClaims?: PendingHuClaims;
   claimPasses?: number[];
   pendingAddedGong?: PendingAddedGong;
   message: string;
@@ -212,7 +221,9 @@ export type Game = {
   activity?: Activity;
   handResult?: "win" | "draw";
   winner?: number;
+  winners?: number[];
   winSummary?: WinSummary;
+  winSummaries?: WinSummary[];
   nextHandReady?: number[];
   nextHandRequired?: number[];
   seatPresence?: SeatPresence[];

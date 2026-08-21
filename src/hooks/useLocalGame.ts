@@ -8,6 +8,7 @@ import {
   applyKong,
   declareReadyAndDiscard,
   passClaim,
+  respondToHuClaim,
   HUMAN,
 } from "../game-logic/flow";
 import { scoreRound } from "../game-logic/scoring";
@@ -183,7 +184,15 @@ export function useLocalGame(
           return current;
         }
 
-        return scoreRound(current, HUMAN, source, rules, houseRules);
+        return source === "discard" && current.pendingHuClaims
+          ? respondToHuClaim(
+              current,
+              HUMAN,
+              true,
+              rules,
+              houseRules,
+            )
+          : scoreRound(current, HUMAN, source, rules, houseRules);
       });
     },
     [rules, houseRules],

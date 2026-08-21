@@ -1,4 +1,11 @@
-import { Game, HouseRule, Rules, StandardRuleKey, Tile } from "./types";
+import {
+  Game,
+  HouseRule,
+  Rules,
+  StandardRuleKey,
+  Tile,
+  WinSummary,
+} from "./types";
 import {
   appendAction,
   countCodes,
@@ -6,7 +13,6 @@ import {
   possessiveName,
   sortTiles,
   structuredCloneGame,
-  tableNarration,
   tileSortFromCode,
 } from "./helpers";
 import { waitCodesForHand } from "./validation";
@@ -379,6 +385,158 @@ export function scoreStandardRules(
   return best.scored;
 }
 
+export function scoreMultipleWinners(
+  game: Game,
+  winners: number[],
+  source: "self-draw" | "discard",
+  rules: Rules,
+  houseRules: HouseRule[],
+) {
+  const next = structuredCloneGame(game);
+  const uniqueWinners = Array.from(new Set(winners));
+  if (uniqueWinners.length === 0) return next;
+  const winningTileId =
+    source === "self-draw"
+      ? next.drawnTileId
+      : next.pendingAddedGong?.tile.id ?? next.lastDiscard?.tile.id;
+  const winningTile =
+    next.pendingAddedGong?.tile ?? next.lastDiscard?.tile;
+  const discarder = next.lastDiscard?.by;
+
+  if (source === "discard" && next.robbingGong && next.pendingAddedGong) {
+    const robbed = next.pendingAddedGong;
+    next.players[robbed.player].hand = next.players[robbed.player].hand.filter(
+      (tile) => tile.id !== robbed.tile.id,
+    );
+  }
+
+  const dealerRule = houseRules.find(
+    (rule) => rule.detector === "dealer" && rule.enabled,
+  );
+  const summaries: WinSummary[] = [];
+
+  uniqueWinners.forEach((winner) => {
+    const scoringContext = structuredCloneGame(game);
+    const contextPlayer = scoringContext.players[winner];
+    if (
+      source === "discard" &&
+      winningTile &&
+      !contextPlayer.hand.some((tile) => tile.id === winningTile.id)
+    ) {
+      contextPlayer.hand = sortTiles([...contextPlayer.hand, winningTile]);
+    }
+    const scoredRules = scoreStandardRules(
+      scoringContext,
+      winner,
+      source,
+      houseRules,
+    );
+    const bonusPoints = scoredRules.reduce((sum, item) => sum + item.points, 0);
+    const points = rules.baseWin + bonusPoints;
+    const dealerLossBonus =
+      winner !== next.dealer && dealerRule
+        ? dealerRule.points + Math.max(0, next.dealerStreak) * 2
+        : 0;
+    let total = 0;
+    let dealerBonusPaid = 0;
+    const player = next.players[winner];
+    const lineItems = [
+      `Base win: ${rules.baseWin}`,
+      ...scoredRules.map(
+        (item) =>
+          `${item.name}${item.multiplier > 1 ? ` x${item.multiplier}` : ""}: +${item.points}`,
+      ),
+    ];
+
+    if (source === "self-draw") {
+      next.players.forEach((opponent, index) => {
+        if (index === winner) return;
+        const payment = points + (index === next.dealer ? dealerLossBonus : 0);
+        opponent.score -= payment;
+        player.score += payment;
+        total += payment;
+        if (index === next.dealer) dealerBonusPaid = dealerLossBonus;
+      });
+    } else if (discarder !== undefined) {
+      dealerBonusPaid = discarder === next.dealer ? dealerLossBonus : 0;
+      const payment = points + dealerBonusPaid;
+      next.players[discarder].score -= payment;
+      player.score += payment;
+      total = payment;
+    }
+
+    const scoreItems = [...scoredRules];
+    if (dealerBonusPaid > 0) {
+      const consecutiveDeals = next.dealerStreak;
+      const item = {
+        name: "Dealer loss",
+        description: `The dealer pays 1 point plus 2 for each consecutive deal (${consecutiveDeals} consecutive deal${consecutiveDeals === 1 ? "" : "s"}).`,
+        points: dealerBonusPaid,
+        multiplier: 1,
+      };
+      scoreItems.push(item);
+      lineItems.push(`${item.name}: +${item.points}`);
+    }
+
+    if (
+      source === "discard" &&
+      winningTile &&
+      !player.hand.some((tile) => tile.id === winningTile.id)
+    ) {
+      player.hand = sortTiles([...player.hand, winningTile]);
+    }
+    summaries.push({
+      winner,
+      winningTileId,
+      title: `${player.name} ${playerVerb(player.name, "wins", "win")}`,
+      detail:
+        source === "self-draw"
+          ? `${player.name} ${playerVerb(player.name, "wins", "win")} by self-draw and ${playerVerb(player.name, "receives", "receive")} ${points} points from each opponent.`
+          : `${player.name} ${playerVerb(player.name, "wins", "win")} on ${discarder !== undefined ? possessiveName(next.players[discarder].name) : "a player's"} discard for ${total} total points.`,
+      points,
+      total,
+      lineItems,
+      scoreItems,
+    });
+  });
+
+  if (source === "discard" && winningTile && discarder !== undefined) {
+    next.players[discarder].discards = next.players[discarder].discards.filter(
+      (tile) => tile.id !== winningTile.id,
+    );
+  }
+
+  next.phase = "round-over";
+  next.claimPasses = undefined;
+  next.pendingClaim = undefined;
+  next.pendingHuClaims = undefined;
+  next.pendingAddedGong = undefined;
+  next.robbingGong = undefined;
+  next.winner = uniqueWinners[0];
+  next.winners = uniqueWinners;
+  next.handResult = "win";
+  next.drawnTileId = undefined;
+  const winnerNames = uniqueWinners.map((winner) => next.players[winner].name);
+  const combinedNames =
+    winnerNames.length === 1
+      ? winnerNames[0]
+      : `${winnerNames.slice(0, -1).join(", ")} and ${winnerNames.at(-1)}`;
+  const message =
+    source === "self-draw"
+      ? summaries[0].detail
+      : `${combinedNames} win on ${discarder !== undefined ? possessiveName(next.players[discarder].name) : "a player's"} discard.`;
+  next.activity = {
+    player: uniqueWinners[0],
+    text: message,
+    tile: source === "discard" ? winningTile : undefined,
+  };
+  next.winSummary = summaries[0];
+  next.winSummaries = summaries;
+  next.message = message;
+  appendAction(next, "score-round", uniqueWinners[0], message);
+  return next;
+}
+
 export function scoreRound(
   game: Game,
   winner: number,
@@ -386,109 +544,7 @@ export function scoreRound(
   rules: Rules,
   houseRules: HouseRule[],
 ) {
-  const next = structuredCloneGame(game);
-  const player = next.players[winner];
-  const winningTileId =
-    source === "self-draw"
-      ? next.drawnTileId
-      : next.pendingAddedGong?.tile.id ?? next.lastDiscard?.tile.id;
-  if (source === "discard" && next.robbingGong && next.pendingAddedGong) {
-    const robbed = next.pendingAddedGong;
-    next.players[robbed.player].hand = next.players[robbed.player].hand.filter(
-      (tile) => tile.id !== robbed.tile.id,
-    );
-  }
-  if (source === "discard" && next.lastDiscard && winner !== next.lastDiscard.by) {
-    const winningTile = next.lastDiscard.tile;
-    if (!player.hand.some((tile) => tile.id === winningTile.id)) {
-      player.hand = sortTiles([...player.hand, winningTile]);
-    }
-    next.players[next.lastDiscard.by].discards = next.players[next.lastDiscard.by].discards.filter(
-      (tile) => tile.id !== winningTile.id,
-    );
-  }
-  const scoredRules = scoreStandardRules(next, winner, source, houseRules);
-  const bonusPoints = scoredRules.reduce((sum, item) => sum + item.points, 0);
-  const points = rules.baseWin + bonusPoints;
-  const dealerRule = houseRules.find(
-    (rule) => rule.detector === "dealer" && rule.enabled,
-  );
-  const dealerLossBonus =
-    winner !== next.dealer && dealerRule
-      ? dealerRule.points + Math.max(0, next.dealerStreak) * 2
-      : 0;
-  let total = 0;
-  let dealerBonusPaid = 0;
-  const lineItems = [
-    `Base win: ${rules.baseWin}`,
-    ...scoredRules.map((item) =>
-      `${item.name}${item.multiplier > 1 ? ` x${item.multiplier}` : ""}: +${item.points}`,
-    ),
-  ];
-
-  if (source === "self-draw") {
-    next.players.forEach((opponent, index) => {
-      if (index !== winner) {
-        const payment = points + (index === next.dealer ? dealerLossBonus : 0);
-        opponent.score -= payment;
-        player.score += payment;
-        total += payment;
-        if (index === next.dealer) dealerBonusPaid = dealerLossBonus;
-      }
-    });
-  } else if (next.lastDiscard) {
-    dealerBonusPaid =
-      next.lastDiscard.by === next.dealer ? dealerLossBonus : 0;
-    const payment = points + dealerBonusPaid;
-    next.players[next.lastDiscard.by].score -= payment;
-    player.score += payment;
-    total = payment;
-  }
-
-  const scoreItems = [...scoredRules];
-  if (dealerBonusPaid > 0) {
-    const consecutiveDeals = next.dealerStreak;
-    const item = {
-      name: "Dealer loss",
-      description: `The dealer pays 1 point plus 2 for each consecutive deal (${consecutiveDeals} consecutive deal${consecutiveDeals === 1 ? "" : "s"}).`,
-      points: dealerBonusPaid,
-      multiplier: 1,
-    };
-    scoreItems.push(item);
-    lineItems.push(`${item.name}: +${item.points}`);
-  }
-
-  next.phase = "round-over";
-  next.claimPasses = undefined;
-  next.pendingAddedGong = undefined;
-  next.robbingGong = undefined;
-  next.winner = winner;
-  next.handResult = "win";
-  next.drawnTileId = undefined;
-  next.activity = {
-    player: winner,
-    text: tableNarration("win", player.name, source === "self-draw" ? "self-draw" : "discard"),
-    tile: source === "discard" ? next.lastDiscard?.tile : undefined,
-  };
-  next.winSummary = {
-    winner,
-    winningTileId,
-    title: `${player.name} ${playerVerb(player.name, "wins", "win")}`,
-    detail:
-      source === "self-draw"
-        ? `${player.name} ${playerVerb(player.name, "wins", "win")} by self-draw and ${playerVerb(player.name, "receives", "receive")} ${points} points from each opponent.`
-        : `${player.name} ${playerVerb(player.name, "wins", "win")} on ${next.lastDiscard ? possessiveName(next.players[next.lastDiscard.by].name) : "a player's"} discard for ${total} total points.`,
-    points,
-    total,
-    lineItems,
-    scoreItems,
-  };
-  next.message =
-    source === "self-draw"
-      ? `${player.name} ${playerVerb(player.name, "wins", "win")} by self-draw and ${playerVerb(player.name, "receives", "receive")} ${points} points from each opponent.`
-      : `${player.name} ${playerVerb(player.name, "wins", "win")} on ${next.lastDiscard ? possessiveName(next.players[next.lastDiscard.by].name) : "a player's"} discard for ${total} total points.`;
-  appendAction(next, "score-round", winner, next.message);
-  return next;
+  return scoreMultipleWinners(game, [winner], source, rules, houseRules);
 }
 
 export function finishExhaustedHand(game: Game) {
@@ -497,7 +553,10 @@ export function finishExhaustedHand(game: Game) {
   next.phase = "round-over";
   next.handResult = "draw";
   next.winner = undefined;
+  next.winners = undefined;
+  next.winSummaries = undefined;
   next.pendingClaim = undefined;
+  next.pendingHuClaims = undefined;
   next.claimPasses = undefined;
   next.pendingAddedGong = undefined;
   next.lastDiscard = undefined;
