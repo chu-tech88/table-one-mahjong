@@ -22,8 +22,13 @@ assert.match(
 );
 assert.match(
   app,
-  /players\.map\(\(player, index\)[\s\S]*?discard-lane-\$\{relativeSeat\}[\s\S]*?<DiscardRiver[\s\S]*?player=\{player\}/,
+  /function visualRelativeSeat[\s\S]*?relativeSeat === 1\) return 3;[\s\S]*?relativeSeat === 3\) return 1;[\s\S]*?players\.map\(\(player, index\)[\s\S]*?visualRelativeSeat\(index, selfIndex\)[\s\S]*?discard-lane-\$\{relativeSeat\}[\s\S]*?<DiscardRiver[\s\S]*?player=\{player\}/,
   "All four players must render into the shared center discard field",
+);
+assert.match(
+  app,
+  /flight-from-\$\{visualRelativeSeat\(tileFlight\.from, SELF\)\}[\s\S]*?flight-to-river-\$\{visualRelativeSeat\(tileFlight\.from, SELF\)\}/,
+  "Discard animations must use the same counterclockwise visual seat mapping as discard lanes",
 );
 assert.doesNotMatch(
   app,

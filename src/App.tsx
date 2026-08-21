@@ -111,8 +111,11 @@ type TileFlight = {
   to?: number;
 };
 
-function relativeSeat(seat: number, self: number) {
-  return (seat - self + 4) % 4;
+function visualRelativeSeat(seat: number, self: number) {
+  const relativeSeat = (seat - self + 4) % 4;
+  if (relativeSeat === 1) return 3;
+  if (relativeSeat === 3) return 1;
+  return relativeSeat;
 }
 
 function prefersReducedMotion() {
@@ -915,7 +918,7 @@ function TableDiscardGrid({
   return (
     <div className="table-discard-grid" aria-label="Center discard area">
       {players.map((player, index) => {
-        const relativeSeat = (index - selfIndex + 4) % 4;
+        const relativeSeat = visualRelativeSeat(index, selfIndex);
         const isSelf = index === selfIndex;
         return (
           <section
@@ -3446,10 +3449,10 @@ function MahjongApp({
           </div>
           {tileFlight ? (
             <div
-              className={`tile-flight tile-flight-${tileFlight.kind} flight-from-${relativeSeat(tileFlight.from, SELF)} ${
+              className={`tile-flight tile-flight-${tileFlight.kind} flight-from-${visualRelativeSeat(tileFlight.from, SELF)} ${
                 tileFlight.kind === "discard"
-                  ? `flight-to-river-${relativeSeat(tileFlight.from, SELF)}`
-                  : `flight-to-seat-${relativeSeat(tileFlight.to ?? tileFlight.from, SELF)}`
+                  ? `flight-to-river-${visualRelativeSeat(tileFlight.from, SELF)}`
+                  : `flight-to-seat-${visualRelativeSeat(tileFlight.to ?? tileFlight.from, SELF)}`
               }`}
               key={tileFlight.id}
               aria-hidden="true"
