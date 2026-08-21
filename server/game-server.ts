@@ -883,7 +883,10 @@ wss.on("connection", (socket) => {
             pendingHu?.candidates.includes(playerIndex) &&
             !pendingHu.accepted.includes(playerIndex) &&
             !pendingHu.passed.includes(playerIndex);
-          if (!canRespondToHu && room.game.pendingClaim?.claimer !== playerIndex) {
+          if (
+            !canRespondToHu &&
+            room.game.pendingClaim?.claimer !== playerIndex
+          ) {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
