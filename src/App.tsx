@@ -2874,6 +2874,7 @@ function MahjongApp({
           {accountControls}
         </header>
         <section className="game-layout lobby-layout">
+          <div className="lobby-entry-stack">
           <div className="panel-block settings-section join-panel">
             <h2>Join table</h2>
             <div className="play-mode-control" aria-label="Game mode">
@@ -2940,12 +2941,8 @@ function MahjongApp({
                 </strong>
               </div>
               <div className="guidance-picker">
-                <p>
-                  Explains relevant rules and offers suggestions. Available on
-                  laptop and desktop screens.
-                </p>
                 <label className="strategy-coach-toggle">
-                  <span>
+                  <span className="strategy-coach-copy">
                     <strong>Strategy Coach</strong>
                     <small>
                       {playMode === "online"
@@ -2957,20 +2954,28 @@ function MahjongApp({
                           : "Off"}
                     </small>
                   </span>
-                  <input
-                    aria-label="Strategy Coach"
-                    type="checkbox"
-                    checked={guidanceMode === "strategy"}
-                    disabled={
-                      playMode === "online" || !coachViewportSupported
-                    }
-                    onChange={(event) =>
-                      changeGuidanceMode(
-                        event.target.checked ? "strategy" : "off",
-                      )
-                    }
-                  />
+                  <span className="toggle-switch">
+                    <input
+                      aria-label="Strategy Coach"
+                      role="switch"
+                      type="checkbox"
+                      checked={guidanceMode === "strategy"}
+                      disabled={
+                        playMode === "online" || !coachViewportSupported
+                      }
+                      onChange={(event) =>
+                        changeGuidanceMode(
+                          event.target.checked ? "strategy" : "off",
+                        )
+                      }
+                    />
+                    <span aria-hidden="true" />
+                  </span>
                 </label>
+                <p>
+                  Explains relevant rules and offers suggestions. Available on
+                  laptop and desktop screens.
+                </p>
               </div>
               {playMode === "online" ? (
                 <>
@@ -3117,13 +3122,14 @@ function MahjongApp({
                 Start game
               </button>
             ) : null}
-            <button
-              className="lobby-learn-link"
-              type="button"
-              onClick={onOpenLearn}
-            >
-              Learn how Taiwanese Mahjong works
-            </button>
+          </div>
+          <button
+            className="lobby-learn-link"
+            type="button"
+            onClick={onOpenLearn}
+          >
+            Learn how Taiwanese Mahjong works
+          </button>
           </div>
         </section>
         {authOpen ? (
@@ -3985,19 +3991,23 @@ function MahjongApp({
                     </small>
                   </span>
                   <span className="guidance-setting-controls">
-                    <input
-                      aria-label="Strategy Coach"
-                      type="checkbox"
-                      checked={guidanceMode === "strategy"}
-                      disabled={
-                        playMode === "online" || !coachViewportSupported
-                      }
-                      onChange={(event) =>
-                        changeGuidanceMode(
-                          event.target.checked ? "strategy" : "off",
-                        )
-                      }
-                    />
+                    <label className="toggle-switch">
+                      <input
+                        aria-label="Strategy Coach"
+                        role="switch"
+                        type="checkbox"
+                        checked={guidanceMode === "strategy"}
+                        disabled={
+                          playMode === "online" || !coachViewportSupported
+                        }
+                        onChange={(event) =>
+                          changeGuidanceMode(
+                            event.target.checked ? "strategy" : "off",
+                          )
+                        }
+                      />
+                      <span aria-hidden="true" />
+                    </label>
                     {hiddenCoachLessons.size > 0 ? (
                       <button
                         className="text-button"

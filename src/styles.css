@@ -17,7 +17,13 @@
 
 /* Learning reference */
 .learn-reference {
+  width: 100%;
+  height: 100svh;
   min-height: 100svh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
   background: #f7f8f4;
   color: #20261f;
 }
@@ -157,9 +163,14 @@
 
 .lobby-learn-link {
   justify-self: center;
-  margin: 4px auto 0;
-  padding: 8px 12px;
-  color: #31533a;
+  margin: 0 auto;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: #ffe36b;
+  font-size: 0.82rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .game-layout {
@@ -198,6 +209,7 @@
   grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 0;
   height: 100%;
+  overflow: hidden;
 }
 
 .learn-reference.compact .learn-header {
@@ -3970,8 +3982,16 @@ textarea {
   overflow: auto;
 }
 
-.join-panel {
+.lobby-entry-stack {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
   width: min(620px, 100%);
+  margin: auto;
+}
+
+.join-panel {
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -4005,9 +4025,7 @@ textarea {
 .guidance-picker {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
+  gap: 6px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -4026,12 +4044,10 @@ textarea {
   justify-content: space-between;
   gap: 12px;
   min-height: 38px;
-  padding-left: 12px;
-  border-left: 1px solid var(--line);
   color: #263b2d;
 }
 
-.strategy-coach-toggle > span {
+.strategy-coach-copy {
   display: grid;
   gap: 2px;
 }
@@ -4045,17 +4061,68 @@ textarea {
   font-size: 0.68rem;
 }
 
-.strategy-coach-toggle input,
-.guidance-setting-controls input {
-  width: 20px;
-  height: 20px;
-  accent-color: var(--accent);
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 24px;
 }
 
-.strategy-coach-toggle input:disabled,
-.guidance-setting-controls input:disabled {
-  opacity: 0.45;
+.toggle-switch input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.toggle-switch > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid #aeb6ac;
+  border-radius: 999px;
+  background: #cbd0c9;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.toggle-switch > span::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(26, 42, 30, 0.28);
+  content: "";
+  transition: transform 160ms ease;
+}
+
+.toggle-switch input:checked + span {
+  border-color: var(--accent-strong);
+  background: var(--accent);
+}
+
+.toggle-switch input:checked + span::after {
+  transform: translateX(20px);
+}
+
+.toggle-switch input:focus-visible + span {
+  outline: 3px solid rgba(22, 123, 102, 0.24);
+  outline-offset: 2px;
+}
+
+.toggle-switch input:disabled {
   cursor: not-allowed;
+}
+
+.toggle-switch input:disabled + span {
+  opacity: 0.45;
 }
 
 .in-game-guidance-setting {
@@ -4111,11 +4178,6 @@ textarea {
 .join-fields select {
   width: 100%;
   min-width: 0;
-}
-
-.join-fields .strategy-coach-toggle input {
-  flex: 0 0 auto;
-  width: 20px;
 }
 
 .online-room-row {
@@ -4637,14 +4699,11 @@ textarea {
   }
 
   .guidance-picker {
-    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
   }
 
   .join-fields .strategy-coach-toggle {
-    padding-top: 8px;
-    padding-left: 0;
-    border-top: 1px solid var(--line);
-    border-left: 0;
+    min-height: 36px;
   }
 }
 
@@ -5187,21 +5246,23 @@ textarea {
 
 .learning-coach {
   position: absolute;
-  right: 8px;
+  left: 50%;
+  right: auto;
   bottom: calc(var(--hand-tile-h) + 50px);
   z-index: 12;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  width: min(620px, calc(100% - 16px));
-  min-height: 70px;
-  padding: 10px 12px;
+  gap: 18px;
+  width: min(840px, calc(100% - 32px));
+  min-height: 76px;
+  padding: 12px 16px;
   border: 1px solid rgba(246, 209, 72, 0.72);
   border-radius: 7px;
   background: rgba(5, 44, 19, 0.96);
   color: #fff8df;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  transform: translateX(-50%);
 }
 
 .learning-coach-strategy {
@@ -5226,7 +5287,7 @@ textarea {
 .learning-coach-copy {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: 4px;
 }
 
 .learning-coach-copy > span {
@@ -5242,21 +5303,21 @@ textarea {
 }
 
 .learning-coach-copy > strong {
-  font-size: 0.82rem;
+  font-size: 0.88rem;
 }
 
 .learning-coach-copy > p {
   margin: 0;
   color: rgba(241, 248, 241, 0.82);
-  font-size: 0.68rem;
-  line-height: 1.35;
+  font-size: 0.72rem;
+  line-height: 1.45;
 }
 
 .learning-coach-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 5px;
+  gap: 7px;
 }
 
 .learning-coach-actions button {
@@ -6904,13 +6965,16 @@ textarea {
 
   .learning-coach {
     position: relative;
+    left: auto;
     right: auto;
     bottom: auto;
     grid-row: 2;
-    width: min(720px, 100%);
+    width: min(820px, 100%);
+    margin-inline: auto;
     min-height: 58px;
     padding: 7px 9px;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+    transform: none;
   }
 
   .human-seat.learning-active .human-profile {
@@ -7651,14 +7715,17 @@ textarea {
 
   .learning-coach {
     position: relative;
+    left: auto;
     right: auto;
     bottom: auto;
     grid-row: 3;
     width: min(720px, 100%);
+    margin-inline: auto;
     min-height: 0;
     height: 42px;
     padding: 4px 7px;
     overflow: hidden;
+    transform: none;
   }
 
   .learning-coach-copy > p {
