@@ -77,6 +77,32 @@ type LearnTopic =
   | "dealer"
   | "scoring";
 
+function ToggleSwitch({
+  ariaLabel,
+  checked,
+  disabled = false,
+  onChange,
+}: {
+  ariaLabel: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="toggle-switch">
+      <input
+        aria-label={ariaLabel}
+        checked={checked}
+        disabled={disabled}
+        role="switch"
+        type="checkbox"
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span aria-hidden="true" />
+    </label>
+  );
+}
+
 function loadGuidanceMode(): GuidanceMode {
   if (typeof window === "undefined") return "off";
   const saved = window.localStorage.getItem(GUIDANCE_SETTING_KEY);
@@ -805,15 +831,36 @@ function formatChiOption(tiles: Tile[]) {
   return tiles.map((tile) => tile.short).join(" · ");
 }
 
-function MeldView({ meld }: { meld: Meld }) {
+function MeldView({
+  auditable = false,
+  meld,
+}: {
+  auditable?: boolean;
+  meld: Meld;
+}) {
+  const [auditVisible, setAuditVisible] = useState(false);
   const meldName =
     meld.type === "kong"
       ? "Gong"
       : meld.type.charAt(0).toUpperCase() + meld.type.slice(1);
   return (
     <div
-      className="meld meld-motion-enter"
-      title={`${meld.concealed ? "Concealed " : ""}${meldName}`}
+      className={`meld meld-motion-enter ${auditable && meld.concealed ? "meld-auditable" : ""}`}
+      title={
+        auditable && meld.concealed
+          ? "Silent Gong. Hover or select Reveal to audit the tiles."
+          : `${meld.concealed ? "Concealed " : ""}${meldName}`
+      }
+      onPointerEnter={(event) => {
+        if (event.pointerType === "mouse" && auditable && meld.concealed) {
+          setAuditVisible(true);
+        }
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === "mouse" && auditable && meld.concealed) {
+          setAuditVisible(false);
+        }
+      }}
     >
       <span>{meld.concealed ? "Silent Gong" : meldName.toUpperCase()}</span>
       <div>
@@ -821,11 +868,22 @@ function MeldView({ meld }: { meld: Meld }) {
           <TileView
             key={tile.id}
             tile={tile}
-            hidden={meld.concealed}
+            hidden={meld.concealed && !auditVisible}
             disabled
           />
         ))}
       </div>
+      {auditable && meld.concealed ? (
+        <button
+          className="silent-gong-audit-trigger"
+          type="button"
+          aria-pressed={auditVisible}
+          onBlur={() => setAuditVisible(false)}
+          onClick={() => setAuditVisible((visible) => !visible)}
+        >
+          {auditVisible ? "Hide tiles" : "Reveal tiles"}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -1226,10 +1284,6 @@ function Opponent({
           <span>{player.wind}</span>
         </div>
       </button>
-      <div className="seat-meta">
-        <span>{difficulties[player.difficulty]}</span>
-        <span>{player.score} pts</span>
-      </div>
       <div className="opponent-rack">
         <span
           className="opponent-hand-count"
@@ -2867,19 +2921,25 @@ function MahjongApp({
 
   if (!connection.joined) {
     return (
-      <main className="app-shell">
+      <main className="app-shell lobby-shell">
         <header className="topbar">
           <h1>Table One Mahjong</h1>
-          <div className="round-status">
-            <span>Multiplayer</span>
-            <strong>Choose a room to join</strong>
-          </div>
           {accountControls}
         </header>
         <section className="game-layout lobby-layout">
           <div className="lobby-entry-stack">
           <div className="panel-block settings-section join-panel">
-            <h2>Join table</h2>
+            <div className="lobby-panel-heading">
+              <div>
+                <p className="eyebrow">Play</p>
+                <h2>Join table</h2>
+              </div>
+              <p>
+                {playMode === "solo"
+                  ? "Practice at your pace against three computer players."
+                  : "Create a private room or join family and friends."}
+              </p>
+            </div>
             <div className="play-mode-control" aria-label="Game mode">
               <button
                 className={playMode === "solo" ? "active" : ""}
@@ -2957,23 +3017,16 @@ function MahjongApp({
                           : "Off"}
                     </small>
                   </span>
-                  <span className="toggle-switch">
-                    <input
-                      aria-label="Strategy Coach"
-                      role="switch"
-                      type="checkbox"
-                      checked={guidanceMode === "strategy"}
-                      disabled={
-                        playMode === "online" || !coachViewportSupported
-                      }
-                      onChange={(event) =>
-                        changeGuidanceMode(
-                          event.target.checked ? "strategy" : "off",
-                        )
-                      }
-                    />
-                    <span aria-hidden="true" />
-                  </span>
+                  <ToggleSwitch
+                    ariaLabel="Strategy Coach"
+                    checked={guidanceMode === "strategy"}
+                    disabled={
+                      playMode === "online" || !coachViewportSupported
+                    }
+                    onChange={(checked) =>
+                      changeGuidanceMode(checked ? "strategy" : "off")
+                    }
+                  />
                 </label>
                 <p>
                   Explains relevant rules and offers suggestions. Available on
@@ -2981,11 +3034,8 @@ function MahjongApp({
                 </p>
               </div>
               {playMode === "online" ? (
-                <>
-                  <div
-                    className="online-room-row"
-                    style={{ gridColumn: "span 2" }}
-                  >
+                <div className="multiplayer-lobby-section">
+                  <div className="online-room-row">
                     <label>
                       <span>Room ID</span>
                       <input
@@ -3042,75 +3092,52 @@ function MahjongApp({
                       Create room
                     </button>
                   </div>
-                  <div style={{ gridColumn: "span 2" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        flexWrap: "wrap",
-                        alignItems: "center",
-                        marginBottom: 8,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "0.74rem",
-                          fontWeight: 800,
-                          color: "#666",
-                        }}
-                      >
-                        Available rooms
+                  <div className="room-browser">
+                    <div className="room-browser-heading">
+                      <strong>Available rooms</strong>
+                      <span>
+                        {roomList.length === 1
+                          ? "1 room"
+                          : `${roomList.length} rooms`}
                       </span>
                     </div>
-                    <div style={{ display: "grid", gap: 8 }}>
+                    <div className="room-list">
                       {roomList.length > 0 ? (
                         roomList.map((room) => (
                           <button
                             key={room.roomId}
                             type="button"
-                            className="secondary-button"
-                            style={{
-                              justifyContent: "space-between",
-                              width: "100%",
-                              textAlign: "left",
-                              opacity: room.isFull ? 0.65 : 1,
-                              cursor: room.isFull ? "pointer" : "pointer",
-                            }}
+                            className={`secondary-button room-list-item ${room.isFull ? "is-full" : ""}`}
                             onClick={() => joinOnlineRoom(room.roomId)}
                           >
                             <span>{room.roomId}</span>
-                            <span
-                              style={{
-                                fontSize: "0.8rem",
-                                color: room.isFull ? "#b74b38" : "#4b5a4a",
-                              }}
-                            >
+                            <span className="room-seat-count">
                               {room.playerCount}/4 seats
                             </span>
                           </button>
                         ))
                       ) : (
-                        <div style={{ color: "#666", fontSize: "0.85rem" }}>
+                        <div className="room-list-empty">
                           No active rooms right now. Create one to invite
                           friends.
                         </div>
                       )}
                     </div>
                   </div>
-                  <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>
+                  <p className="room-helper">
                     Press Enter or choose a room above to join.
                   </p>
-                </>
+                </div>
               ) : null}
             </div>
             {playMode === "online" && lobbySeatError ? (
-              <p style={{ fontSize: "0.9rem", color: "#a33" }}>
+              <p className="lobby-error" role="alert">
                 {lobbySeatError}
               </p>
             ) : null}
             {playMode === "solo" ? (
               <button
-                className="full-width-button"
+                className="full-width-button lobby-primary-action"
                 type="button"
                 disabled={!connection.playerName.trim()}
                 onClick={() => {
@@ -3443,7 +3470,7 @@ function MahjongApp({
                 aria-label="Open settings"
                 onClick={() => setSettingsOpen(true)}
               >
-                <span className="gear-glyph" aria-hidden="true">⚙</span>
+                <span className="gear-glyph" aria-hidden="true">{"⚙︎"}</span>
               </button>
             </div>
           </div>
@@ -3558,18 +3585,20 @@ function MahjongApp({
                 type="button"
                 onClick={() => setActivityHistoryOpen(true)}
               >
-                <span>
+                <span className="mobile-activity-label">
                   {mobileActivityExpanded ? centerStatusLabel : "Activity"}
                 </span>
-                <strong>{activityText}</strong>
-                {focusedActivityTile ? (
-                  <span
-                    className={`tile mobile-activity-tile ${focusedActivityTile.suit}`}
-                    aria-label={focusedActivityTile.label}
-                  >
-                    <TileFace tile={focusedActivityTile} />
-                  </span>
-                ) : null}
+                <span className="mobile-activity-message">
+                  <strong>{activityText}</strong>
+                  {focusedActivityTile ? (
+                    <span
+                      className={`tile mobile-activity-tile ${focusedActivityTile.suit}`}
+                      aria-label={focusedActivityTile.label}
+                    >
+                      <TileFace tile={focusedActivityTile} />
+                    </span>
+                  ) : null}
+                </span>
                 <i className="activity-open-mark" aria-hidden="true">
                   ›
                 </i>
@@ -3974,14 +4003,14 @@ function MahjongApp({
                     )}
                   </div>
                 ))}
-                <label className="sound-setting">
+                <div className="sound-setting">
                   <strong>Game sounds</strong>
-                  <input
-                    type="checkbox"
+                  <ToggleSwitch
+                    ariaLabel="Game sounds"
                     checked={soundEnabled}
-                    onChange={(event) => setSoundEnabled(event.target.checked)}
+                    onChange={setSoundEnabled}
                   />
-                </label>
+                </div>
                 <div className="in-game-guidance-setting">
                   <span>
                     <strong>Strategy Coach</strong>
@@ -3994,23 +4023,16 @@ function MahjongApp({
                     </small>
                   </span>
                   <span className="guidance-setting-controls">
-                    <label className="toggle-switch">
-                      <input
-                        aria-label="Strategy Coach"
-                        role="switch"
-                        type="checkbox"
-                        checked={guidanceMode === "strategy"}
-                        disabled={
-                          playMode === "online" || !coachViewportSupported
-                        }
-                        onChange={(event) =>
-                          changeGuidanceMode(
-                            event.target.checked ? "strategy" : "off",
-                          )
-                        }
-                      />
-                      <span aria-hidden="true" />
-                    </label>
+                    <ToggleSwitch
+                      ariaLabel="Strategy Coach"
+                      checked={guidanceMode === "strategy"}
+                      disabled={
+                        playMode === "online" || !coachViewportSupported
+                      }
+                      onChange={(checked) =>
+                        changeGuidanceMode(checked ? "strategy" : "off")
+                      }
+                    />
                     {hiddenCoachLessons.size > 0 ? (
                       <button
                         className="text-button"
@@ -4026,19 +4048,17 @@ function MahjongApp({
                     ) : null}
                   </span>
                 </div>
-                <label className="sound-setting">
+                <div className="sound-setting">
                   <span>
                     <strong>Usage analytics</strong>
                     <small>No player names or room names are collected.</small>
                   </span>
-                  <input
-                    type="checkbox"
+                  <ToggleSwitch
+                    ariaLabel="Usage analytics"
                     checked={analyticsEnabled}
-                    onChange={(event) =>
-                      onAnalyticsConsentChange(event.target.checked)
-                    }
+                    onChange={onAnalyticsConsentChange}
                   />
-                </label>
+                </div>
                 </section>
 
                 <details className="settings-disclosure rules-disclosure">
@@ -4079,16 +4099,12 @@ function MahjongApp({
                 <div className="house-rule-list">
                   {houseRules.map((rule) => (
                     <div className="house-rule-card" key={rule.id}>
-                      <label className="house-rule-toggle">
-                        <input
+                      <div className="house-rule-toggle">
+                        <ToggleSwitch
+                          ariaLabel={`${rule.name} scoring rule`}
                           checked={rule.enabled}
-                          type="checkbox"
-                          onChange={(event) =>
-                            updateHouseRule(
-                              rule.id,
-                              rule.points,
-                              event.target.checked,
-                            )
+                          onChange={(checked) =>
+                            updateHouseRule(rule.id, rule.points, checked)
                           }
                         />
                         <span>
@@ -4097,7 +4113,7 @@ function MahjongApp({
                             {rule.category ?? "Custom"} · {rule.description}
                           </small>
                         </span>
-                      </label>
+                      </div>
                       <div className="house-rule-actions">
                         <label>
                           <span>Pts</span>
@@ -4355,6 +4371,7 @@ function MahjongApp({
                           <div className="winning-meld-row">
                             {winningPlayer.melds.map((meld, index) => (
                               <MeldView
+                                auditable={meld.concealed}
                                 key={`${meld.type}-${index}`}
                                 meld={meld}
                               />

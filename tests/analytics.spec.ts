@@ -29,6 +29,16 @@ describe("Google Analytics consent", () => {
     expect(script?.src).toContain("G-R0N2WZD69E");
     expect(window.dataLayer).toEqual(
       expect.arrayContaining([
+        [
+          "event",
+          "analytics_ready",
+          { consent_state: "granted", non_interaction: true },
+        ],
+        [
+          "event",
+          "page_view",
+          expect.objectContaining({ page_location: window.location.href }),
+        ],
         ["event", "game_started", { game_mode: "solo" }],
       ]),
     );

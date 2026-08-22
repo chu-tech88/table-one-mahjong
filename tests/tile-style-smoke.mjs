@@ -382,8 +382,8 @@ assert.match(
 );
 assert.match(
   html,
-  /gtag\("consent", "default", \{[\s\S]*analytics_storage: "denied"[\s\S]*googletagmanager\.com\/gtag\/js\?id=G-R0N2WZD69E[\s\S]*gtag\("config", "G-R0N2WZD69E"/,
-  "The shared page shell must install the Google tag after setting default consent",
+  /localStorage\.getItem\([\s\S]*table-one-analytics-consent[\s\S]*gtag\("consent", "default", \{[\s\S]*storedAnalyticsConsent === "granted" \? "granted" : "denied"[\s\S]*ad_storage: "denied"[\s\S]*ad_user_data: "denied"[\s\S]*ad_personalization: "denied"[\s\S]*googletagmanager\.com\/gtag\/js\?id=G-R0N2WZD69E[\s\S]*gtag\("config", "G-R0N2WZD69E"/,
+  "The shared page shell must restore analytics consent while keeping advertising signals denied",
 );
 assert.match(
   app,

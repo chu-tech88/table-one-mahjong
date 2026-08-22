@@ -13,8 +13,18 @@
         dataLayer.push(arguments);
       }
 
+      var storedAnalyticsConsent = null;
+      try {
+        storedAnalyticsConsent = window.localStorage.getItem(
+          "table-one-analytics-consent",
+        );
+      } catch (_error) {
+        storedAnalyticsConsent = null;
+      }
+
       gtag("consent", "default", {
-        analytics_storage: "denied",
+        analytics_storage:
+          storedAnalyticsConsent === "granted" ? "granted" : "denied",
         ad_storage: "denied",
         ad_user_data: "denied",
         ad_personalization: "denied",
