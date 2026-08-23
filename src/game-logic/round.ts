@@ -37,9 +37,10 @@ export function markReadyForNextHand(game: Game, readyPlayer: number) {
   const required = uniqueSeats(game.nextHandRequired ?? []);
   if (!required.includes(readyPlayer)) return game;
 
-  const ready = uniqueSeats([...(game.nextHandReady ?? []), readyPlayer]).filter(
-    (seat) => required.includes(seat),
-  );
+  const ready = uniqueSeats([
+    ...(game.nextHandReady ?? []),
+    readyPlayer,
+  ]).filter((seat) => required.includes(seat));
   if (required.length > 0 && required.every((seat) => ready.includes(seat))) {
     return dealNextHand(game);
   }
