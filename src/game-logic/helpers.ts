@@ -44,11 +44,24 @@ export function tableNarration(
     return playerName === "You"
       ? "Your turn. Choose a tile to discard."
       : `${playerName} is taking a turn.`;
-  if (kind === "discard") return `${playerName} discarded ${detail}.`;
+  if (kind === "discard")
+    return `${playerName} ${playerVerb(
+      playerName,
+      "discards",
+      "discard",
+    )} ${detail}.`;
   if (kind === "claim")
-    return `${playerName} called ${detail}. Choose a discard.`;
+    return `${playerName} ${playerVerb(
+      playerName,
+      "calls",
+      "call",
+    )} ${detail}. Choose a discard.`;
   if (kind === "kong")
-    return `${playerName} declared ${detail}. Draw again, then discard.`;
+    return `${playerName} ${playerVerb(
+      playerName,
+      "declares",
+      "declare",
+    )} ${detail}. Draw again, then discard.`;
   if (kind === "win")
     return `${playerName} ${playerVerb(playerName, "wins", "win")} by ${detail}.`;
   return "The wall is empty. This hand is a draw.";

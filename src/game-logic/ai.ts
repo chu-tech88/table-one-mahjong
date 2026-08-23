@@ -2,6 +2,18 @@ import { Tile, Player, Difficulty } from "./types";
 import { countCodes } from "./helpers";
 import { waitCodesForHand } from "./validation";
 
+const AI_TURN_DELAY_MIN_MS = 1600;
+const AI_TURN_DELAY_MAX_MS = 1900;
+
+export function aiTurnDelayMs() {
+  return (
+    AI_TURN_DELAY_MIN_MS +
+    Math.floor(
+      Math.random() * (AI_TURN_DELAY_MAX_MS - AI_TURN_DELAY_MIN_MS + 1),
+    )
+  );
+}
+
 export function evaluateDiscard(
   hand: Tile[],
   tile: Tile,

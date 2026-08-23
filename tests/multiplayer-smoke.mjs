@@ -222,6 +222,10 @@ async function main() {
     assert.equal(state1.game.players[1].name, "Partner");
     assert.equal(state1.game.players[0].controller, "human");
     assert.equal(state1.game.players[2].controller, "ai");
+    assert.ok(
+      state1.game.players.every((player) => player.difficulty === "balanced"),
+      "Every seat should begin a new room at Balanced difficulty",
+    );
     assert.equal(state0.game.houseRules.length, 68);
 
     send(ws0, {
@@ -290,6 +294,12 @@ async function main() {
       post0.game.actionSeq,
       post1.game.actionSeq,
       "Discard update should broadcast to all joined clients",
+    );
+    assert.match(
+      post0.game.actionLog.find((action) => action.type === "discard")
+        ?.description ?? "",
+      /^Eric discards .+\.$/,
+      "Opponent activity should identify the player and discarded tile",
     );
 
     const reconnectingStatePromise = waitForMessage(

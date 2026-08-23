@@ -52,4 +52,19 @@ describe("useLocalGame", () => {
     });
     expect(result.current.game.actionSeq).toBeGreaterThan(initialActionSeq);
   });
+
+  it("starts a reset session with every AI set to Balanced", () => {
+    const initialGame = dealRound();
+    initialGame.players[1].difficulty = "calm";
+    initialGame.players[2].difficulty = "sharp";
+
+    const { result } = renderHook(() => useLocalGame({ initialGame }));
+    act(() => result.current.newHand(0, true));
+
+    expect(
+      result.current.game.players
+        .filter((player) => player.controller === "ai")
+        .every((player) => player.difficulty === "balanced"),
+    ).toBe(true);
+  });
 });

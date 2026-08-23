@@ -15,7 +15,7 @@ import {
   passClaim,
   respondToHuClaim,
 } from "../src/game-logic/flow";
-import { chooseDiscard } from "../src/game-logic/ai";
+import { aiTurnDelayMs, chooseDiscard } from "../src/game-logic/ai";
 import { scoreRound } from "../src/game-logic/scoring";
 import {
   concealedKongOptions,
@@ -96,11 +96,15 @@ function syncControllers(room: GameRoom) {
 function resetRoomForNewSession(room: GameRoom) {
   const previousRules = room.game.rules;
   const previousHouseRules = room.game.houseRules;
+  const balancedProfiles = room.game.players.map((player) => ({
+    ...player,
+    difficulty: "balanced" as const,
+  }));
   room.game = dealRound(
     0,
     undefined,
     1,
-    room.game.players,
+    balancedProfiles,
     room.game.tableId,
     previousRules,
     previousHouseRules,
@@ -484,6 +488,18 @@ const httpServer = createServer((req, res) => {
 // Create WebSocket server attached to HTTP server
 const wss = new WebSocketServer({ server: httpServer });
 
+function scheduleAITurn(roomId: string, delay = aiTurnDelayMs()) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  room.autoPlayAI.forEach((timer) => clearTimeout(timer));
+  room.autoPlayAI.clear();
+  const timer = setTimeout(() => {
+    room.autoPlayAI.delete(-1);
+    playAITurnIfNeeded(roomId);
+  }, delay);
+  room.autoPlayAI.set(-1, timer);
+}
+
 // Detect half-open connections (e.g. laptop sleep, network switch, dead
 // proxies) that never fire a "close" event. Without this, a stale socket
 // still passes isOpenSocket() checks and silently swallows broadcasts,
@@ -639,7 +655,7 @@ wss.on("connection", (socket) => {
         console.log(`[Room] Player ${playerIndex} joined room ${roomId}`);
 
         // Trigger AI if needed
-        setTimeout(() => playAITurnIfNeeded(roomId), 500);
+        scheduleAITurn(roomId);
       }
 
       // ============ ROOM SEATS (LOBBY) ============
@@ -1144,11 +1160,18 @@ wss.on("connection", (socket) => {
 
           if (action.type === "new-hand") {
             if (action.resetGame) {
+              const balancedProfiles = room.game.players.map((player) => ({
+                ...player,
+                difficulty:
+                  player.controller === "ai"
+                    ? ("balanced" as const)
+                    : player.difficulty,
+              }));
               nextGame = dealRound(
                 0,
                 undefined,
                 1,
-                room.game.players,
+                balancedProfiles,
                 room.game.tableId,
                 room.game.rules,
                 room.game.houseRules,
@@ -1185,7 +1208,7 @@ wss.on("connection", (socket) => {
           broadcastGame(room);
 
           // -------- TRIGGER AI TURN (IF NEEDED) --------
-          setTimeout(() => playAITurnIfNeeded(roomId), 1500);
+          scheduleAITurn(roomId);
         } catch (error) {
           socket.send(
             JSON.stringify({
@@ -1273,7 +1296,7 @@ wss.on("connection", (socket) => {
             }
           });
           broadcastGame(currentRoom);
-          setTimeout(() => playAITurnIfNeeded(roomId), 50);
+          scheduleAITurn(roomId);
         }, DISCONNECT_GRACE_MS);
         room.disconnectTimers.set(playerIndex, disconnectTimer);
       }
@@ -1316,7 +1339,7 @@ function playAITurnIfNeeded(roomId: string) {
       applyRoomGame(room, nextGame);
       broadcastGame(room);
       if (nextGame.phase === "discard") {
-        setTimeout(() => playAITurnIfNeeded(roomId), 1500);
+        scheduleAITurn(roomId);
       }
     }
     return;
@@ -1336,7 +1359,7 @@ function playAITurnIfNeeded(roomId: string) {
       );
       applyRoomGame(room, nextGame);
       broadcastGame(room);
-      setTimeout(() => playAITurnIfNeeded(roomId), 1500);
+      scheduleAITurn(roomId);
     }
     return;
   }
@@ -1378,7 +1401,7 @@ function playAITurnIfNeeded(roomId: string) {
     broadcastGame(room);
 
     // Continue if another AI turn is needed
-    setTimeout(() => playAITurnIfNeeded(roomId), 1500);
+    scheduleAITurn(roomId);
   } catch (error) {
     console.error(`[AI] Error during AI turn:`, error);
   }

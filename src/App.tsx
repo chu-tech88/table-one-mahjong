@@ -2130,7 +2130,8 @@ function MahjongApp({
   }, [analyticsEnabled, connection.joined, game?.tableId, playMode]);
 
   useEffect(() => {
-    const latestAction = game?.actionLog.at(-1);
+    if (!game) return;
+    const latestAction = game.actionLog.at(-1);
     if (!latestAction) return;
     if (
       previousActionSeq.current === undefined ||
@@ -2141,14 +2142,21 @@ function MahjongApp({
       return;
     }
     if (latestAction.seq <= previousActionSeq.current) return;
+    const newActions = game.actionLog.filter(
+      (action) => action.seq > (previousActionSeq.current ?? 0),
+    );
     previousActionSeq.current = latestAction.seq;
-    if (latestAction.type === "discard") playGameSound("discard");
-    if (latestAction.type === "kong") playGameSound("gong");
-    if (latestAction.type === "score-round") playGameSound("hu");
-    if (latestAction.type === "claim") {
-      if (/gong/i.test(latestAction.description)) playGameSound("gong");
-      else if (/pong/i.test(latestAction.description)) playGameSound("pong");
-      else if (/chi/i.test(latestAction.description)) playGameSound("chi");
+    const audibleAction = [...newActions].reverse().find((action) =>
+      ["discard", "claim", "kong", "score-round"].includes(action.type),
+    );
+    if (!audibleAction) return;
+    if (audibleAction.type === "discard") playGameSound("discard");
+    if (audibleAction.type === "kong") playGameSound("gong");
+    if (audibleAction.type === "score-round") playGameSound("hu");
+    if (audibleAction.type === "claim") {
+      if (/gong/i.test(audibleAction.description)) playGameSound("gong");
+      else if (/pong/i.test(audibleAction.description)) playGameSound("pong");
+      else if (/chi/i.test(audibleAction.description)) playGameSound("chi");
     }
   }, [game?.actionSeq, game?.round, soundEnabled]);
 
@@ -2494,9 +2502,13 @@ function MahjongApp({
   const showYourTurnInCenter =
     isSelfDiscardTurn || isSelfClaimTurn || activityIndicatesSelfAction;
   const rawActivityText = isSelfDiscardTurn
-    ? "Your turn"
+    ? activity.tile && activity.player !== SELF
+      ? `${activity.text} Your turn.`
+      : "Your turn"
     : isSelfClaimTurn
-      ? "Your turn: choose an action"
+      ? `${seatName(game?.pendingClaim?.by ?? activity.player)} discards ${
+          focusedActivityTile?.label ?? "a tile"
+        }. Choose an action.`
       : activityIsTurnCall && activity.player === SELF
         ? "Your turn"
         : playMode === "online" &&
@@ -2518,7 +2530,9 @@ function MahjongApp({
         ? "Action required"
         : "Your turn"
       : activity.tile
-        ? `${seatName(activity.player)}'s discard`
+        ? /(calls|declares).*(chi|pong|gong)/i.test(activity.text)
+          ? `${seatName(activity.player)}'s action`
+          : `${seatName(activity.player)}'s discard`
         : "Table activity";
   const activityNoticeTone = showYourTurnInCenter
     ? "action"
@@ -3146,6 +3160,7 @@ function MahjongApp({
                   setActiveCoachLesson(null);
                   setCoachFocusTarget(null);
                   setSeenCoachLessons(new Set());
+                  newHand(0, true);
                   setConnection((current) => ({ ...current, joined: true }));
                 }}
               >
@@ -4617,7 +4632,12 @@ function LearningReference({
           <p>
             Mahjong reached Taiwan from mainland China and developed a distinct
             16-tile style. Today it remains a social game of observation,
-            probability, memory, and table conversation.
+            probability, memory, and table conversation. Compared with many
+            Chinese regional styles and Japanese Mahjong, which usually build a
+            winning hand from four sets and a pair, Taiwanese Mahjong requires
+            five sets and a pair. Its eight flower and season tiles and
+            table-specific bonus scoring also give each game a distinctive local
+            character.
           </p>
         </section>
 

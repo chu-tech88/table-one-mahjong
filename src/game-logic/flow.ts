@@ -5,6 +5,7 @@ import {
   withoutTiles,
   tableNarration,
   appendAction,
+  playerVerb,
 } from "./helpers";
 import {
   isWinningHand,
@@ -109,10 +110,15 @@ export function advanceAfterDiscard(
             .length > 0,
       };
       next.phase = "claim";
-      next.message = `${next.players[discardedBy].name} discarded ${discard.tile.label}. ${next.players[playerIndex].name}, choose an action or pass.`;
+      const discardMessage = tableNarration(
+        "discard",
+        next.players[discardedBy].name,
+        discard.tile.label,
+      );
+      next.message = `${discardMessage} ${next.players[playerIndex].name}, choose an action or pass.`;
       next.activity = {
         player: discardedBy,
-        text: `${next.players[playerIndex].name} can claim or pass.`,
+        text: discardMessage,
         tile: discard.tile,
       };
       return next;
@@ -154,10 +160,15 @@ export function advanceAfterDiscard(
       canChi: true,
     };
     next.phase = "claim";
-    next.message = `${next.players[discardedBy].name} discarded ${discard.tile.label}. ${next.players[chiSeat].name}, choose Chi or pass.`;
+    const discardMessage = tableNarration(
+      "discard",
+      next.players[discardedBy].name,
+      discard.tile.label,
+    );
+    next.message = `${discardMessage} ${next.players[chiSeat].name}, choose Chi or pass.`;
     next.activity = {
       player: discardedBy,
-      text: `${next.players[chiSeat].name} can Chi or pass.`,
+      text: discardMessage,
       tile: discard.tile,
     };
     return next;
@@ -240,12 +251,17 @@ export function applyClaim(
   next.claimPasses = undefined;
   next.lastDiscard = undefined;
   next.drawnTileId = undefined;
-  next.message = tableNarration(
-    "claim",
-    player.name,
-    type === "kong" ? "Gong" : type.charAt(0).toUpperCase() + type.slice(1),
-  );
-  next.activity = { player: playerIndex, text: next.message };
+  const actionName =
+    type === "kong" ? "Gong" : type.charAt(0).toUpperCase() + type.slice(1);
+  next.message = `${player.name} ${playerVerb(player.name, "calls", "call")} ${actionName} on ${discard.tile.label}.`;
+  if (player.name.trim().toLowerCase() === "you") {
+    next.message += " Choose a tile to discard.";
+  }
+  next.activity = {
+    player: playerIndex,
+    text: next.message,
+    tile: discard.tile,
+  };
   appendAction(next, "claim", playerIndex, next.message);
 
   if (type === "kong") {
@@ -260,8 +276,12 @@ export function applyClaim(
     afterDraw.pendingClaim = undefined;
     afterDraw.lastDiscard = undefined;
     if ((afterDraw.settledBonuses?.length ?? 0) === settledBefore) {
-      afterDraw.message = tableNarration("kong", player.name, "Gong");
-      afterDraw.activity = { player: playerIndex, text: afterDraw.message };
+      afterDraw.message = `${player.name} ${playerVerb(player.name, "calls", "call")} Gong on ${discard.tile.label} and draws a replacement tile.`;
+      afterDraw.activity = {
+        player: playerIndex,
+        text: afterDraw.message,
+        tile: discard.tile,
+      };
       appendAction(afterDraw, "kong", playerIndex, afterDraw.message);
     }
     if (
@@ -411,7 +431,26 @@ export function discardTile(
   next.message = tableNarration("discard", player.name, tile.label);
   next.activity = { player: playerIndex, text: next.message, tile };
   appendAction(next, "discard", playerIndex, next.message);
-  return advanceAfterDiscard(next, playerIndex, rules, houseRules, isHumanSeat);
+  const discardMessage = next.message;
+  const advanced = advanceAfterDiscard(
+    next,
+    playerIndex,
+    rules,
+    houseRules,
+    isHumanSeat,
+  );
+
+  // Keep the concrete discard visible during the next player's thinking time.
+  // Claims, wins, flower bonuses, and other meaningful events retain priority.
+  if (
+    advanced.phase === "discard" &&
+    advanced.turn !== playerIndex &&
+    /is taking a turn\.?$/i.test(advanced.activity?.text ?? "")
+  ) {
+    advanced.message = discardMessage;
+    advanced.activity = { player: playerIndex, text: discardMessage, tile };
+  }
+  return advanced;
 }
 
 export function canDeclareReady(game: Game, playerIndex: number, tileId: string) {

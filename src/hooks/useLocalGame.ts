@@ -12,7 +12,7 @@ import {
   HUMAN,
 } from "../game-logic/flow";
 import { scoreRound } from "../game-logic/scoring";
-import { chooseDiscard } from "../game-logic/ai";
+import { aiTurnDelayMs, chooseDiscard } from "../game-logic/ai";
 import { isWinningHand } from "../game-logic/validation";
 import {
   nextDealerForRound,
@@ -118,7 +118,7 @@ export function useLocalGame(
           return discardTile(current, current.turn, tile.id, rules, houseRules);
         });
       },
-      game.players[game.turn].difficulty === "sharp" ? 1250 : 1700,
+      aiTurnDelayMs(),
     );
     return () => window.clearTimeout(timerRef.current);
   }, [game, rules, houseRules, options.pauseAI]);
@@ -276,11 +276,18 @@ export function useLocalGame(
     (dealer?: number, resetGame = false) => {
       setGame((current) => {
         if (resetGame) {
+          const balancedProfiles = current.players.map((player) => ({
+            ...player,
+            difficulty:
+              player.controller === "ai"
+                ? ("balanced" as const)
+                : player.difficulty,
+          }));
           return dealRound(
             0,
             undefined,
             1,
-            current.players,
+            balancedProfiles,
             current.tableId,
             rules,
             houseRules,

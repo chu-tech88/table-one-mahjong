@@ -6,6 +6,7 @@ import {
   beginAddedGong,
   canDeclareReady,
   declareReadyAndDiscard,
+  discardTile,
   passClaim,
   respondToHuClaim,
   startTurn,
@@ -29,7 +30,11 @@ import {
   tilePrototypeFromCode,
 } from "../src/game-logic/helpers";
 import { StandardRuleKey } from "../src/game-logic/types";
-import { chooseDiscard, highValueHandPotential } from "../src/game-logic/ai";
+import {
+  aiTurnDelayMs,
+  chooseDiscard,
+  highValueHandPotential,
+} from "../src/game-logic/ai";
 import { waitingSupportTileIds } from "../src/game-logic/validation";
 import {
   markReadyForNextHand,
@@ -45,6 +50,18 @@ assert.equal(
 );
 assert.equal(possessiveName("Grace"), "Grace's");
 assert.equal(possessiveName("You"), "your");
+assert.equal(
+  tableNarration("discard", "Mina", "6 Bamboo"),
+  "Mina discards 6 Bamboo.",
+);
+assert.equal(
+  tableNarration("discard", "You", "6 Bamboo"),
+  "You discard 6 Bamboo.",
+);
+for (let index = 0; index < 25; index += 1) {
+  const delay = aiTurnDelayMs();
+  assert.ok(delay >= 1600 && delay <= 1900);
+}
 function tiles(codes: string[]) {
   return codes.map((code) => ({
     ...tilePrototypeFromCode(code),
@@ -70,6 +87,31 @@ function scoreOnly(codes: string[], detector: StandardRuleKey) {
 }
 
 const game = dealRound();
+assert.ok(
+  game.players.every((player) => player.difficulty === "balanced"),
+  "Every seat should begin a new session at Balanced difficulty",
+);
+
+const pacedDiscardGame = dealRound();
+pacedDiscardGame.players.slice(1).forEach((player) => {
+  player.hand = [];
+});
+const pacedDiscard = pacedDiscardGame.players[0].hand[0];
+const pacedDiscardResult = discardTile(
+  pacedDiscardGame,
+  0,
+  pacedDiscard.id,
+  pacedDiscardGame.rules,
+  pacedDiscardGame.houseRules,
+);
+assert.equal(pacedDiscardResult.turn, 1);
+assert.equal(
+  pacedDiscardResult.activity?.text,
+  `You discard ${pacedDiscard.label}.`,
+  "The concrete discard should remain visible during the next AI pause",
+);
+assert.equal(pacedDiscardResult.activity?.tile?.id, pacedDiscard.id);
+
 const kongTiles = makeDeck().filter((tile) => tile.code === "D1").slice(0, 4);
 game.players[0].hand = kongTiles;
 game.wall = game.wall.filter(

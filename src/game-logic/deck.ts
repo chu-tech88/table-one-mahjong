@@ -153,8 +153,8 @@ export function dealRound(
   const defaultNames = ["You", "Mina", "Theo", "Grace"];
   const defaultDifficulties: Difficulty[] = [
     "balanced",
-    "calm",
-    "sharp",
+    "balanced",
+    "balanced",
     "balanced",
   ];
   const players: Player[] = defaultNames.map((defaultName, index) => ({
