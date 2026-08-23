@@ -25,6 +25,7 @@ export type GameClientCallbacks = {
   onActionRejected?: (reason: string) => void;
   onDisconnected?: () => void;
   onPlayerTakenOver?: (playerIndex: number) => void;
+  onSystemMessage?: (message: string) => void;
 };
 
 export class GameClient {
@@ -220,6 +221,7 @@ export class GameClient {
 
     if (message.type === "system") {
       console.log("Server:", message.message);
+      this.callbacks.onSystemMessage?.(message.message);
     }
   }
 

@@ -33,6 +33,7 @@ import {
   markReadyForNextHand,
   prepareNextHandReadiness,
   removeRequiredSeat,
+  ensureRequiredSeat,
 } from "../src/game-logic/round";
 
 // Types
@@ -219,6 +220,18 @@ function broadcastGame(room: GameRoom) {
   room.players.forEach((player, index) => {
     if (isOpenSocket(player)) sendGameState(player, room.game, index);
   });
+}
+
+// Any transition into "round-over" - whether from a human action or an
+// AI auto-play/auto-accept path - must (re)initialize next-hand readiness.
+// Skipping this (as the AI-hu-acceptance path previously did) leaves
+// nextHandRequired/nextHandReady stale, so every "Next Hand" click is
+// silently ignored for the rest of that hand.
+function applyRoomGame(room: GameRoom, nextGame: Game) {
+  room.game =
+    nextGame.phase === "round-over" && room.game.phase !== "round-over"
+      ? prepareNextHandReadiness(nextGame, activeHumanSeats(room))
+      : nextGame;
 }
 
 function getMimeType(filePath: string) {
@@ -607,6 +620,10 @@ wss.on("connection", (socket) => {
         room.players[playerIndex] = socket;
         room.seatPresence[playerIndex] = "connected";
         room.game.players[playerIndex].name = cleanPlayerName(msg.playerName);
+        // Reconnecting during round-over can otherwise leave this seat
+        // permanently excluded from next-hand readiness (see
+        // ensureRequiredSeat), silently breaking their "Next Hand" button.
+        room.game = ensureRequiredSeat(room.game, playerIndex);
         syncControllers(room);
 
         socket.send(
@@ -1161,16 +1178,7 @@ wss.on("connection", (socket) => {
           }
 
           // -------- UPDATE ROOM STATE --------
-          if (
-            nextGame.phase === "round-over" &&
-            room.game.phase !== "round-over"
-          ) {
-            nextGame = prepareNextHandReadiness(
-              nextGame,
-              activeHumanSeats(room),
-            );
-          }
-          room.game = nextGame;
+          applyRoomGame(room, nextGame);
           syncControllers(room);
 
           // -------- BROADCAST TO ALL PLAYERS --------
@@ -1305,7 +1313,7 @@ function playAITurnIfNeeded(roomId: string) {
           (index) => isHumanSeat(room, index),
         );
       });
-      room.game = nextGame;
+      applyRoomGame(room, nextGame);
       broadcastGame(room);
       if (nextGame.phase === "discard") {
         setTimeout(() => playAITurnIfNeeded(roomId), 1500);
@@ -1326,7 +1334,7 @@ function playAITurnIfNeeded(roomId: string) {
         game.houseRules,
         (index) => isHumanSeat(room, index),
       );
-      room.game = nextGame;
+      applyRoomGame(room, nextGame);
       broadcastGame(room);
       setTimeout(() => playAITurnIfNeeded(roomId), 1500);
     }
@@ -1364,7 +1372,7 @@ function playAITurnIfNeeded(roomId: string) {
       game.houseRules,
       (index) => isHumanSeat(room, index),
     );
-    room.game = nextGame;
+    applyRoomGame(room, nextGame);
 
     // Broadcast
     broadcastGame(room);
@@ -1394,6 +1402,40 @@ const roomCleanupTimer = setInterval(
   60 * 60 * 1000,
 );
 roomCleanupTimer.unref();
+
+// Auto-exit rooms where every seated player has been idle (no join,
+// action, or chat) for 1 hour, even if their sockets are still connected.
+const IDLE_TIMEOUT_MS = 60 * 60 * 1000;
+const IDLE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+
+const idleRoomTimer = setInterval(() => {
+  const cutoff = Date.now() - IDLE_TIMEOUT_MS;
+  rooms.forEach((room, id) => {
+    if (room.lastActivity >= cutoff) return;
+    const connectedPlayers = room.players.filter((player) =>
+      isOpenSocket(player ?? null),
+    );
+    if (connectedPlayers.length === 0) return;
+
+    console.log(`[Room] Closing idle room ${id} after 1 hour of inactivity`);
+    connectedPlayers.forEach((player) => {
+      player!.send(
+        JSON.stringify({
+          type: "system",
+          message: "This table was closed after 1 hour of inactivity.",
+        } as ServerMessage),
+      );
+      player!.close(1000, "Idle timeout");
+    });
+    room.chatSubscribers.forEach((subscriber) => {
+      if (isOpenSocket(subscriber)) subscriber.close(1000, "Idle timeout");
+    });
+    room.autoPlayAI.forEach((timer) => clearTimeout(timer));
+    room.disconnectTimers.forEach((timer) => clearTimeout(timer));
+    rooms.delete(id);
+  });
+}, IDLE_CHECK_INTERVAL_MS);
+idleRoomTimer.unref();
 
 // ============ STATS ============
 

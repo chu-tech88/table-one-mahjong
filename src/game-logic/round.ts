@@ -73,3 +73,20 @@ export function removeRequiredSeat(game: Game, seat: number) {
   }
   return next;
 }
+
+// A human seat that reconnects mid round-over (e.g. after a refresh) may
+// have already been dropped from nextHandRequired by the disconnect grace
+// timeout. Without re-adding them, their "ready" clicks silently no-op
+// forever because markReadyForNextHand only honors seats still marked
+// required.
+export function ensureRequiredSeat(game: Game, seat: number) {
+  if (game.phase !== "round-over") return game;
+  const required = uniqueSeats(game.nextHandRequired ?? []);
+  if (required.includes(seat)) return game;
+  const next = structuredCloneGame(game);
+  next.nextHandRequired = uniqueSeats([...required, seat]);
+  next.nextHandReady = uniqueSeats(next.nextHandReady ?? []).filter(
+    (readySeat) => readySeat !== seat,
+  );
+  return next;
+}

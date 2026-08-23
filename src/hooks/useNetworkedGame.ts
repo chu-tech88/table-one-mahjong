@@ -89,6 +89,7 @@ export function useNetworkedGame(
     let isMounted = true;
     let reconnectTimer: number | undefined;
     let activeClient: GameClient | null = null;
+    let terminalMessage: string | undefined;
 
     const scheduleReconnect = () => {
       if (!isMounted) return;
@@ -124,9 +125,20 @@ export function useNetworkedGame(
         onActionRejected: (reason) => {
           if (client === activeClient) setError(reason);
         },
+        onSystemMessage: (message) => {
+          if (client === activeClient) terminalMessage = message;
+        },
         onDisconnected: () => {
           if (!isMounted || client !== activeClient) return;
           setIsConnected(false);
+          // A server-sent system message right before close (e.g. the
+          // 1-hour idle timeout) means the room is gone; show why instead
+          // of silently reconnecting into a brand-new empty room.
+          if (terminalMessage) {
+            setError(terminalMessage);
+            terminalMessage = undefined;
+            return;
+          }
           setError("Reconnecting to your table...");
           scheduleReconnect();
         },
