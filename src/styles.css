@@ -5397,6 +5397,87 @@ textarea {
   font-size: clamp(0.72rem, 0.84vw, 0.86rem);
 }
 
+/* Keep a tile-bearing activity notice inside the center lane instead of
+   stacking enough height to cover the top or bottom discard rivers. */
+@media (min-width: 901px) {
+  .table-center-core:has(.last-discard) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    justify-items: stretch;
+    gap: 8px;
+    width: clamp(220px, 19vw, 260px);
+    max-width: min(58%, 260px);
+    min-height: 0;
+    max-height: clamp(94px, 14svh, 128px);
+    padding: 7px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .table-center-core:has(.last-discard) .center-activity {
+    align-self: stretch;
+    align-content: center;
+    min-width: 0;
+  }
+
+  .table-center-core:has(.last-discard) .last-discard {
+    min-width: 0;
+  }
+
+  .table-center-core:has(.last-discard) .last-discard .tile.large {
+    width: clamp(46px, 4.2vw, 62px);
+    height: clamp(62px, 5.65vw, 84px);
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1199px) {
+  .table-center-core:has(.last-discard) {
+    gap: 6px;
+    width: clamp(188px, 18vw, 200px);
+    max-width: 200px;
+    transform: translateY(-10px);
+  }
+
+  .table-center-core:has(.last-discard) .center-activity {
+    padding-inline: 4px;
+  }
+
+  .table-center-core:has(.last-discard) .last-discard .tile.large {
+    width: 44px;
+    height: 60px;
+  }
+}
+
+@media (min-width: 901px) and (max-height: 680px) {
+  .table-center-core:has(.last-discard) {
+    gap: 4px;
+    height: 40px;
+    max-height: 40px;
+    padding: 2px;
+    transform: translateY(-35px);
+  }
+
+  .table-center-core:has(.last-discard) .center-activity {
+    gap: 0;
+    padding: 1px 3px;
+  }
+
+  .table-center-core:has(.last-discard) .center-activity span {
+    display: none;
+  }
+
+  .table-center-core:has(.last-discard) .center-activity strong {
+    font-size: 0.62rem;
+    line-height: 1.08;
+  }
+
+  .table-center-core:has(.last-discard) .last-discard .tile.large {
+    width: 26px;
+    height: 36px;
+    border-bottom-width: 2px;
+  }
+}
+
 .mobile-activity-ribbon {
   display: none;
 }
@@ -7774,6 +7855,48 @@ textarea {
     width: 19px;
     min-width: 19px;
     height: 24px;
+    --tile-base-depth: 2px;
+    box-sizing: border-box;
+    container-type: size;
+    overflow: hidden;
+  }
+
+  .mobile-activity-tile > .tile-face:not(.dragon-3) {
+    inset: 0;
+    width: 100%;
+    height: calc(100% - var(--tile-base-depth));
+    box-sizing: border-box;
+    transform: none;
+  }
+
+  .mobile-activity-tile .character-face,
+  .mobile-activity-tile .honor-face,
+  .mobile-activity-tile .flower-face {
+    padding: 1px;
+  }
+
+  .mobile-activity-tile .character-face b {
+    font-size: min(52cqw, 44cqh);
+  }
+
+  .mobile-activity-tile .character-face em {
+    font-size: min(34cqw, 29cqh);
+  }
+
+  .mobile-activity-tile .honor-face {
+    font-size: min(68cqw, 58cqh);
+    line-height: 1;
+  }
+
+  .mobile-activity-tile .dragon-3 {
+    inset: 48% auto auto 50%;
+    width: 68%;
+    height: 62%;
+    padding: 0;
+    border-width: 1px;
+    border-radius: 2px;
+    font-size: min(45cqw, 38cqh);
+    transform: translate(-50%, -50%);
   }
 
   .human-revealed-shelf {
@@ -8002,6 +8125,27 @@ textarea {
     border: 1px solid rgba(244, 211, 82, 0.2);
     border-radius: 6px;
     background: rgba(5, 43, 18, 0.54);
+  }
+
+  .table-center-core:has(.last-discard) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    justify-items: stretch;
+    gap: 8px;
+    min-height: 0;
+    max-height: 118px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .table-center-core:has(.last-discard) .center-activity {
+    align-self: stretch;
+    align-content: center;
+    min-width: 0;
+  }
+
+  .table-center-core:has(.last-discard) .last-discard {
+    min-width: 0;
   }
 
   .table-center-core:not(:has(.last-discard)) {
@@ -8303,7 +8447,7 @@ textarea {
   }
 
   .mobile-activity-ribbon.is-expanded .mobile-activity-tile {
-    position: static;
+    position: relative;
     flex: 0 0 auto;
     transform: none;
   }
