@@ -227,6 +227,11 @@ assert.match(
 );
 assert.match(
   app,
+  /discard:[\s\S]*?volume:\s*0\.04[\s\S]*?chi:[\s\S]*?volume:\s*0\.035[\s\S]*?volume:\s*0\.04[\s\S]*?pong:[\s\S]*?volume:\s*0\.05[\s\S]*?volume:\s*0\.05/,
+  "Routine discard, Chi, and Pong sounds must remain clearly audible",
+);
+assert.match(
+  app,
   /SOUND_SETTING_KEY[\s\S]*checked=\{soundEnabled\}[\s\S]*setSoundEnabled/,
   "Players must be able to disable game sounds",
 );
@@ -327,8 +332,47 @@ assert.match(
 );
 assert.match(
   app,
-  /COACH_VIEWPORT_QUERY[\s\S]*coachViewportSupported[\s\S]*strategy-discard-\$\{game\.tableId\}-\$\{game\.round\}-\$\{game\.dealer\}-\$\{game\.dealerStreak\}[\s\S]*Dismiss for this hand/,
-  "Strategy Coach must be limited to larger screens and return once per hand",
+  /COACH_VIEWPORT_QUERY[\s\S]*coachViewportSupported[\s\S]*strategy-discard-\$\{coachHandKey\}-\$\{game\.actionSeq\}[\s\S]*dismissedStrategyHands\.has\(coachHandKey\)[\s\S]*Dismiss for this hand/,
+  "Strategy Coach must return on each player discard turn unless dismissed for the hand",
+);
+assert.match(
+  app,
+  /addLesson\(\{[\s\S]*?id: "rules-goal"[\s\S]*?Build five sets and a pair[\s\S]*?if \(coachCanSelfHu\)/,
+  "Each coached session must begin with the five-sets-and-a-pair objective",
+);
+const rulesGoalSource = app.slice(
+  app.indexOf('id: "rules-goal"'),
+  app.indexOf("if (coachCanSelfHu)"),
+);
+assert.doesNotMatch(
+  rulesGoalSource,
+  /Gong/,
+  "The introductory objective lesson must defer nuanced Gong guidance",
+);
+assert.match(
+  app,
+  /title: "Your hand is waiting to Hu \(win\)"/,
+  "Waiting guidance must define Hu for novice players",
+);
+assert.match(
+  app,
+  /className="coach-detail-item"[\s\S]*detail\.label[\s\S]*detail\.text/,
+  "Expanded coach reasoning must use labeled detail sections",
+);
+assert.match(
+  css,
+  /\.coach-details\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/,
+  "Wide coach explanations must use the available panel width",
+);
+assert.match(
+  app,
+  /handShape: recommendation\.handShape[\s\S]*?One useful hand shape if you follow this recommendation[\s\S]*?coach-shape-group[\s\S]*?<TileFace tile=\{tile\}/,
+  "Strategy explanations must visualize the recommended post-discard hand shape with real tiles",
+);
+assert.match(
+  css,
+  /\.coach-shape-groups\s*\{[\s\S]*?overflow:\s*hidden;[\s\S]*?\.coach-shape-tile\s*\{[\s\S]*?width:\s*26px;[\s\S]*?height:\s*36px;/,
+  "Coach hand-shape tiles must remain compact and contained",
 );
 assert.match(
   css,

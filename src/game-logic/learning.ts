@@ -1,5 +1,5 @@
 import { Tile } from "./types";
-import { countCodes } from "./helpers";
+import { countCodes, tileSortFromCode } from "./helpers";
 import { handProgressScore, highValueHandPotential } from "./ai";
 
 export type GuidanceMode = "off" | "strategy";
@@ -12,6 +12,17 @@ export type CoachTarget =
   | "gong"
   | "hu";
 
+export type HandShapeGroup = {
+  kind: "set" | "pair" | "connected" | "single";
+  label: string;
+  tiles: Tile[];
+};
+
+export type HandShapeBreakdown = {
+  revealedSets: number;
+  groups: HandShapeGroup[];
+};
+
 export type CoachLesson = {
   id: string;
   eyebrow: "Rules guide" | "Strategy coach";
@@ -19,10 +30,148 @@ export type CoachLesson = {
   body: string;
   target?: CoachTarget;
   tileId?: string;
-  details?: string[];
+  details?: Array<{ label: string; text: string }>;
+  handShape?: HandShapeBreakdown;
   alternatives?: Array<{ tileId: string; label: string; reason: string }>;
   learnTopic?: "objective" | "turn" | "chi" | "pong" | "gong" | "hu" | "scoring";
 };
+
+type ShapeCodeGroup = {
+  kind: HandShapeGroup["kind"];
+  codes: string[];
+};
+
+const shapeGroupScore: Record<HandShapeGroup["kind"], number> = {
+  set: 100,
+  pair: 25,
+  connected: 12,
+  single: -1,
+};
+
+function removeCodes(counts: Record<string, number>, codes: string[]) {
+  const next = { ...counts };
+  codes.forEach((code) => {
+    next[code] -= 1;
+  });
+  return next;
+}
+
+function bestShapeCodeGroups(tiles: Tile[]) {
+  const initialCounts = countCodes(tiles.filter((tile) => !tile.flower));
+  const memo = new Map<string, { score: number; groups: ShapeCodeGroup[] }>();
+
+  const solve = (
+    counts: Record<string, number>,
+  ): { score: number; groups: ShapeCodeGroup[] } => {
+    const remainingCodes = Object.keys(counts)
+      .filter((code) => counts[code] > 0)
+      .sort((a, b) => tileSortFromCode(a) - tileSortFromCode(b));
+    if (remainingCodes.length === 0) return { score: 0, groups: [] };
+
+    const key = remainingCodes.map((code) => `${code}:${counts[code]}`).join("|");
+    const cached = memo.get(key);
+    if (cached) return cached;
+
+    const code = remainingCodes[0];
+    const suit = code[0];
+    const rank = Number(code.slice(1));
+    const options: ShapeCodeGroup[] = [];
+
+    if (counts[code] >= 3) {
+      options.push({ kind: "set", codes: [code, code, code] });
+    }
+    if (suit === "D" || suit === "B" || suit === "C") {
+      const second = `${suit}${rank + 1}`;
+      const third = `${suit}${rank + 2}`;
+      if (rank <= 7 && (counts[second] ?? 0) > 0 && (counts[third] ?? 0) > 0) {
+        options.push({ kind: "set", codes: [code, second, third] });
+      }
+    }
+    if (counts[code] >= 2) {
+      options.push({ kind: "pair", codes: [code, code] });
+    }
+    if (suit === "D" || suit === "B" || suit === "C") {
+      for (const distance of [1, 2]) {
+        const neighbor = `${suit}${rank + distance}`;
+        if ((counts[neighbor] ?? 0) > 0) {
+          options.push({ kind: "connected", codes: [code, neighbor] });
+        }
+      }
+    }
+    options.push({ kind: "single", codes: [code] });
+
+    const best = options
+      .map((group) => {
+        const remainder = solve(removeCodes(counts, group.codes));
+        const connectionBonus =
+          group.kind === "connected" &&
+          Number(group.codes[1].slice(1)) - Number(group.codes[0].slice(1)) === 1
+            ? 2
+            : 0;
+        return {
+          score: shapeGroupScore[group.kind] + connectionBonus + remainder.score,
+          groups: [group, ...remainder.groups],
+        };
+      })
+      .sort((a, b) => b.score - a.score)[0];
+
+    memo.set(key, best);
+    return best;
+  };
+
+  return solve(initialCounts).groups;
+}
+
+export function explainHandShape(
+  hand: Tile[],
+  revealedSets = 0,
+): HandShapeBreakdown {
+  const tilesByCode = new Map<string, Tile[]>();
+  hand
+    .filter((tile) => !tile.flower)
+    .sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id))
+    .forEach((tile) => {
+      tilesByCode.set(tile.code, [...(tilesByCode.get(tile.code) ?? []), tile]);
+    });
+
+  const groups = bestShapeCodeGroups(hand).map((group) => {
+    const tiles = group.codes.map((code) => tilesByCode.get(code)!.shift()!);
+    const isPong = group.kind === "set" && new Set(group.codes).size === 1;
+    return {
+      kind: group.kind,
+      label:
+        group.kind === "set"
+          ? isPong
+            ? "Completed Pong"
+            : "Completed Chi"
+          : group.kind === "pair"
+            ? "Pair"
+            : group.kind === "connected"
+              ? "Connected"
+              : "Single",
+      tiles,
+    } satisfies HandShapeGroup;
+  });
+
+  const singles = groups.filter((group) => group.kind === "single");
+  const usefulGroups = groups.filter((group) => group.kind !== "single");
+  if (singles.length > 0) {
+    usefulGroups.push({
+      kind: "single",
+      label: singles.length === 1 ? "Single" : "Singles",
+      tiles: singles.flatMap((group) => group.tiles),
+    });
+  }
+
+  const order: Record<HandShapeGroup["kind"], number> = {
+    set: 0,
+    pair: 1,
+    connected: 2,
+    single: 3,
+  };
+  usefulGroups.sort((a, b) => order[a.kind] - order[b.kind]);
+  return { revealedSets, groups: usefulGroups };
+}
 
 function discardUtility(hand: Tile[], tile: Tile, meldCount: number) {
   const remaining = hand.filter((candidate) => candidate.id !== tile.id);
@@ -119,10 +268,8 @@ export function recommendDiscard(
         ? "It is isolated from matching and nearby tiles, so removing it preserves more useful combinations."
         : "This choice preserves the hand's strongest pairs and connected sequences."
 
-  const remainingShape = handShapeSummary(
-    hand.filter((candidate) => candidate.id !== tile.id),
-    meldCount,
-  );
+  const remainingHand = hand.filter((candidate) => candidate.id !== tile.id);
+  const remainingShape = handShapeSummary(remainingHand, meldCount);
   const visibleCopies = publicCounts[tile.code] ?? 0;
   const impact = `Keeps ${remainingShape.pairs} pair${remainingShape.pairs === 1 ? "" : "s"} and ${remainingShape.connected} connected numbered tile${remainingShape.connected === 1 ? "" : "s"}.`;
   const visibilityNote =
@@ -136,6 +283,7 @@ export function recommendDiscard(
     plan: handShapeSummary(hand, meldCount).plan,
     impact,
     visibilityNote,
+    handShape: explainHandShape(remainingHand, meldCount),
     alternatives: uniqueRanked.slice(1, 3).map((option) => ({
       tile: option.tile,
       reason:

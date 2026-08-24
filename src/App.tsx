@@ -196,17 +196,17 @@ const soundPatterns: Record<
       endFrequency: 135,
       offset: 0,
       duration: 0.09,
-      volume: 0.025,
+      volume: 0.04,
       wave: "triangle",
     },
   ],
   chi: [
-    { frequency: 392, offset: 0, duration: 0.1, volume: 0.022, wave: "sine" },
+    { frequency: 392, offset: 0, duration: 0.1, volume: 0.035, wave: "sine" },
     {
       frequency: 523.25,
       offset: 0.09,
       duration: 0.13,
-      volume: 0.025,
+      volume: 0.04,
       wave: "sine",
     },
   ],
@@ -215,14 +215,14 @@ const soundPatterns: Record<
       frequency: 196,
       offset: 0,
       duration: 0.1,
-      volume: 0.03,
+      volume: 0.05,
       wave: "triangle",
     },
     {
       frequency: 196,
       offset: 0.1,
       duration: 0.12,
-      volume: 0.03,
+      volume: 0.05,
       wave: "triangle",
     },
   ],
@@ -1499,6 +1499,9 @@ function MahjongApp({
   const [seenCoachLessons, setSeenCoachLessons] = useState<Set<string>>(
     () => new Set(),
   );
+  const [dismissedStrategyHands, setDismissedStrategyHands] = useState<
+    Set<string>
+  >(() => new Set());
   const [hiddenCoachLessons, setHiddenCoachLessons] =
     useState<Set<string>>(loadHiddenLessons);
   const [coachViewportSupported, setCoachViewportSupported] = useState(
@@ -1600,6 +1603,7 @@ function MahjongApp({
     setActiveCoachLesson(null);
     setCoachFocusTarget(null);
     setSeenCoachLessons(new Set());
+    setDismissedStrategyHands(new Set());
   };
 
   useEffect(() => {
@@ -1884,6 +1888,9 @@ function MahjongApp({
   );
   const coachIsSelfDiscardTurn =
     game?.phase === "discard" && game.turn === SELF;
+  const coachHandKey = game
+    ? `${game.tableId}-${game.round}-${game.dealer}-${game.dealerStreak}`
+    : "";
 
   useEffect(() => {
     if (
@@ -1903,6 +1910,28 @@ function MahjongApp({
     const addLesson = (lesson: CoachLesson) => lessons.push(lesson);
     const rulesEyebrow = "Rules guide" as const;
 
+    addLesson({
+      id: "rules-goal",
+      eyebrow: rulesEyebrow,
+      title: "Build five sets and a pair",
+      body: "A Taiwanese Mahjong hand normally wins with 17 tiles: five sets of three tiles plus one pair.",
+      details: [
+        {
+          label: "Your objective",
+          text: "Complete five valid sets and one matching pair before another player does.",
+        },
+        {
+          label: "Valid sets",
+          text: "A Chi is a three-tile sequence. A Pong is three matching tiles.",
+        },
+        {
+          label: "How a turn ends",
+          text: "Draw or claim a tile, complete any available action, then discard one tile to return to 16 tiles in hand.",
+        },
+      ],
+      learnTopic: "objective",
+    });
+
     if (coachCanSelfHu) {
       addLesson({
         id: "rules-self-hu",
@@ -1910,6 +1939,16 @@ function MahjongApp({
         title: "Your hand is complete",
         body: "You drew the winning tile. Select Hu to finish the hand and collect payment from all three players.",
         target: "hu",
+        details: [
+          {
+            label: "Why Hu is available",
+            text: "Your tiles now form five complete sets and one pair.",
+          },
+          {
+            label: "Payment",
+            text: "A self-drawn Hu is paid by all three opponents.",
+          },
+        ],
         learnTopic: "hu",
       });
     } else if (
@@ -1923,6 +1962,16 @@ function MahjongApp({
         title: "You can declare Hu",
         body: "This discard completes your hand. Hu has priority over every other claim, and payment comes from the discarding player.",
         target: "hu",
+        details: [
+          {
+            label: "Why Hu has priority",
+            text: "Completing a winning hand outranks Pong, Gong, and Chi claims on the same discard.",
+          },
+          {
+            label: "Payment",
+            text: "Only the player who discarded the winning tile pays this win.",
+          },
+        ],
         learnTopic: "hu",
       });
     } else if (
@@ -1936,6 +1985,16 @@ function MahjongApp({
         title: "You can claim a Gong",
         body: "Claim the discard to reveal four matching tiles, then draw a replacement tile before discarding.",
         target: "gong",
+        details: [
+          {
+            label: "Why claim it",
+            text: "The discard completes four matching tiles and may add a Gong scoring bonus.",
+          },
+          {
+            label: "What happens next",
+            text: "The Gong is revealed, you draw a replacement tile, and then you discard.",
+          },
+        ],
         learnTopic: "gong",
       });
     } else if (
@@ -1949,6 +2008,16 @@ function MahjongApp({
         title: "You can Pong",
         body: "A Pong uses this discard with two matching tiles from your hand. Any player may Pong, and the set is revealed.",
         target: "pong",
+        details: [
+          {
+            label: "Why it is available",
+            text: "You already hold two tiles matching the latest discard.",
+          },
+          {
+            label: "Tradeoff",
+            text: "Pong completes a set immediately, but revealing it reduces the flexibility and privacy of your hand.",
+          },
+        ],
         learnTopic: "pong",
       });
     } else if (
@@ -1962,6 +2031,16 @@ function MahjongApp({
         title: "You can Chi",
         body: "A Chi makes a three-tile sequence. You may only Chi the discard from the player immediately before you.",
         target: "chi",
+        details: [
+          {
+            label: "Why it is available",
+            text: "The discard completes a three-tile numbered sequence in your hand.",
+          },
+          {
+            label: "Tradeoff",
+            text: "Chi advances your hand, but the sequence becomes visible and you must discard next.",
+          },
+        ],
         learnTopic: "chi",
       });
     }
@@ -1977,6 +2056,16 @@ function MahjongApp({
         title: "A Gong is available",
         body: "You hold four matching tiles. Choose Gong, then decide whether to keep it concealed or reveal it before drawing a replacement.",
         target: "gong",
+        details: [
+          {
+            label: "Replacement draw",
+            text: "Declaring the Gong gives you a replacement tile before you discard.",
+          },
+          {
+            label: "Your choice",
+            text: "A silent Gong protects information; a revealed Gong makes the completed set visible.",
+          },
+        ],
         learnTopic: "gong",
       });
     }
@@ -1996,17 +2085,18 @@ function MahjongApp({
       );
       if (recommendation) {
         addLesson({
-          id: `strategy-discard-${game.tableId}-${game.round}-${game.dealer}-${game.dealerStreak}`,
+          id: `strategy-discard-${coachHandKey}-${game.actionSeq}`,
           eyebrow: "Strategy coach",
           title: `Consider discarding ${recommendation.tile.label}`,
           body: recommendation.reason,
           target: "suggested-tile",
           tileId: recommendation.tile.id,
           details: [
-            recommendation.plan,
-            recommendation.impact,
-            recommendation.visibilityNote,
+            { label: "Hand direction", text: recommendation.plan },
+            { label: "Shape after discard", text: recommendation.impact },
+            { label: "Visible information", text: recommendation.visibilityNote },
           ],
+          handShape: recommendation.handShape,
           alternatives: recommendation.alternatives.map((alternative) => ({
             tileId: alternative.tile.id,
             label: alternative.tile.label,
@@ -2017,20 +2107,22 @@ function MahjongApp({
       }
     }
 
-    addLesson({
-      id: "rules-goal",
-      eyebrow: rulesEyebrow,
-      title: "Build five sets and a pair",
-      body: "A Taiwanese Mahjong hand normally wins with 17 tiles: five sets of three tiles plus one pair. A Gong uses four matching tiles and includes a replacement draw.",
-      learnTopic: "objective",
-    });
-
     if (coachHuman.flowers.length > 0) {
       addLesson({
         id: "rules-flowers",
         eyebrow: rulesEyebrow,
         title: "Flowers are bonus tiles",
         body: "Flowers are displayed outside your hand and replaced immediately. Matching flowers and complete flower groups can add points.",
+        details: [
+          {
+            label: "Why they leave your hand",
+            text: "Flowers cannot form sets, so each one is revealed and replaced immediately.",
+          },
+          {
+            label: "Why they matter",
+            text: "Flowers can add scoring bonuses even though they are not part of the five sets and pair.",
+          },
+        ],
       });
     }
 
@@ -2038,14 +2130,29 @@ function MahjongApp({
       addLesson({
         id: "rules-waiting",
         eyebrow: rulesEyebrow,
-        title: "Your hand is waiting",
+        title: "Your hand is waiting to Hu (win)",
         body: "After your last discard, one or more tiles can now complete your hand. The red outlines show the groups those winning tiles support.",
+        details: [
+          {
+            label: "What waiting means",
+            text: "Your hand is one tile away from forming five complete sets and one pair.",
+          },
+          {
+            label: "What to watch",
+            text: "Track recent discards and revealed sets to estimate whether your winning tiles remain available.",
+          },
+        ],
       });
     }
 
     const availableLessons = lessons.filter(
       (lesson) =>
-        !seenCoachLessons.has(lesson.id) && !hiddenCoachLessons.has(lesson.id),
+        !seenCoachLessons.has(lesson.id) &&
+        (lesson.id === "rules-goal" || !hiddenCoachLessons.has(lesson.id)) &&
+        !(
+          lesson.eyebrow === "Strategy coach" &&
+          dismissedStrategyHands.has(coachHandKey)
+        ),
     );
     if (
       activeCoachLesson &&
@@ -2063,10 +2170,12 @@ function MahjongApp({
     coachHuman,
     coachHumanIsWaiting,
     coachHumanKongs,
+    coachHandKey,
     coachIsSelfDiscardTurn,
     coachFocusTarget,
     coachViewportSupported,
     connection.joined,
+    dismissedStrategyHands,
     game,
     guidanceMode,
     hiddenCoachLessons,
@@ -2087,6 +2196,18 @@ function MahjongApp({
         return next;
       });
     }
+    setActiveCoachLesson(null);
+    setCoachFocusTarget(null);
+    setCoachDetailsOpen(false);
+  };
+
+  const dismissStrategyForHand = () => {
+    if (!activeCoachLesson || activeCoachLesson.eyebrow !== "Strategy coach") {
+      return;
+    }
+    setDismissedStrategyHands((current) =>
+      new Set(current).add(coachHandKey),
+    );
     setActiveCoachLesson(null);
     setCoachFocusTarget(null);
     setCoachDetailsOpen(false);
@@ -2893,6 +3014,7 @@ function MahjongApp({
     setActiveCoachLesson(null);
     setCoachFocusTarget(null);
     setSeenCoachLessons(new Set());
+    setDismissedStrategyHands(new Set());
     setActiveScenario(null);
     setScenarioFeedback(null);
     setConnection((current) => ({
@@ -3164,6 +3286,7 @@ function MahjongApp({
                   setActiveCoachLesson(null);
                   setCoachFocusTarget(null);
                   setSeenCoachLessons(new Set());
+                  setDismissedStrategyHands(new Set());
                   newHand(0, true);
                   setConnection((current) => ({ ...current, joined: true }));
                 }}
@@ -3636,8 +3759,54 @@ function MahjongApp({
                   {coachDetailsOpen && activeCoachLesson.details ? (
                     <div className="coach-details">
                       {activeCoachLesson.details.map((detail) => (
-                        <p key={detail}>{detail}</p>
+                        <div className="coach-detail-item" key={detail.label}>
+                          <span>{detail.label}</span>
+                          <p>{detail.text}</p>
+                        </div>
                       ))}
+                      {activeCoachLesson.handShape ? (
+                        <div className="coach-hand-shape">
+                          <div className="coach-hand-shape-heading">
+                            <span>
+                              One useful hand shape if you follow this recommendation
+                            </span>
+                            {activeCoachLesson.handShape.revealedSets > 0 ? (
+                              <small>
+                                {activeCoachLesson.handShape.revealedSets} revealed
+                                {activeCoachLesson.handShape.revealedSets === 1
+                                  ? " set"
+                                  : " sets"}{" "}
+                                already complete
+                              </small>
+                            ) : null}
+                          </div>
+                          <div className="coach-shape-groups">
+                            {activeCoachLesson.handShape.groups.map(
+                              (group, groupIndex) => (
+                                <div
+                                  className={`coach-shape-group coach-shape-${group.kind}`}
+                                  key={`${group.kind}-${groupIndex}`}
+                                >
+                                  <span>{group.label}</span>
+                                  <div className="coach-shape-tiles">
+                                    {group.tiles.map((tile) => (
+                                      <div
+                                        className={`tile coach-shape-tile ${tile.suit}`}
+                                        key={tile.id}
+                                        role="img"
+                                        aria-label={tile.label}
+                                        title={tile.label}
+                                      >
+                                        <TileFace tile={tile} />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
                       {activeCoachLesson.alternatives?.length ? (
                         <div className="coach-alternatives">
                           <span>Other reasonable choices</span>
@@ -3693,19 +3862,21 @@ function MahjongApp({
                       Learn this concept
                     </button>
                   ) : null}
-                  <button
-                    className="coach-hide-action"
-                    type="button"
-                    onClick={() =>
-                      dismissCoachLesson(
-                        activeCoachLesson.eyebrow !== "Strategy coach",
-                      )
-                    }
-                  >
-                    {activeCoachLesson.eyebrow === "Strategy coach"
-                      ? "Dismiss for this hand"
-                      : "Don't show again"}
-                  </button>
+                  {activeCoachLesson.id !== "rules-goal" ? (
+                    <button
+                      className="coach-hide-action"
+                      type="button"
+                      onClick={() =>
+                        activeCoachLesson.eyebrow === "Strategy coach"
+                          ? dismissStrategyForHand()
+                          : dismissCoachLesson(true)
+                      }
+                    >
+                      {activeCoachLesson.eyebrow === "Strategy coach"
+                        ? "Dismiss for this hand"
+                        : "Don't show again"}
+                    </button>
+                  ) : null}
                 </div>
               </aside>
             ) : null}
