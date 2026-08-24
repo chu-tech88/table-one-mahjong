@@ -149,6 +149,22 @@ assert.equal(scoring.find((rule) => rule.detector === "two-gongs-two-concealed-t
 assert.equal(scoring.some((rule) => rule.name === "Four Consecutive Sets"), false);
 assert.equal(scoring.some((rule) => rule.name === "Thirteen Orphans"), false);
 assert.equal(scoring.some((rule) => rule.name === "Four in Two"), false);
+assert.deepEqual(
+  scoring
+    .filter((rule) =>
+      ["wind-or-dragon", "no-wind-or-dragon", "all-winds-dragons"].includes(
+        rule.detector ?? "",
+      ),
+    )
+    .map((rule) => rule.name),
+  ["Honor Set", "No Honor Tiles", "All Honors"],
+  "Honor scoring labels should use concise, consistent terminology",
+);
+assert.match(
+  scoring.find((rule) => rule.detector === "wind-or-dragon")?.description ?? "",
+  /Pong or Gong.*Wind or Dragon/i,
+  "The Honor Set tooltip should preserve the exact scoring condition",
+);
 
 const allChiHand = [
   "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9",

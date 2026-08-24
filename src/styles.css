@@ -468,7 +468,7 @@ h2 {
 .round-status span,
 .seat-meta,
 .meld span,
-.last-discard span {
+.last-discard > span {
   color: var(--muted);
   font-size: 0.78rem;
 }
@@ -1354,7 +1354,7 @@ textarea {
   padding: 0;
 }
 
-.last-discard span {
+.last-discard > span {
   color: #c8d8ce;
 }
 
@@ -3703,6 +3703,11 @@ textarea {
   gap: 5px;
 }
 
+.activity-display-tile {
+  cursor: default;
+  pointer-events: none;
+}
+
 .last-discard .tile.large {
   width: clamp(56px, 5.3vw, 82px);
   height: clamp(76px, 7.15vw, 112px);
@@ -4744,7 +4749,7 @@ textarea {
     line-height: 1.15;
   }
 
-  .last-discard span {
+  .last-discard > span {
     font-size: 0.58rem;
   }
 

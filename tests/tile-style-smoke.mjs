@@ -202,6 +202,16 @@ assert.match(
 );
 assert.match(
   app,
+  /className=\{`tile activity-display-tile \$\{activity\.tile\.suit\} large`\}[\s\S]*?<TileFace tile=\{activity\.tile\}/,
+  "The center activity tile must be a non-interactive display tile",
+);
+assert.doesNotMatch(
+  app,
+  /<TileView tile=\{activity\.tile\} large disabled/,
+  "The center activity tile must not inherit disabled-button styling",
+);
+assert.match(
+  app,
   /game\.winSummary\.winner === SELF[\s\S]*?"You win"[\s\S]*?seatName\(game\.winSummary\.winner\)/,
   "The hand-complete title must be relative to the viewer's assigned seat",
 );

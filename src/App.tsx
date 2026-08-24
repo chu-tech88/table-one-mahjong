@@ -2531,8 +2531,12 @@ function MahjongApp({
         : "Your turn"
       : activity.tile
         ? /(calls|declares).*(chi|pong|gong)/i.test(activity.text)
-          ? `${seatName(activity.player)}'s action`
-          : `${seatName(activity.player)}'s discard`
+          ? activity.player === SELF
+            ? "Your action"
+            : `${seatName(activity.player)}'s action`
+          : activity.player === SELF
+            ? "Your discard"
+            : `${seatName(activity.player)}'s discard`
         : "Table activity";
   const activityNoticeTone = showYourTurnInCenter
     ? "action"
@@ -3832,7 +3836,14 @@ function MahjongApp({
               </button>
               {activity.tile ? (
                 <div className="last-discard">
-                  <TileView tile={activity.tile} large disabled />
+                  <div
+                    className={`tile activity-display-tile ${activity.tile.suit} large`}
+                    aria-label={activity.tile.label}
+                    role="img"
+                    title={activity.tile.label}
+                  >
+                    <TileFace tile={activity.tile} />
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -4113,7 +4124,11 @@ function MahjongApp({
                 </p>
                 <div className="house-rule-list">
                   {houseRules.map((rule) => (
-                    <div className="house-rule-card" key={rule.id}>
+                    <div
+                      className="house-rule-card"
+                      key={rule.id}
+                      title={rule.description}
+                    >
                       <div className="house-rule-toggle">
                         <ToggleSwitch
                           ariaLabel={`${rule.name} scoring rule`}
@@ -4664,11 +4679,12 @@ function LearningReference({
 
         <section data-learn-topic="tiles">
           <p className="eyebrow">Know the tiles</p>
-          <h2>Three numbered suits, honors, and flowers</h2>
+          <h2>Three numbered suits, honor tiles, and flowers</h2>
           <p>
             Dots, Bamboo, and Characters run from one through nine. Winds and
-            Dragons are honor tiles. Flowers are revealed immediately and
-            replaced from the wall.
+            Dragons are collectively called honor tiles. Honor tiles cannot
+            form a Chi, but matching tiles can form a Pong, Gong, or pair.
+            Flowers are revealed immediately and replaced from the wall.
           </p>
           <LearningTileRow
             label="Dots, Bamboo, Characters, Wind, and Dragon tiles"
@@ -4745,8 +4761,9 @@ function LearningReference({
           <p>
             Every Hu begins with the table's base win. Enabled bonuses add points
             for patterns such as self-draw, flowers, dealer status, concealed
-            sets, and higher-value hands. Open Settings to audit every enabled
-            rule and its description.
+            sets, honor sets, and higher-value hands. An honor set is a Pong or
+            Gong of matching Wind or Dragon tiles. Open Settings to audit every
+            enabled rule and its description.
           </p>
         </section>
 
