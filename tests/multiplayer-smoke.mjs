@@ -143,6 +143,7 @@ async function main() {
   let ws1;
   let wsConflict;
   let wsResume;
+  let wsLateResume;
   let wsAutoClients = [];
   let wsAutoFull;
 
@@ -190,6 +191,31 @@ async function main() {
     ws0 = await connectClient(url);
     ws1 = await connectClient(url);
 
+    const joined0Promise = waitForMessage(
+      ws0,
+      (msg) => msg.type === "room-joined" && msg.playerIndex === 0,
+    );
+    const joined1Promise = waitForMessage(
+      ws1,
+      (msg) => msg.type === "room-joined" && msg.playerIndex === 1,
+    );
+    const state0Promise = waitForMessage(
+      ws0,
+      (msg) =>
+        msg.type === "game-state-update" &&
+        msg.game.players[1].name === "Partner",
+    );
+    const state1Promise = waitForMessage(
+      ws1,
+      (msg) => msg.type === "game-state-update",
+    );
+    const settingsUpdatePromise = waitForMessage(
+      ws1,
+      (msg) =>
+        msg.type === "game-state-update" &&
+        msg.game.rules.baseWin === 7 &&
+        msg.game.houseRules[0].enabled === false,
+    );
     send(ws0, {
       type: "join-room",
       roomId,
@@ -203,14 +229,15 @@ async function main() {
       playerName: "Partner",
     });
 
-    const state0 = await waitForMessage(
-      ws0,
-      (msg) => msg.type === "game-state-update",
-    );
-    const state1 = await waitForMessage(
-      ws1,
-      (msg) => msg.type === "game-state-update",
-    );
+    const joined0 = await joined0Promise;
+    const joined1 = await joined1Promise;
+    const state0 = await state0Promise;
+    const state1 = await state1Promise;
+
+    assert.ok(joined0.playerId && joined0.resumeToken);
+    assert.ok(joined1.playerId && joined1.resumeToken);
+    assert.equal(state0.roomInstanceId, joined0.roomInstanceId);
+    assert.ok(state0.stateVersion >= joined0.stateVersion);
 
     assert.equal(
       state0.game.tableId,
@@ -240,61 +267,118 @@ async function main() {
         })),
       },
     });
-    const settingsUpdate = await waitForMessage(
-      ws1,
-      (msg) =>
-        msg.type === "game-state-update" &&
-        msg.game.rules.baseWin === 7 &&
-        msg.game.houseRules[0].enabled === false,
-    );
+    const settingsUpdate = await settingsUpdatePromise;
     assert.equal(settingsUpdate.game.rules.baseWin, 7);
 
     wsConflict = await connectClient(url);
+    const rejectionPromise = waitForMessage(
+      wsConflict,
+      (msg) =>
+        msg.type === "action-rejected" &&
+        typeof msg.reason === "string" &&
+        msg.reason.includes("reserved"),
+    );
     send(wsConflict, {
       type: "join-room",
       roomId,
       playerIndex: 1,
       playerName: "Conflict",
     });
-    const rejection = await waitForMessage(
-      wsConflict,
-      (msg) =>
-        msg.type === "action-rejected" &&
-        typeof msg.reason === "string" &&
-        msg.reason.includes("already taken"),
-    );
+    const rejection = await rejectionPromise;
     assert.ok(
-      rejection.reason.includes("already taken"),
-      "Joining occupied seat should be rejected",
+      rejection.reason.includes("reserved"),
+      "Joining a reserved seat without its resume token should be rejected",
     );
 
     const tileId = state0.game.players[0].hand[0]?.id;
     assert.ok(tileId, "Seat 0 should have a discardable tile");
 
-    send(ws0, {
-      type: "player-action",
-      playerIndex: 0,
-      action: { type: "discard", tileId },
-    });
-
-    const post0 = await waitForMessage(
+    const post0Promise = waitForMessage(
       ws0,
       (msg) =>
         msg.type === "game-state-update" &&
         msg.game.actionSeq > state0.game.actionSeq,
     );
-    const post1 = await waitForMessage(
+    const post1Promise = waitForMessage(
       ws1,
       (msg) =>
         msg.type === "game-state-update" &&
-        msg.game.actionSeq >= post0.game.actionSeq,
+        msg.game.actionSeq > state0.game.actionSeq,
     );
+    send(ws0, {
+      type: "player-action",
+      playerIndex: 0,
+      actionId: "smoke-discard-1",
+      action: { type: "discard", tileId },
+    });
+
+    const post0 = await post0Promise;
+    const post1 = await post1Promise;
 
     assert.equal(
       post0.game.actionSeq,
       post1.game.actionSeq,
       "Discard update should broadcast to all joined clients",
     );
+
+    const duplicateResponsePromise = waitForMessage(
+      ws0,
+      (msg) => msg.type === "game-state-update",
+    );
+    send(ws0, {
+      type: "player-action",
+      playerIndex: 0,
+      actionId: "smoke-discard-1",
+      action: { type: "discard", tileId },
+    });
+    const duplicateResponse = await duplicateResponsePromise;
+    assert.equal(
+      duplicateResponse.game.actionSeq,
+      post0.game.actionSeq,
+      "A duplicate action ID must not execute the action twice",
+    );
+    assert.equal(
+      duplicateResponse.stateVersion,
+      post0.stateVersion,
+      "A duplicate action must not create a new authoritative state version",
+    );
+
+    const replacedSocket = ws1;
+    const replacement = await connectClient(url);
+    const replacementJoinedPromise = waitForMessage(
+      replacement,
+      (msg) => msg.type === "room-joined" && msg.playerIndex === 1,
+    );
+    const replacementStatePromise = waitForMessage(
+      replacement,
+      (msg) =>
+        msg.type === "game-state-update" &&
+        msg.game.seatPresence?.[1] === "connected",
+    );
+    const replacedClosedPromise = new Promise((resolve) =>
+      replacedSocket.once("close", resolve),
+    );
+    send(replacement, {
+      type: "join-room",
+      roomId,
+      playerIndex: 1,
+      playerName: "Partner",
+      playerId: joined1.playerId,
+      resumeToken: joined1.resumeToken,
+    });
+    await replacementJoinedPromise;
+    await replacementStatePromise;
+    await replacedClosedPromise;
+    ws1 = replacement;
+    await delay(350);
+    const fencedStatePromise = waitForMessage(
+      ws0,
+      (msg) => msg.type === "game-state-update",
+    );
+    send(ws0, { type: "request-state" });
+    const fencedState = await fencedStatePromise;
+    assert.equal(fencedState.game.seatPresence?.[1], "connected");
+    assert.equal(fencedState.game.players[1].controller, "human");
     assert.match(
       post0.game.actionLog.find((action) => action.type === "discard")
         ?.description ?? "",
@@ -328,19 +412,44 @@ async function main() {
     await takeoverNoticePromise;
     await takeoverStatePromise;
 
+    wsLateResume = await connectClient(url);
+    const lateResumeJoinedPromise = waitForMessage(
+      wsLateResume,
+      (msg) => msg.type === "room-joined" && msg.playerIndex === 1,
+    );
+    const lateResumeStatePromise = waitForMessage(
+      wsLateResume,
+      (msg) =>
+        msg.type === "game-state-update" &&
+        msg.game.seatPresence?.[1] === "connected",
+    );
+    send(wsLateResume, {
+      type: "join-room",
+      roomId,
+      playerIndex: 1,
+      playerName: "Partner",
+      playerId: joined1.playerId,
+      resumeToken: joined1.resumeToken,
+    });
+    await lateResumeJoinedPromise;
+    await lateResumeStatePromise;
+
     ws0.close();
     await delay(120);
     wsResume = await connectClient(url);
+    const resumedStatePromise = waitForMessage(
+      wsResume,
+      (msg) => msg.type === "game-state-update",
+    );
     send(wsResume, {
       type: "join-room",
       roomId,
       playerIndex: 0,
       playerName: "Eric",
+      playerId: joined0.playerId,
+      resumeToken: joined0.resumeToken,
     });
-    const resumed = await waitForMessage(
-      wsResume,
-      (msg) => msg.type === "game-state-update",
-    );
+    const resumed = await resumedStatePromise;
     assert.ok(
       resumed.game.actionSeq >= post0.game.actionSeq,
       "An unexpected disconnect must preserve room scores and round progress for reconnection",
@@ -404,6 +513,7 @@ async function main() {
     ws1?.close();
     wsConflict?.close();
     wsResume?.close();
+    wsLateResume?.close();
     wsAutoClients.forEach((client) => client.close());
     wsAutoFull?.close();
     if (server) {

@@ -1,6 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Game, Rules, HouseRule, Difficulty } from "../game-logic/types";
 import { GameClient } from "../network/game-client";
+import {
+  clearRoomSession,
+  loadRoomSession,
+  saveRoomSession,
+} from "../network/room-session";
 import { createDefaultHouseRules, DEFAULT_RULES } from "../game-logic/rules";
 
 type UseNetworkedGameReturn = {
@@ -90,11 +95,21 @@ export function useNetworkedGame(
     let reconnectTimer: number | undefined;
     let activeClient: GameClient | null = null;
     let terminalMessage: string | undefined;
+    let reconnectAttempt = 0;
+    const reconnectDelays = [1500, 3000, 5000, 5000, 5000];
 
     const scheduleReconnect = () => {
       if (!isMounted) return;
+      if (reconnectAttempt >= reconnectDelays.length) {
+        setError(
+          "Unable to reconnect to this table. Please return to the lobby and rejoin.",
+        );
+        return;
+      }
       window.clearTimeout(reconnectTimer);
-      reconnectTimer = window.setTimeout(connect, 1500);
+      const delay = reconnectDelays[reconnectAttempt];
+      reconnectAttempt += 1;
+      reconnectTimer = window.setTimeout(connect, delay);
     };
 
     const connect = () => {
@@ -105,6 +120,10 @@ export function useNetworkedGame(
           if (roomId !== activeRoomIdRef.current) return;
           playerIndexRef.current = assignedPlayerIndex;
           setPlayerIndex(assignedPlayerIndex);
+        },
+        onSessionAssigned: (session) => {
+          if (!isMounted || client !== activeClient) return;
+          saveRoomSession(session);
         },
         onGameStateUpdate: (newGame) => {
           if (!isMounted || client !== activeClient) return;
@@ -153,10 +172,23 @@ export function useNetworkedGame(
 
       activeClient = client;
       clientRef.current = client;
+      const storedSession = loadRoomSession(roomId);
+      const reconnectPlayerIndex =
+        storedSession?.playerIndex ??
+        (playerIndexRef.current >= 0
+          ? playerIndexRef.current
+          : preferredPlayerIndex);
       client
-        .connect(serverUrl, roomId, preferredPlayerIndex, playerName)
+        .connect(
+          serverUrl,
+          roomId,
+          reconnectPlayerIndex,
+          playerName,
+          storedSession,
+        )
         .then(() => {
           if (!isMounted || client !== activeClient) return;
+          reconnectAttempt = 0;
           setIsConnected(true);
           setError(null);
           client.requestState();
@@ -326,8 +358,9 @@ export function useNetworkedGame(
     setSelectedTileId(undefined);
   }, []);
   const leaveRoom = useCallback(() => {
+    clearRoomSession(roomId);
     clientRef.current?.leaveRoom();
-  }, []);
+  }, [roomId]);
   const readyNextHand = useCallback(() => {
     clientRef.current?.readyNextHand();
     setSelectedTileId(undefined);

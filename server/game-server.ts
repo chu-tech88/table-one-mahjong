@@ -3,6 +3,7 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { createReadStream, existsSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Game, SeatPresence } from "../src/game-logic/types";
 import { dealRound } from "../src/game-logic/deck";
 import {
@@ -37,6 +38,12 @@ import {
 } from "../src/game-logic/round";
 
 // Types
+interface SeatSession {
+  playerId: string;
+  resumeToken: string;
+  connectionGeneration: number;
+}
+
 interface GameRoom {
   game: Game;
   players: (WebSocket | null)[];
@@ -46,6 +53,10 @@ interface GameRoom {
   autoPlayAI: Map<number, NodeJS.Timeout>; // Track AI turn timers
   disconnectTimers: Map<number, NodeJS.Timeout>;
   seatPresence: SeatPresence[];
+  seatSessions: (SeatSession | null)[];
+  processedActionIds: Map<number, string[]>;
+  roomInstanceId: string;
+  stateVersion: number;
 }
 
 // Storage
@@ -75,6 +86,59 @@ function isOpenSocket(socket: WebSocket | null): socket is WebSocket {
 
 function isHumanSeat(room: GameRoom, index: number) {
   return room.seatPresence[index] !== "ai";
+}
+
+function createSeatSession(previousGeneration = 0): SeatSession {
+  return {
+    playerId: randomUUID(),
+    resumeToken: randomBytes(32).toString("base64url"),
+    connectionGeneration: previousGeneration + 1,
+  };
+}
+
+function safeTokenEquals(left: string, right: string) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return (
+    leftBuffer.length === rightBuffer.length &&
+    timingSafeEqual(leftBuffer, rightBuffer)
+  );
+}
+
+function matchesSeatSession(
+  session: SeatSession | null,
+  playerId: unknown,
+  resumeToken: unknown,
+) {
+  return Boolean(
+    session &&
+      typeof playerId === "string" &&
+      typeof resumeToken === "string" &&
+      playerId.length <= 80 &&
+      resumeToken.length <= 128 &&
+      session.playerId === playerId &&
+      safeTokenEquals(session.resumeToken, resumeToken),
+  );
+}
+
+function hasProcessedAction(
+  room: GameRoom,
+  playerIndex: number,
+  actionId?: string,
+) {
+  return Boolean(
+    actionId && room.processedActionIds.get(playerIndex)?.includes(actionId),
+  );
+}
+
+function rememberProcessedAction(
+  room: GameRoom,
+  playerIndex: number,
+  actionId?: string,
+) {
+  if (!actionId) return;
+  const recent = room.processedActionIds.get(playerIndex) ?? [];
+  room.processedActionIds.set(playerIndex, [...recent.slice(-99), actionId]);
 }
 
 function cleanPlayerName(value: unknown) {
@@ -118,6 +182,10 @@ function resetRoomForNewSession(room: GameRoom) {
   room.disconnectTimers.forEach((timer) => clearTimeout(timer));
   room.disconnectTimers.clear();
   room.seatPresence = ["ai", "ai", "ai", "ai"];
+  room.seatSessions = [null, null, null, null];
+  room.processedActionIds.clear();
+  room.roomInstanceId = randomUUID();
+  room.stateVersion = 0;
   syncControllers(room);
 
   room.chatSubscribers.forEach((subscriber) => {
@@ -211,18 +279,21 @@ function gameForPlayer(game: Game, recipient: number) {
   return visible;
 }
 
-function sendGameState(socket: WebSocket, game: Game, recipient: number) {
+function sendGameState(socket: WebSocket, room: GameRoom, recipient: number) {
   socket.send(
     JSON.stringify({
       type: "game-state-update",
-      game: gameForPlayer(game, recipient),
+      game: gameForPlayer(room.game, recipient),
+      roomInstanceId: room.roomInstanceId,
+      stateVersion: room.stateVersion,
     } as ServerMessage),
   );
 }
 
 function broadcastGame(room: GameRoom) {
+  room.stateVersion += 1;
   room.players.forEach((player, index) => {
-    if (isOpenSocket(player)) sendGameState(player, room.game, index);
+    if (isOpenSocket(player)) sendGameState(player, room, index);
   });
 }
 
@@ -531,6 +602,7 @@ httpServer.listen(PORT, () => {
 wss.on("connection", (socket) => {
   let roomId: string = "";
   let playerIndex: number = -1;
+  let connectionGeneration = -1;
   let isLeavingRoom = false;
 
   console.log(`[Connected] New client connected`);
@@ -593,6 +665,10 @@ wss.on("connection", (socket) => {
             autoPlayAI: new Map(),
             disconnectTimers: new Map(),
             seatPresence: ["ai", "ai", "ai", "ai"],
+            seatSessions: [null, null, null, null],
+            processedActionIds: new Map(),
+            roomInstanceId: randomUUID(),
+            stateVersion: 0,
           });
           console.log(`[Room] Created room ${normalizedRoomId}`);
         }
@@ -601,23 +677,46 @@ wss.on("connection", (socket) => {
         room.lastActivity = Date.now();
         const availableSeats = room.players
           .map((player, index) =>
-            !isOpenSocket(player ?? null) && room.seatPresence[index] === "ai"
+            !isOpenSocket(player ?? null) &&
+            room.seatPresence[index] === "ai"
               ? index
               : -1,
           )
           .filter((index) => index >= 0);
-        if (requestedPlayerIndex !== undefined) {
-          const existing = room.players[requestedPlayerIndex];
-          if (isOpenSocket(existing ?? null) && existing !== socket) {
+
+        const resumeSeat = room.seatSessions.findIndex((session) =>
+          matchesSeatSession(session, msg.playerId, msg.resumeToken),
+        );
+        const targetPlayerIndex =
+          resumeSeat >= 0 ? resumeSeat : requestedPlayerIndex;
+        const isResume =
+          targetPlayerIndex !== undefined &&
+          matchesSeatSession(
+            room.seatSessions[targetPlayerIndex],
+            msg.playerId,
+            msg.resumeToken,
+          );
+
+        if (targetPlayerIndex !== undefined && !isResume) {
+          const existing = room.players[targetPlayerIndex];
+          const isReserved =
+            room.seatSessions[targetPlayerIndex] !== null &&
+            room.seatPresence[targetPlayerIndex] !== "ai";
+          if (
+            (isOpenSocket(existing ?? null) && existing !== socket) ||
+            isReserved ||
+            room.seatPresence[targetPlayerIndex] === "reconnecting"
+          ) {
             socket.send(
               JSON.stringify({
                 type: "action-rejected",
-                reason: `Seat ${requestedPlayerIndex} is already taken in room ${normalizedRoomId}`,
+                reason: `Seat ${targetPlayerIndex} is reserved in room ${normalizedRoomId}`,
               } as ServerMessage),
             );
             return;
           }
-        } else if (availableSeats.length === 0) {
+        }
+        if (targetPlayerIndex === undefined && availableSeats.length === 0) {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
@@ -628,13 +727,25 @@ wss.on("connection", (socket) => {
         }
         roomId = normalizedRoomId;
         playerIndex =
-          requestedPlayerIndex ??
+          targetPlayerIndex ??
           availableSeats[Math.floor(Math.random() * availableSeats.length)];
+        const previousSession = room.seatSessions[playerIndex];
+        const nextSession = isResume
+          ? {
+              ...previousSession!,
+              connectionGeneration:
+                previousSession!.connectionGeneration + 1,
+            }
+          : createSeatSession(previousSession?.connectionGeneration ?? 0);
+        const previousSocket = room.players[playerIndex];
         const disconnectTimer = room.disconnectTimers.get(playerIndex);
         if (disconnectTimer) clearTimeout(disconnectTimer);
         room.disconnectTimers.delete(playerIndex);
+        room.seatSessions[playerIndex] = nextSession;
         room.players[playerIndex] = socket;
         room.seatPresence[playerIndex] = "connected";
+        connectionGeneration = nextSession.connectionGeneration;
+        if (!isResume) room.processedActionIds.delete(playerIndex);
         room.game.players[playerIndex].name = cleanPlayerName(msg.playerName);
         // Reconnecting during round-over can otherwise leave this seat
         // permanently excluded from next-hand readiness (see
@@ -647,8 +758,22 @@ wss.on("connection", (socket) => {
             type: "room-joined",
             roomId,
             playerIndex,
+            playerId: nextSession.playerId,
+            resumeToken: nextSession.resumeToken,
+            roomInstanceId: room.roomInstanceId,
+            stateVersion: room.stateVersion,
           } as ServerMessage),
         );
+
+        if (isOpenSocket(previousSocket) && previousSocket !== socket) {
+          previousSocket.send(
+            JSON.stringify({
+              type: "system",
+              message: "This table continued in another browser session.",
+            } as ServerMessage),
+          );
+          previousSocket.close(4001, "Session resumed elsewhere");
+        }
 
         broadcastGame(room);
 
@@ -778,6 +903,8 @@ wss.on("connection", (socket) => {
         }
 
         room.seatPresence[playerIndex] = "ai";
+        room.seatSessions[playerIndex] = null;
+        room.processedActionIds.delete(playerIndex);
         const disconnectTimer = room.disconnectTimers.get(playerIndex);
         if (disconnectTimer) clearTimeout(disconnectTimer);
         room.disconnectTimers.delete(playerIndex);
@@ -787,16 +914,7 @@ wss.on("connection", (socket) => {
 
         const remainingHumanPlayers = shouldPreserveRoom(room);
         if (remainingHumanPlayers) {
-          room.players.forEach((player) => {
-            if (isOpenSocket(player)) {
-              player.send(
-                JSON.stringify({
-                  type: "game-state-update",
-                  game: room.game,
-                } as ServerMessage),
-              );
-            }
-          });
+          broadcastGame(room);
         } else {
           resetRoomForNewSession(room);
           removeRoomIfEmpty(roomId, room);
@@ -835,6 +953,24 @@ wss.on("connection", (socket) => {
             } as ServerMessage),
           );
           socket.close(1008, "Seat ownership mismatch");
+          return;
+        }
+
+        if (
+          msg.actionId !== undefined &&
+          (typeof msg.actionId !== "string" || msg.actionId.length > 80)
+        ) {
+          socket.send(
+            JSON.stringify({
+              type: "action-rejected",
+              reason: "Invalid action identifier.",
+            } as ServerMessage),
+          );
+          return;
+        }
+
+        if (hasProcessedAction(room, playerIndex, msg.actionId)) {
+          sendGameState(socket, room, playerIndex);
           return;
         }
 
@@ -1203,6 +1339,7 @@ wss.on("connection", (socket) => {
           // -------- UPDATE ROOM STATE --------
           applyRoomGame(room, nextGame);
           syncControllers(room);
+          rememberProcessedAction(room, playerIndex, msg.actionId);
 
           // -------- BROADCAST TO ALL PLAYERS --------
           broadcastGame(room);
@@ -1226,7 +1363,7 @@ wss.on("connection", (socket) => {
       if (msg.type === "request-state") {
         const room = rooms.get(roomId);
         if (room && room.players[playerIndex] === socket) {
-          sendGameState(socket, room.game, playerIndex);
+          sendGameState(socket, room, playerIndex);
         } else {
           socket.send(
             JSON.stringify({
@@ -1250,14 +1387,20 @@ wss.on("connection", (socket) => {
 
   socket.on("close", () => {
     if (roomId && playerIndex >= 0 && !isLeavingRoom) {
-      console.log(`[Disconnected] Player ${playerIndex} left room ${roomId}`);
-
       const room = rooms.get(roomId);
       if (room) {
-        room.lastActivity = Date.now();
-        if (room.players[playerIndex] === socket) {
-          room.players[playerIndex] = null;
+        const currentSession = room.seatSessions[playerIndex];
+        if (
+          room.players[playerIndex] !== socket ||
+          currentSession?.connectionGeneration !== connectionGeneration
+        ) {
+          return;
         }
+        console.log(
+          `[Disconnected] Player ${playerIndex} left room ${roomId} (generation ${connectionGeneration})`,
+        );
+        room.lastActivity = Date.now();
+        room.players[playerIndex] = null;
         room.seatPresence[playerIndex] = "reconnecting";
         syncControllers(room);
         broadcastGame(room);
@@ -1275,7 +1418,9 @@ wss.on("connection", (socket) => {
           if (
             !currentRoom ||
             isOpenSocket(currentRoom.players[playerIndex] ?? null) ||
-            currentRoom.seatPresence[playerIndex] !== "reconnecting"
+            currentRoom.seatPresence[playerIndex] !== "reconnecting" ||
+            currentRoom.seatSessions[playerIndex]?.connectionGeneration !==
+              connectionGeneration
           ) {
             return;
           }

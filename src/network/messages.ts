@@ -23,6 +23,8 @@ export type JoinRoomMessage = {
   roomId: string;
   playerIndex?: number;
   playerName: string;
+  playerId?: string;
+  resumeToken?: string;
 };
 
 export type LeaveRoomMessage = {
@@ -32,6 +34,7 @@ export type LeaveRoomMessage = {
 export type PlayerActionMessage = {
   type: "player-action";
   playerIndex: number;
+  actionId?: string;
   action: PlayerAction;
 };
 
@@ -91,12 +94,29 @@ export type ServerMessage =
 export type GameStateUpdateMessage = {
   type: "game-state-update";
   game: Game;
+  roomInstanceId: string;
+  stateVersion: number;
 };
 
 export type RoomJoinedMessage = {
   type: "room-joined";
   roomId: string;
   playerIndex: number;
+  playerId: string;
+  resumeToken: string;
+  roomInstanceId: string;
+  stateVersion: number;
+};
+
+export type RoomResumeCredentials = {
+  playerId: string;
+  resumeToken: string;
+};
+
+export type RoomSession = RoomResumeCredentials & {
+  roomId: string;
+  playerIndex: number;
+  roomInstanceId: string;
 };
 
 export type RoomSeatsUpdateMessage = {

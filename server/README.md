@@ -39,6 +39,9 @@ npm run dev
 - authoritative game state broadcasting
 - disconnection handling
 - 30-second reconnect grace period with AI takeover
+- private resume credentials that safely replace stale browser connections
+- connection-generation fencing for disconnect and AI takeover timers
+- versioned state updates and duplicate-action protection
 - server-owned next-hand readiness, score carryover, and dealer rotation
 - AI turns only for seats without a connected human
 
@@ -64,7 +67,7 @@ Client to server:
 Server to client:
 
 - `room-joined`
-- `game-state-update`
+- `game-state-update` with a room instance ID and state version
 - `action-rejected`
 - `player-disconnected`
 - `room-seats-update`
@@ -102,6 +105,8 @@ The smoke test validates join flow, seat conflict rejection, and cross-client st
 
 - Maximum seats per room: 4
 - Server is authoritative; clients should treat local checks as UI hints only
+- Resume credentials are private transport data and are cleared by an explicit Leave Game action
+- Room state remains in server memory until persistent room storage is introduced
 - Use `wss://` for hosted production environments
 
 ## Render single-service setup

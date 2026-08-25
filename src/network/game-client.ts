@@ -1,6 +1,12 @@
 import { Difficulty, Game, HouseRule, Rules } from "../game-logic/types";
 import { possibleChiOptions } from "../game-logic/validation";
-import { ClientMessage, ServerMessage, PlayerAction } from "./messages";
+import {
+  ClientMessage,
+  ServerMessage,
+  PlayerAction,
+  RoomResumeCredentials,
+  RoomSession,
+} from "./messages";
 
 /**
  * Client-side WebSocket connector for multiplayer games.
@@ -13,6 +19,7 @@ import { ClientMessage, ServerMessage, PlayerAction } from "./messages";
 
 export type GameClientCallbacks = {
   onSeatAssigned?: (playerIndex: number) => void;
+  onSessionAssigned?: (session: RoomSession) => void;
   onGameStateUpdate?: (game: Game) => void;
   onRoomListUpdate?: (
     rooms: Array<{
@@ -36,6 +43,9 @@ export class GameClient {
   private game: Game | null = null;
   private callbacks: GameClientCallbacks;
   private isConnected = false;
+  private intentionalDisconnect = false;
+  private roomInstanceId = "";
+  private latestStateVersion = -1;
 
   constructor(callbacks?: GameClientCallbacks) {
     this.callbacks = callbacks || {};
@@ -48,6 +58,7 @@ export class GameClient {
     roomId: string,
     playerIndex: number | undefined,
     playerName: string,
+    resumeCredentials?: RoomResumeCredentials,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
@@ -60,6 +71,17 @@ export class GameClient {
         this.roomId = roomId;
         this.playerIndex = playerIndex ?? -1;
         this.playerName = playerName;
+        this.intentionalDisconnect = false;
+        let settled = false;
+        let joined = false;
+
+        const rejectConnection = (error: unknown) => {
+          if (settled) return;
+          settled = true;
+          reject(
+            error instanceof Error ? error : new Error("Connection failed"),
+          );
+        };
 
         console.log(`[GameClient] Connecting to ${serverUrl}`);
 
@@ -68,13 +90,13 @@ export class GameClient {
 
         const onOpenTimeout = setTimeout(() => {
           console.error("[GameClient] Connection timeout");
-          reject(new Error("Connection timeout"));
+          this.intentionalDisconnect = true;
+          this.ws?.close();
+          rejectConnection(new Error("Connection timeout"));
         }, 5000);
 
         this.ws.onopen = () => {
-          clearTimeout(onOpenTimeout);
           console.log(`[GameClient] Connected to server at ${serverUrl}`);
-          this.isConnected = true;
 
           // Join room
           this.sendMessage({
@@ -82,9 +104,9 @@ export class GameClient {
             roomId,
             playerIndex,
             playerName,
+            playerId: resumeCredentials?.playerId,
+            resumeToken: resumeCredentials?.resumeToken,
           });
-
-          resolve();
         };
 
         this.ws.onmessage = (event) => {
@@ -95,6 +117,19 @@ export class GameClient {
             }
             const msg = JSON.parse(event.data) as ServerMessage;
             this.handleServerMessage(msg);
+            if (msg.type === "room-joined") {
+              joined = true;
+              this.isConnected = true;
+              clearTimeout(onOpenTimeout);
+              if (!settled) {
+                settled = true;
+                resolve();
+              }
+            } else if (msg.type === "action-rejected" && !joined) {
+              this.intentionalDisconnect = true;
+              this.ws?.close();
+              rejectConnection(new Error(msg.reason));
+            }
           } catch (error) {
             console.error("[GameClient] Failed to parse message:", error);
           }
@@ -104,14 +139,17 @@ export class GameClient {
           clearTimeout(onOpenTimeout);
           console.error("WebSocket error:", error);
           this.isConnected = false;
-          reject(error);
+          rejectConnection(error);
         };
 
         this.ws.onclose = () => {
           clearTimeout(onOpenTimeout);
           console.log("Disconnected from server");
           this.isConnected = false;
-          this.callbacks.onDisconnected?.();
+          if (!settled) {
+            rejectConnection(new Error("Disconnected before joining"));
+          }
+          if (!this.intentionalDisconnect) this.callbacks.onDisconnected?.();
         };
       } catch (error) {
         reject(error);
@@ -122,6 +160,7 @@ export class GameClient {
   disconnect() {
     if (this.ws) {
       console.log("[GameClient] Disconnecting");
+      this.intentionalDisconnect = true;
       this.ws.close();
       this.ws = null;
       this.isConnected = false;
@@ -143,6 +182,10 @@ export class GameClient {
     this.sendMessage({
       type: "player-action",
       playerIndex: this.playerIndex,
+      actionId:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       action,
     });
   }
@@ -160,6 +203,7 @@ export class GameClient {
   }
 
   leaveRoom() {
+    this.intentionalDisconnect = true;
     this.sendMessage({
       type: "leave-room",
     });
@@ -171,6 +215,23 @@ export class GameClient {
     console.log("[GameClient] Received message:", message.type);
 
     if (message.type === "game-state-update") {
+      const hasVersionMetadata =
+        typeof message.roomInstanceId === "string" &&
+        Number.isInteger(message.stateVersion);
+      if (hasVersionMetadata) {
+        if (
+          this.roomInstanceId === message.roomInstanceId &&
+          message.stateVersion < this.latestStateVersion
+        ) {
+          console.warn("[GameClient] Ignoring stale game state");
+          return;
+        }
+        if (this.roomInstanceId !== message.roomInstanceId) {
+          this.roomInstanceId = message.roomInstanceId;
+          this.latestStateVersion = -1;
+        }
+        this.latestStateVersion = message.stateVersion;
+      }
       console.log("[GameClient] Game state received");
       this.game = message.game;
       this.callbacks.onGameStateUpdate?.(message.game);
@@ -179,6 +240,22 @@ export class GameClient {
     if (message.type === "room-joined") {
       this.playerIndex = message.playerIndex;
       this.callbacks.onSeatAssigned?.(message.playerIndex);
+      if (
+        typeof message.playerId === "string" &&
+        typeof message.resumeToken === "string" &&
+        typeof message.roomInstanceId === "string" &&
+        Number.isInteger(message.stateVersion)
+      ) {
+        this.roomInstanceId = message.roomInstanceId;
+        this.latestStateVersion = message.stateVersion;
+        this.callbacks.onSessionAssigned?.({
+          roomId: message.roomId,
+          playerIndex: message.playerIndex,
+          playerId: message.playerId,
+          resumeToken: message.resumeToken,
+          roomInstanceId: message.roomInstanceId,
+        });
+      }
     }
 
     if (message.type === "room-list-update") {
