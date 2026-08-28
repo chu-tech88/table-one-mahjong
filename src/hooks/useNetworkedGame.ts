@@ -7,6 +7,11 @@ import {
   saveRoomSession,
 } from "../network/room-session";
 import { createDefaultHouseRules, DEFAULT_RULES } from "../game-logic/rules";
+import {
+  getStoredLobbyMessages,
+  saveLobbyMessages,
+  type StoredLobbyChatMessage,
+} from "../game-logic/lobbyChatStorage";
 
 type UseNetworkedGameReturn = {
   game: Game | null;
@@ -34,6 +39,9 @@ type UseNetworkedGameReturn = {
   newHand: (dealer?: number, resetGame?: boolean) => void;
   leaveRoom: () => void;
   readyNextHand: () => void;
+  revealHand: () => void;
+  chatMessages: StoredLobbyChatMessage[];
+  sendChat: (text: string) => void;
   aiTakeoverSeat?: number;
 };
 
@@ -57,6 +65,7 @@ export function useNetworkedGame(
   preferredPlayerIndex: number | undefined,
   playerName: string,
   enabled = true,
+  chatEnabled = false,
 ): UseNetworkedGameReturn {
   const [game, setGame] = useState<Game | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -64,9 +73,23 @@ export function useNetworkedGame(
   const [selectedTileId, setSelectedTileId] = useState<string | undefined>();
   const [playerIndex, setPlayerIndex] = useState(preferredPlayerIndex ?? -1);
   const [aiTakeoverSeat, setAiTakeoverSeat] = useState<number>();
+  const [chatMessages, setChatMessages] = useState<StoredLobbyChatMessage[]>(
+    () => (chatEnabled ? getStoredLobbyMessages(roomId) : []),
+  );
   const playerIndexRef = useRef(preferredPlayerIndex ?? -1);
+  const chatEnabledRef = useRef(chatEnabled);
   const clientRef = useRef<GameClient | null>(null);
   const activeRoomIdRef = useRef(roomId);
+
+  useEffect(() => {
+    chatEnabledRef.current = chatEnabled;
+    if (chatEnabled) {
+      setChatMessages(getStoredLobbyMessages(roomId));
+      clientRef.current?.joinLobbyChat();
+    } else {
+      setChatMessages([]);
+    }
+  }, [chatEnabled, roomId]);
 
   useEffect(() => {
     if (roomId !== activeRoomIdRef.current) {
@@ -147,6 +170,17 @@ export function useNetworkedGame(
         onSystemMessage: (message) => {
           if (client === activeClient) terminalMessage = message;
         },
+        onLobbyChatMessage: (message) => {
+          if (!isMounted || client !== activeClient || !chatEnabledRef.current) {
+            return;
+          }
+          setChatMessages((current) => {
+            if (current.some((item) => item.id === message.id)) return current;
+            const next = [...current, message].slice(-50);
+            saveLobbyMessages(roomId, next);
+            return next;
+          });
+        },
         onDisconnected: () => {
           if (!isMounted || client !== activeClient) return;
           setIsConnected(false);
@@ -192,6 +226,7 @@ export function useNetworkedGame(
           setIsConnected(true);
           setError(null);
           client.requestState();
+          if (chatEnabledRef.current) client.joinLobbyChat();
         })
         .catch(() => {
           if (!isMounted || client !== activeClient) return;
@@ -365,6 +400,14 @@ export function useNetworkedGame(
     clientRef.current?.readyNextHand();
     setSelectedTileId(undefined);
   }, []);
+  const revealHand = useCallback(() => {
+    clientRef.current?.revealHand();
+  }, []);
+  const sendChat = useCallback((text: string) => {
+    const normalized = text.trim().slice(0, 140);
+    if (!normalized || !chatEnabledRef.current) return;
+    clientRef.current?.sendLobbyChat(normalized);
+  }, []);
 
   return {
     game,
@@ -392,6 +435,9 @@ export function useNetworkedGame(
     newHand,
     leaveRoom,
     readyNextHand,
+    revealHand,
+    chatMessages,
+    sendChat,
     aiTakeoverSeat,
   };
 }

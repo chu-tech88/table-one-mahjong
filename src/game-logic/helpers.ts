@@ -140,6 +140,7 @@ export function structuredCloneGame(game: Game): Game {
         }
       : undefined,
     winners: game.winners ? [...game.winners] : undefined,
+    revealedHands: game.revealedHands ? [...game.revealedHands] : undefined,
     winSummaries: game.winSummaries
       ? game.winSummaries.map((summary) => ({
           ...summary,

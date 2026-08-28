@@ -11,6 +11,23 @@ function uniqueSeats(seats: number[]) {
   return [...new Set(seats)].filter((seat) => seat >= 0 && seat < 4);
 }
 
+export function revealCompletedHand(game: Game, seat: number) {
+  if (game.phase !== "round-over") {
+    throw new Error("Hands can only be shown after the hand is complete.");
+  }
+  if (!Number.isInteger(seat) || seat < 0 || seat >= game.players.length) {
+    throw new Error("That player seat is not available.");
+  }
+  const winners = game.winners ?? (game.winner === undefined ? [] : [game.winner]);
+  if (winners.includes(seat)) {
+    throw new Error("Winning hands are already shown.");
+  }
+
+  const next = structuredCloneGame(game);
+  next.revealedHands = uniqueSeats([...(game.revealedHands ?? []), seat]);
+  return next;
+}
+
 export function prepareNextHandReadiness(game: Game, requiredSeats: number[]) {
   const next = structuredCloneGame(game);
   next.nextHandReady = [];

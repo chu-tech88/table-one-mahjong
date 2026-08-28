@@ -20,6 +20,7 @@ import {
   nextRoundNumber,
   structuredCloneGame,
 } from "../game-logic/helpers";
+import type { StoredLobbyChatMessage } from "../game-logic/lobbyChatStorage";
 
 type UseLocalGameOptions = {
   initialGame?: Game;
@@ -50,6 +51,9 @@ type UseLocalGameReturn = {
   newHand: (dealer?: number, resetGame?: boolean) => void;
   leaveRoom: () => void;
   readyNextHand: () => void;
+  revealHand: () => void;
+  chatMessages: StoredLobbyChatMessage[];
+  sendChat: (text: string) => void;
   aiTakeoverSeat?: number;
   playerIndex: number;
   isConnected?: boolean;
@@ -336,6 +340,9 @@ export function useLocalGame(
     newHand,
     leaveRoom: () => undefined,
     readyNextHand,
+    revealHand: () => undefined,
+    chatMessages: [],
+    sendChat: () => undefined,
     aiTakeoverSeat: undefined,
     playerIndex: 0,
     isConnected: true,

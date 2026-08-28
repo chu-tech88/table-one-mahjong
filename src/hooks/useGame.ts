@@ -17,6 +17,7 @@ type UseGameOptions =
       playerIndex?: number;
       playerName: string;
       enabled?: boolean;
+      chatEnabled?: boolean;
       initialGame?: Game;
       initialRules?: Rules;
       initialHouseRules?: HouseRule[];
@@ -52,6 +53,7 @@ export function useGame(options: UseGameOptions) {
     options.mode === "networked" ? options.playerIndex : 0,
     options.mode === "networked" ? options.playerName : "Player",
     options.mode === "networked" ? (options.enabled ?? true) : false,
+    options.mode === "networked" ? (options.chatEnabled ?? false) : false,
   );
 
   return options.mode === "networked" ? networkedGame : localGame;

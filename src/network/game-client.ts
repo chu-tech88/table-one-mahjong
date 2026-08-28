@@ -7,6 +7,7 @@ import {
   RoomResumeCredentials,
   RoomSession,
 } from "./messages";
+import type { StoredLobbyChatMessage } from "../game-logic/lobbyChatStorage";
 
 /**
  * Client-side WebSocket connector for multiplayer games.
@@ -33,6 +34,7 @@ export type GameClientCallbacks = {
   onDisconnected?: () => void;
   onPlayerTakenOver?: (playerIndex: number) => void;
   onSystemMessage?: (message: string) => void;
+  onLobbyChatMessage?: (message: StoredLobbyChatMessage) => void;
 };
 
 export class GameClient {
@@ -263,6 +265,7 @@ export class GameClient {
     }
 
     if (message.type === "lobby-chat-message") {
+      this.callbacks.onLobbyChatMessage?.(message.message);
       return;
     }
 
@@ -427,6 +430,29 @@ export class GameClient {
 
   readyNextHand() {
     this.sendAction({ type: "ready-next-hand" });
+  }
+
+  revealHand() {
+    this.sendAction({ type: "reveal-hand" });
+  }
+
+  joinLobbyChat() {
+    this.sendMessage({
+      type: "join-lobby-chat",
+      roomId: this.roomId,
+      playerIndex: this.playerIndex,
+      playerName: this.playerName,
+    });
+  }
+
+  sendLobbyChat(text: string) {
+    this.sendMessage({
+      type: "lobby-chat",
+      roomId: this.roomId,
+      playerIndex: this.playerIndex,
+      playerName: this.playerName,
+      text,
+    });
   }
 
   kong(code: string, concealed: boolean) {

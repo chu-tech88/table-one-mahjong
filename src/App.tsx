@@ -64,6 +64,7 @@ const SOUND_SETTING_KEY = "table-one-sound-enabled";
 const GUIDANCE_SETTING_KEY = "table-one-guidance-mode";
 const HIDDEN_LESSONS_KEY = "table-one-hidden-lessons";
 const COACH_VIEWPORT_QUERY = "(min-width: 1100px) and (min-height: 650px)";
+const CHAT_VIEWPORT_QUERY = "(min-width: 768px) and (min-height: 600px)";
 type GameSound = "discard" | "chi" | "pong" | "gong" | "hu" | "turn";
 type LearnTopic =
   | "history"
@@ -126,6 +127,14 @@ function coachViewportIsSupported() {
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
     window.matchMedia(COACH_VIEWPORT_QUERY).matches
+  );
+}
+
+function chatViewportIsSupported() {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia(CHAT_VIEWPORT_QUERY).matches
   );
 }
 
@@ -888,6 +897,59 @@ function MeldView({
   );
 }
 
+function CompletedHandReview({
+  player,
+  title,
+  winningTileId,
+}: {
+  player: Player;
+  title: string;
+  winningTileId?: string;
+}) {
+  return (
+    <div className="winning-hand-review" aria-label={`${title} complete hand`}>
+      <span>{title}</span>
+      <div className="winning-review-section">
+        <strong>Concealed tiles</strong>
+        <div className="winning-tile-row">
+          {player.hand.map((tile) => (
+            <TileView
+              key={tile.id}
+              tile={tile}
+              winning={tile.id === winningTileId}
+              disabled
+            />
+          ))}
+        </div>
+      </div>
+      {player.melds.length > 0 ? (
+        <div className="winning-review-section">
+          <strong>Revealed sets</strong>
+          <div className="winning-meld-row">
+            {player.melds.map((meld, index) => (
+              <MeldView
+                auditable={meld.concealed}
+                key={`${meld.type}-${index}`}
+                meld={meld}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {player.flowers.length > 0 ? (
+        <div className="winning-review-section">
+          <strong>Flowers</strong>
+          <div className="winning-tile-row">
+            {player.flowers.map((tile) => (
+              <TileView key={tile.id} tile={tile} disabled />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function DiscardRiver({
   player,
   latestDiscardId,
@@ -1507,6 +1569,14 @@ function MahjongApp({
   const [coachViewportSupported, setCoachViewportSupported] = useState(
     coachViewportIsSupported,
   );
+  const [chatViewportSupported, setChatViewportSupported] = useState(
+    chatViewportIsSupported,
+  );
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
+  const lastSeenChatMessageId = useRef<string | undefined>(undefined);
   const [connection, setConnection] = useState(() => ({
     roomId: restoredActiveSession?.roomId ?? createSoloRoomId(),
     playerIndex: restoredActiveSession?.playerIndex ?? 0,
@@ -1594,6 +1664,19 @@ function MahjongApp({
     return () => media.removeEventListener("change", updateSupport);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia(CHAT_VIEWPORT_QUERY);
+    const updateSupport = () => setChatViewportSupported(media.matches);
+    updateSupport();
+    media.addEventListener("change", updateSupport);
+    return () => media.removeEventListener("change", updateSupport);
+  }, []);
+
+  useEffect(() => {
+    if (!chatViewportSupported) setChatOpen(false);
+  }, [chatViewportSupported]);
+
   const changeGuidanceMode = (mode: GuidanceMode) => {
     const allowedMode =
       (playMode === "online" || !coachViewportSupported) && mode === "strategy"
@@ -1634,6 +1717,8 @@ function MahjongApp({
     initialRules: activeScenario?.rules,
     initialHouseRules: activeScenario?.houseRules,
     pauseLocalAI: isLocalReplay && activeCoachLesson !== null,
+    chatEnabled:
+      !isLocalReplay && connection.joined && chatViewportSupported,
   });
   const {
     game,
@@ -1657,9 +1742,38 @@ function MahjongApp({
     newHand,
     leaveRoom,
     readyNextHand,
+    revealHand,
+    chatMessages,
+    sendChat,
     aiTakeoverSeat,
     playerIndex: assignedPlayerIndex,
   } = gameHook;
+
+  useEffect(() => {
+    const latestMessage = chatMessages.at(-1);
+    if (!latestMessage) {
+      setUnreadChatCount(0);
+      lastSeenChatMessageId.current = undefined;
+      return;
+    }
+    if (latestMessage.id === lastSeenChatMessageId.current) return;
+    lastSeenChatMessageId.current = latestMessage.id;
+    if (chatOpen) {
+      setUnreadChatCount(0);
+      window.setTimeout(
+        () => chatMessagesEndRef.current?.scrollIntoView({ block: "nearest" }),
+        0,
+      );
+    } else {
+      setUnreadChatCount((count) => count + 1);
+    }
+  }, [chatMessages, chatOpen]);
+
+  useEffect(() => {
+    if (!chatOpen) return;
+    setUnreadChatCount(0);
+    chatMessagesEndRef.current?.scrollIntoView({ block: "nearest" });
+  }, [chatOpen]);
   const SELF =
     assignedPlayerIndex >= 0
       ? assignedPlayerIndex
@@ -2583,6 +2697,15 @@ function MahjongApp({
     : game?.winSummary
       ? [game.winSummary]
       : [];
+  const roundWinnerSeats = game?.winners ?? (game?.winner === undefined ? [] : [game.winner]);
+  const shownHandSeats = (game?.revealedHands ?? []).filter(
+    (seat) => !roundWinnerSeats.includes(seat),
+  );
+  const canShowHand =
+    playMode === "online" &&
+    game?.phase === "round-over" &&
+    !roundWinnerSeats.includes(SELF) &&
+    !shownHandSeats.includes(SELF);
   const activeWinSummary =
     roundWinSummaries[Math.min(reviewWinnerIndex, roundWinSummaries.length - 1)] ??
     game?.winSummary;
@@ -3616,6 +3739,59 @@ function MahjongApp({
               </button>
             </div>
           </div>
+          {playMode === "online" && chatViewportSupported ? (
+            <div className="lobby-chat-panel">
+              <button
+                className="lobby-chat-toggle"
+                type="button"
+                aria-expanded={chatOpen}
+                onClick={() => setChatOpen((open) => !open)}
+              >
+                <span>Chat</span>
+                <strong>
+                  {chatMessages.at(-1)?.text ?? "Chat with your table"}
+                </strong>
+                {unreadChatCount > 0 ? (
+                  <em className="notice-count">{unreadChatCount}</em>
+                ) : null}
+              </button>
+              {chatOpen ? (
+                <div className="lobby-chat-card">
+                  <div className="lobby-chat-messages" aria-live="polite">
+                    {chatMessages.length === 0 ? (
+                      <p className="lobby-chat-empty">No messages yet.</p>
+                    ) : (
+                      chatMessages.slice(-5).map((message) => (
+                        <div className="lobby-chat-message" key={message.id}>
+                          <strong>{message.playerName}</strong>
+                          <span>{message.text}</span>
+                        </div>
+                      ))
+                    )}
+                    <div ref={chatMessagesEndRef} />
+                  </div>
+                  <form
+                    className="lobby-chat-input-row"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (!chatDraft.trim()) return;
+                      sendChat(chatDraft);
+                      setChatDraft("");
+                    }}
+                  >
+                    <input
+                      aria-label="Chat message"
+                      maxLength={140}
+                      placeholder="Message the table"
+                      value={chatDraft}
+                      onChange={(event) => setChatDraft(event.target.value)}
+                    />
+                    <button type="submit">Send</button>
+                  </form>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {tileFlight ? (
             <div
               className={`tile-flight tile-flight-${tileFlight.kind} flight-from-${visualRelativeSeat(tileFlight.from, SELF)} ${
@@ -4546,51 +4722,23 @@ function MahjongApp({
                 winningPlayer &&
                 activeWinSummary?.winner !== undefined ? (
                   <div className="winning-review-section">
-                    <div
-                      className="winning-hand-review"
-                      aria-label={`${winningPlayer.name} revealed winning hand`}
-                    >
-                      <span>{seatName(activeWinSummary.winner)}'s hand</span>
-                      <div className="winning-review-section">
-                        <strong>Concealed tiles</strong>
-                        <div className="winning-tile-row">
-                          {winningPlayer.hand.map((tile) => (
-                            <TileView
-                              key={tile.id}
-                              tile={tile}
-                              winning={
-                                tile.id === activeWinSummary?.winningTileId
-                              }
-                              disabled
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      {winningPlayer.melds.length > 0 ? (
-                        <div className="winning-review-section">
-                          <strong>Revealed sets</strong>
-                          <div className="winning-meld-row">
-                            {winningPlayer.melds.map((meld, index) => (
-                              <MeldView
-                                auditable={meld.concealed}
-                                key={`${meld.type}-${index}`}
-                                meld={meld}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      {winningPlayer.flowers.length > 0 ? (
-                        <div className="winning-review-section">
-                          <strong>Flowers</strong>
-                          <div className="winning-tile-row">
-                            {winningPlayer.flowers.map((tile) => (
-                              <TileView key={tile.id} tile={tile} disabled />
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
+                    <CompletedHandReview
+                      player={winningPlayer}
+                      title={`${seatName(activeWinSummary.winner)}'s hand`}
+                      winningTileId={activeWinSummary.winningTileId}
+                    />
+                  </div>
+                ) : null}
+                {winStage >= 2 && shownHandSeats.length > 0 ? (
+                  <div className="shown-hands">
+                    <strong>Hands shown by players</strong>
+                    {shownHandSeats.map((seat) => (
+                      <CompletedHandReview
+                        key={seat}
+                        player={game.players[seat]}
+                        title={`${seatName(seat)}'s hand`}
+                      />
+                    ))}
                   </div>
                 ) : null}
                 {winStage >= 2 && winningPlayer ? (
@@ -4646,6 +4794,17 @@ function MahjongApp({
             </div>
             {winStage >= 2 ? (
               <div className="win-modal-footer">
+                {canShowHand ? (
+                  <button
+                    className="show-hand-button"
+                    type="button"
+                    onClick={revealHand}
+                  >
+                    Show Your Hand
+                  </button>
+                ) : playMode === "online" && shownHandSeats.includes(SELF) ? (
+                  <p className="shown-hand-confirmation">Your hand is shown to the table.</p>
+                ) : null}
                 <button
                   className="full-width-button"
                   type="button"

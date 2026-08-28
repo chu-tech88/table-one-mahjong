@@ -35,6 +35,7 @@ import {
   prepareNextHandReadiness,
   removeRequiredSeat,
   ensureRequiredSeat,
+  revealCompletedHand,
 } from "../src/game-logic/round";
 
 // Types
@@ -828,18 +829,21 @@ wss.on("connection", (socket) => {
 
       if (msg.type === "join-lobby-chat") {
         const room = rooms.get(msg.roomId);
-        if (!room) {
+        if (
+          !room ||
+          msg.roomId !== roomId ||
+          msg.playerIndex !== playerIndex ||
+          room.players[playerIndex] !== socket
+        ) {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
-              reason: "Room not found.",
+              reason: "Chat is unavailable for this seat.",
             } as ServerMessage),
           );
           return;
         }
 
-        roomId = msg.roomId;
-        playerIndex = msg.playerIndex;
         room.chatSubscribers.add(socket);
         room.lastActivity = Date.now();
         return;
@@ -847,7 +851,13 @@ wss.on("connection", (socket) => {
 
       if (msg.type === "lobby-chat") {
         const room = rooms.get(msg.roomId);
-        if (!room || !room.chatSubscribers.has(socket)) {
+        if (
+          !room ||
+          msg.roomId !== roomId ||
+          msg.playerIndex !== playerIndex ||
+          room.players[playerIndex] !== socket ||
+          !room.chatSubscribers.has(socket)
+        ) {
           socket.send(
             JSON.stringify({
               type: "action-rejected",
@@ -866,8 +876,8 @@ wss.on("connection", (socket) => {
           type: "lobby-chat-message",
           message: {
             id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-            playerIndex: msg.playerIndex,
-            playerName: cleanPlayerName(msg.playerName),
+            playerIndex,
+            playerName: room.game.players[playerIndex].name,
             text: normalizedText,
             createdAt: Date.now(),
           },
@@ -1143,6 +1153,19 @@ wss.on("connection", (socket) => {
           return;
         }
 
+        if (
+          msg.action.type === "reveal-hand" &&
+          room.game.phase !== "round-over"
+        ) {
+          socket.send(
+            JSON.stringify({
+              type: "action-rejected",
+              reason: "Hands can only be shown after the hand is complete.",
+            } as ServerMessage),
+          );
+          return;
+        }
+
         let nextGame: Game | null = null;
         const action = msg.action;
 
@@ -1330,6 +1353,9 @@ wss.on("connection", (socket) => {
           }
           if (action.type === "ready-next-hand") {
             nextGame = markReadyForNextHand(room.game, playerIndex);
+          }
+          if (action.type === "reveal-hand") {
+            nextGame = revealCompletedHand(room.game, playerIndex);
           }
 
           if (!nextGame) {

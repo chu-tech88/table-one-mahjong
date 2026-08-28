@@ -1387,6 +1387,47 @@ textarea {
   align-self: stretch;
 }
 
+.shown-hands {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.shown-hands > strong,
+.shown-hand-confirmation {
+  color: #546158;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.shown-hands .winning-hand-review {
+  padding-block: 10px;
+}
+
+.show-hand-button {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid rgba(45, 92, 66, 0.26);
+  border-radius: 7px;
+  background: #eef5ef;
+  color: #0e674f;
+  font: inherit;
+  font-weight: 800;
+}
+
+.shown-hand-confirmation {
+  margin: 0;
+  padding: 4px 0;
+}
+
+@media (max-width: 767px), (max-height: 599px) {
+  .lobby-chat-panel {
+    display: none;
+  }
+}
+
 .center-table::before {
   position: absolute;
   inset: 11%;

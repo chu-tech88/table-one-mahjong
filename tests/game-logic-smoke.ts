@@ -39,6 +39,7 @@ import { waitingSupportTileIds } from "../src/game-logic/validation";
 import {
   markReadyForNextHand,
   prepareNextHandReadiness,
+  revealCompletedHand,
 } from "../src/game-logic/round";
 
 let fixtureTileId = 0;
@@ -542,6 +543,25 @@ assert.equal(
   (dealerLossResult.dealer + 1) % 4,
 );
 assert.equal(nextDealerStreak(dealerLossResult), 0);
+
+const handRevealResult = structuredCloneGame(dealerLossResult);
+handRevealResult.phase = "round-over";
+handRevealResult.winner = handRevealResult.dealer;
+handRevealResult.winners = [handRevealResult.dealer];
+const revealedNonWinner = revealCompletedHand(handRevealResult, 1);
+assert.deepEqual(revealedNonWinner.revealedHands, [1]);
+assert.deepEqual(
+  revealCompletedHand(revealedNonWinner, 1).revealedHands,
+  [1],
+  "Showing a hand twice must remain idempotent",
+);
+assert.throws(
+  () => revealCompletedHand(handRevealResult, handRevealResult.dealer),
+  /already shown/,
+);
+const activeHand = structuredCloneGame(handRevealResult);
+activeHand.phase = "discard";
+assert.throws(() => revealCompletedHand(activeHand, 1), /only be shown/);
 
 const multiplayerRound = dealRound();
 multiplayerRound.players[0].score = 225;

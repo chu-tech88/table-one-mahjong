@@ -105,11 +105,17 @@ assert.match(
   /function FlowerArtwork[\s\S]*rank === 1[\s\S]*rank === 2[\s\S]*rank === 3[\s\S]*rank === 4[\s\S]*rank === 5[\s\S]*rank === 6[\s\S]*rank === 7[\s\S]*winter-artwork/,
   "All eight flower and season tiles must have distinct traditional artwork",
 );
-assert.doesNotMatch(
+assert.match(
   app,
-  /lobby-chat-panel|join-lobby-chat|submitLobbyChat|chatSocketRef/,
-  "Archived multiplayer chat must not connect or occupy the active game UI",
+  /chatViewportSupported[\s\S]*lobby-chat-panel[\s\S]*sendChat/,
+  "Multiplayer chat must use the active connection and responsive viewport gate",
 );
+assert.match(
+  app,
+  /Show Your Hand/,
+  "Non-winners must be able to reveal their completed hand to the table",
+);
+assert.match(app, /revealHand[\s\S]*shownHandSeats/);
 assert.match(
   app,
   /discard-overflow-count[\s\S]*earlier discards/,

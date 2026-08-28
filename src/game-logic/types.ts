@@ -224,6 +224,7 @@ export type Game = {
   winners?: number[];
   winSummary?: WinSummary;
   winSummaries?: WinSummary[];
+  revealedHands?: number[];
   nextHandReady?: number[];
   nextHandRequired?: number[];
   seatPresence?: SeatPresence[];
