@@ -3,7 +3,12 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { createReadStream, existsSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
-import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import {
+  createHmac,
+  randomBytes,
+  randomUUID,
+  timingSafeEqual,
+} from "node:crypto";
 import { Game, SeatPresence } from "../src/game-logic/types";
 import { dealRound } from "../src/game-logic/deck";
 import {
@@ -43,6 +48,7 @@ interface SeatSession {
   playerId: string;
   resumeToken: string;
   connectionGeneration: number;
+  discordUserId?: string;
 }
 
 interface GameRoom {
@@ -66,6 +72,13 @@ const ROOM_RETENTION_MS = 24 * 60 * 60 * 1000;
 const DISCONNECT_GRACE_MS = Number(process.env.DISCONNECT_GRACE_MS ?? "30000");
 const PORT = Number(process.env.PORT ?? process.env.WS_PORT ?? "8080");
 const DIST_DIR = resolve(process.cwd(), "dist");
+const DISCORD_CLIENT_ID =
+  process.env.DISCORD_CLIENT_ID ?? process.env.VITE_DISCORD_CLIENT_ID;
+const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
+const DISCORD_ACTIVITY_SESSION_SECRET =
+  process.env.DISCORD_ACTIVITY_SESSION_SECRET;
+const DISCORD_ACTIVITY_ONLY = process.env.DISCORD_ACTIVITY_ONLY === "true";
+const DISCORD_TICKET_TTL_MS = 60 * 60 * 1000;
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -106,6 +119,57 @@ function safeTokenEquals(left: string, right: string) {
   );
 }
 
+type DiscordIdentity = { id: string; displayName: string };
+
+function createDiscordSessionTicket(identity: DiscordIdentity) {
+  if (!DISCORD_ACTIVITY_SESSION_SECRET) return undefined;
+  const payload = Buffer.from(
+    JSON.stringify({
+      ...identity,
+      expiresAt: Date.now() + DISCORD_TICKET_TTL_MS,
+    }),
+  ).toString("base64url");
+  const signature = createHmac("sha256", DISCORD_ACTIVITY_SESSION_SECRET)
+    .update(payload)
+    .digest("base64url");
+  return `${payload}.${signature}`;
+}
+
+function discordIdentityFromTicket(
+  value: unknown,
+): DiscordIdentity | undefined {
+  if (typeof value !== "string") return undefined;
+  const [payload, signature, extra] = value.split(".");
+  if (!payload || !signature || extra) return undefined;
+  const expected = createHmac("sha256", DISCORD_ACTIVITY_SESSION_SECRET ?? "")
+    .update(payload)
+    .digest("base64url");
+  if (!safeTokenEquals(signature, expected)) return undefined;
+  try {
+    const decoded = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    ) as {
+      id?: unknown;
+      displayName?: unknown;
+      expiresAt?: unknown;
+    };
+    if (
+      typeof decoded.id !== "string" ||
+      !decoded.id ||
+      decoded.id.length > 32 ||
+      typeof decoded.displayName !== "string" ||
+      !decoded.displayName ||
+      !Number.isSafeInteger(decoded.expiresAt) ||
+      decoded.expiresAt < Date.now()
+    ) {
+      return undefined;
+    }
+    return { id: decoded.id, displayName: decoded.displayName };
+  } catch {
+    return undefined;
+  }
+}
+
 function matchesSeatSession(
   session: SeatSession | null,
   playerId: unknown,
@@ -113,12 +177,12 @@ function matchesSeatSession(
 ) {
   return Boolean(
     session &&
-      typeof playerId === "string" &&
-      typeof resumeToken === "string" &&
-      playerId.length <= 80 &&
-      resumeToken.length <= 128 &&
-      session.playerId === playerId &&
-      safeTokenEquals(session.resumeToken, resumeToken),
+    typeof playerId === "string" &&
+    typeof resumeToken === "string" &&
+    playerId.length <= 80 &&
+    resumeToken.length <= 128 &&
+    session.playerId === playerId &&
+    safeTokenEquals(session.resumeToken, resumeToken),
   );
 }
 
@@ -492,21 +556,113 @@ async function createTrelloCard(req: IncomingMessage, res: ServerResponse) {
   }
 }
 
+async function exchangeDiscordCode(req: IncomingMessage, res: ServerResponse) {
+  if (req.method !== "POST") {
+    sendText(res, 405, "Method not allowed");
+    return;
+  }
+  if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
+    sendText(res, 503, "Discord Activity authentication is not configured.");
+    return;
+  }
+  if (!DISCORD_ACTIVITY_SESSION_SECRET) {
+    sendText(res, 503, "Discord Activity session signing is not configured.");
+    return;
+  }
+
+  try {
+    const payload = await readJsonBody(req);
+    const code = typeof payload.code === "string" ? payload.code.trim() : "";
+    if (!code || code.length > 2048) {
+      sendText(res, 400, "A Discord authorization code is required.");
+      return;
+    }
+
+    const tokenResponse = await fetch(
+      "https://discord.com/api/v10/oauth2/token",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: DISCORD_CLIENT_ID,
+          client_secret: DISCORD_CLIENT_SECRET,
+          grant_type: "authorization_code",
+          code,
+        }),
+      },
+    );
+    const tokenPayload = (await tokenResponse.json()) as {
+      access_token?: unknown;
+    };
+    if (!tokenResponse.ok || typeof tokenPayload.access_token !== "string") {
+      console.error(
+        "[Discord] OAuth code exchange failed",
+        tokenResponse.status,
+      );
+      sendText(res, 401, "Discord authorization failed.");
+      return;
+    }
+
+    const userResponse = await fetch("https://discord.com/api/v10/users/@me", {
+      headers: { Authorization: `Bearer ${tokenPayload.access_token}` },
+    });
+    const userPayload = (await userResponse.json()) as {
+      id?: unknown;
+      global_name?: unknown;
+      username?: unknown;
+    };
+    const userId = typeof userPayload.id === "string" ? userPayload.id : "";
+    const displayName =
+      typeof userPayload.global_name === "string"
+        ? userPayload.global_name.trim()
+        : typeof userPayload.username === "string"
+          ? userPayload.username.trim()
+          : "";
+    const gameSessionTicket = createDiscordSessionTicket({
+      id: userId,
+      displayName,
+    });
+    if (!userResponse.ok || !userId || !displayName || !gameSessionTicket) {
+      sendText(res, 401, "Discord user verification failed.");
+      return;
+    }
+
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.end(
+      JSON.stringify({
+        access_token: tokenPayload.access_token,
+        game_session_ticket: gameSessionTicket,
+      }),
+    );
+  } catch (error) {
+    console.error("[Discord] OAuth code exchange failed", error);
+    sendText(res, 500, "Discord authorization failed.");
+  }
+}
+
 async function serveClient(req: IncomingMessage, res: ServerResponse) {
   if (!req.url) {
     sendText(res, 400, "Bad request");
     return;
   }
 
-  if (req.url === "/health") {
+  const requestPath = new URL(req.url, "http://localhost").pathname;
+
+  if (requestPath === "/health") {
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.end(JSON.stringify({ ok: true, rooms: rooms.size }));
     return;
   }
 
-  if (req.url === "/api/bug-report") {
+  if (requestPath === "/api/bug-report") {
     await createTrelloCard(req, res);
+    return;
+  }
+
+  if (requestPath === "/api/discord/token") {
+    await exchangeDiscordCode(req, res);
     return;
   }
 
@@ -525,8 +681,8 @@ async function serveClient(req: IncomingMessage, res: ServerResponse) {
   }
 
   const rawPath = decodeURIComponent(req.url.split("?")[0] || "/");
-  const requestPath = rawPath === "/" ? "/index.html" : rawPath;
-  const candidate = normalize(join(DIST_DIR, requestPath));
+  const clientPath = rawPath === "/" ? "/index.html" : rawPath;
+  const candidate = normalize(join(DIST_DIR, clientPath));
   const indexFile = join(DIST_DIR, "index.html");
 
   if (!candidate.startsWith(DIST_DIR)) {
@@ -625,6 +781,19 @@ wss.on("connection", (socket) => {
       if (msg.type === "join-room") {
         const requestedRoomId = msg.roomId;
         const requestedPlayerIndex = msg.playerIndex;
+        const discordIdentity = discordIdentityFromTicket(
+          msg.discordSessionTicket,
+        );
+
+        if (DISCORD_ACTIVITY_ONLY && !discordIdentity) {
+          socket.send(
+            JSON.stringify({
+              type: "action-rejected",
+              reason: "A valid Discord Activity session is required.",
+            } as ServerMessage),
+          );
+          return;
+        }
 
         if (
           requestedPlayerIndex !== undefined &&
@@ -678,25 +847,28 @@ wss.on("connection", (socket) => {
         room.lastActivity = Date.now();
         const availableSeats = room.players
           .map((player, index) =>
-            !isOpenSocket(player ?? null) &&
-            room.seatPresence[index] === "ai"
+            !isOpenSocket(player ?? null) && room.seatPresence[index] === "ai"
               ? index
               : -1,
           )
           .filter((index) => index >= 0);
 
         const resumeSeat = room.seatSessions.findIndex((session) =>
-          matchesSeatSession(session, msg.playerId, msg.resumeToken),
+          discordIdentity
+            ? session?.discordUserId === discordIdentity.id
+            : matchesSeatSession(session, msg.playerId, msg.resumeToken),
         );
         const targetPlayerIndex =
           resumeSeat >= 0 ? resumeSeat : requestedPlayerIndex;
         const isResume =
-          targetPlayerIndex !== undefined &&
-          matchesSeatSession(
-            room.seatSessions[targetPlayerIndex],
-            msg.playerId,
-            msg.resumeToken,
-          );
+          targetPlayerIndex !== undefined && discordIdentity
+            ? room.seatSessions[targetPlayerIndex]?.discordUserId ===
+              discordIdentity.id
+            : matchesSeatSession(
+                room.seatSessions[targetPlayerIndex],
+                msg.playerId,
+                msg.resumeToken,
+              );
 
         if (targetPlayerIndex !== undefined && !isResume) {
           const existing = room.players[targetPlayerIndex];
@@ -731,13 +903,15 @@ wss.on("connection", (socket) => {
           targetPlayerIndex ??
           availableSeats[Math.floor(Math.random() * availableSeats.length)];
         const previousSession = room.seatSessions[playerIndex];
-        const nextSession = isResume
+        const nextSession: SeatSession = isResume
           ? {
               ...previousSession!,
-              connectionGeneration:
-                previousSession!.connectionGeneration + 1,
+              connectionGeneration: previousSession!.connectionGeneration + 1,
             }
-          : createSeatSession(previousSession?.connectionGeneration ?? 0);
+          : {
+              ...createSeatSession(previousSession?.connectionGeneration ?? 0),
+              discordUserId: discordIdentity?.id,
+            };
         const previousSocket = room.players[playerIndex];
         const disconnectTimer = room.disconnectTimers.get(playerIndex);
         if (disconnectTimer) clearTimeout(disconnectTimer);
@@ -747,7 +921,9 @@ wss.on("connection", (socket) => {
         room.seatPresence[playerIndex] = "connected";
         connectionGeneration = nextSession.connectionGeneration;
         if (!isResume) room.processedActionIds.delete(playerIndex);
-        room.game.players[playerIndex].name = cleanPlayerName(msg.playerName);
+        room.game.players[playerIndex].name = cleanPlayerName(
+          discordIdentity?.displayName ?? msg.playerName,
+        );
         // Reconnecting during round-over can otherwise leave this seat
         // permanently excluded from next-hand readiness (see
         // ensureRequiredSeat), silently breaking their "Next Hand" button.

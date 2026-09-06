@@ -61,6 +61,7 @@ export class GameClient {
     playerIndex: number | undefined,
     playerName: string,
     resumeCredentials?: RoomResumeCredentials,
+    discordSessionTicket?: string,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
@@ -106,6 +107,7 @@ export class GameClient {
             roomId,
             playerIndex,
             playerName,
+            discordSessionTicket,
             playerId: resumeCredentials?.playerId,
             resumeToken: resumeCredentials?.resumeToken,
           });

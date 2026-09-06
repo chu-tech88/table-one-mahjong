@@ -28,6 +28,10 @@ import {
 import { useAuth, displayNameOf } from "./hooks/useAuth";
 import { AuthScreen } from "./components/AuthScreen";
 import {
+  type DiscordActivityContext,
+  useDiscordActivity,
+} from "./discord/useDiscordActivity";
+import {
   isWinningHand,
   concealedKongOptions,
   addedKongOptions,
@@ -329,7 +333,11 @@ const DEFAULT_SERVER_URL =
   (import.meta.env.DEV && typeof window !== "undefined"
     ? `ws://${window.location.hostname}:8080`
     : typeof window !== "undefined"
-      ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`
+      ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}${
+          new URLSearchParams(window.location.search).has("frame_id")
+            ? "/.proxy"
+            : ""
+        }`
       : "ws://localhost:8080");
 
 const difficulties: Record<Difficulty, string> = {
@@ -1131,7 +1139,10 @@ function CompactSeatSets({
 
       const overflowWidth =
         overflowMeasure?.getBoundingClientRect().width ?? 28;
-      const availableWidth = Math.max(0, sets.clientWidth - overflowWidth - gap);
+      const availableWidth = Math.max(
+        0,
+        sets.clientWidth - overflowWidth - gap,
+      );
       let usedWidth = 0;
       let nextVisibleCount = 0;
 
@@ -1151,10 +1162,7 @@ function CompactSeatSets({
     return () => observer.disconnect();
   }, [player.flowers.length, player.melds, totalGroupCount]);
 
-  const visibleMeldCount = Math.min(
-    visibleGroupCount,
-    player.melds.length,
-  );
+  const visibleMeldCount = Math.min(visibleGroupCount, player.melds.length);
   const showFlowers =
     player.flowers.length > 0 && visibleGroupCount > player.melds.length;
   const hiddenTileCount =
@@ -1194,25 +1202,22 @@ function CompactSeatSets({
       {player.flowers.length === 0 && player.melds.length === 0 ? (
         <span className="compact-sets-empty">No reveals</span>
       ) : null}
-      <div className="compact-reveal-measure compact-meld-row" aria-hidden="true">
+      <div
+        className="compact-reveal-measure compact-meld-row"
+        aria-hidden="true"
+      >
         {player.melds.map((meld, index) => (
           <div data-reveal-measure-group key={`${meld.type}-${index}`}>
             <MeldView meld={meld} />
           </div>
         ))}
         {player.flowers.length > 0 ? (
-          <span
-            className="compact-flower-summary"
-            data-reveal-measure-group
-          >
+          <span className="compact-flower-summary" data-reveal-measure-group>
             <span>✿</span>
             <strong>×{player.flowers.length}</strong>
           </span>
         ) : null}
-        <span
-          className="compact-reveal-overflow"
-          data-reveal-overflow-measure
-        >
+        <span className="compact-reveal-overflow" data-reveal-overflow-measure>
           +99
         </span>
       </div>
@@ -1246,7 +1251,9 @@ function CompactOpponentLane({
         onClick={onInspect}
       >
         <span className="compact-opponent-name">
-          {active ? <i className="compact-turn-dot" aria-hidden="true" /> : null}
+          {active ? (
+            <i className="compact-turn-dot" aria-hidden="true" />
+          ) : null}
           <strong>{player.name}</strong>
         </span>
         <span className="compact-opponent-meta">
@@ -1259,9 +1266,7 @@ function CompactOpponentLane({
         </span>
       </button>
       <div className="compact-opponent-content">
-        <div
-          className="compact-discard-lane"
-        >
+        <div className="compact-discard-lane">
           <DiscardRiver
             player={player}
             latestDiscardId={latestDiscardId}
@@ -1531,17 +1536,24 @@ function loadActiveSession() {
 
 function MahjongApp({
   auth,
+  discordActivity,
   analyticsEnabled,
   onAnalyticsConsentChange,
   onOpenLearn,
 }: {
   auth: ReturnType<typeof useAuth>;
+  discordActivity: DiscordActivityContext | null;
   analyticsEnabled: boolean;
   onAnalyticsConsentChange: (enabled: boolean) => void;
   onOpenLearn: () => void;
 }) {
-  const restoredActiveSession = useMemo(loadActiveSession, []);
-  const accountDisplayName = displayNameOf(auth.user);
+  const isDiscordActivity = discordActivity !== null;
+  const restoredActiveSession = useMemo(
+    () => (isDiscordActivity ? undefined : loadActiveSession()),
+    [isDiscordActivity],
+  );
+  const accountDisplayName =
+    discordActivity?.user.displayName ?? displayNameOf(auth.user);
   const signedInPlayerName = accountDisplayName || "Player";
   const [playMode, setPlayMode] = useState<"solo" | "online">(
     restoredActiveSession?.playMode ?? "solo",
@@ -1555,8 +1567,9 @@ function MahjongApp({
   const [activeCoachLesson, setActiveCoachLesson] =
     useState<CoachLesson | null>(null);
   const [learnTopic, setLearnTopic] = useState<LearnTopic | null>(null);
-  const [coachFocusTarget, setCoachFocusTarget] =
-    useState<CoachTarget | null>(null);
+  const [coachFocusTarget, setCoachFocusTarget] = useState<CoachTarget | null>(
+    null,
+  );
   const [coachDetailsOpen, setCoachDetailsOpen] = useState(false);
   const [seenCoachLessons, setSeenCoachLessons] = useState<Set<string>>(
     () => new Set(),
@@ -1580,7 +1593,9 @@ function MahjongApp({
   const [connection, setConnection] = useState(() => ({
     roomId: restoredActiveSession?.roomId ?? createSoloRoomId(),
     playerIndex: restoredActiveSession?.playerIndex ?? 0,
-    playerName: restoredActiveSession?.playerName ?? accountDisplayName,
+    playerName: isDiscordActivity
+      ? signedInPlayerName
+      : (restoredActiveSession?.playerName ?? accountDisplayName),
     joined: Boolean(restoredActiveSession),
   }));
   const [occupiedSeats, setOccupiedSeats] = useState<number[]>([]);
@@ -1608,7 +1623,12 @@ function MahjongApp({
     setAuthOpen(true);
   };
 
-  const accountControls = auth.user ? (
+  const accountControls = isDiscordActivity ? (
+    <div className="round-status">
+      <span>Discord player</span>
+      <strong>{signedInPlayerName}</strong>
+    </div>
+  ) : auth.user ? (
     <button
       className="secondary-button account-button"
       type="button"
@@ -1642,13 +1662,13 @@ function MahjongApp({
   );
 
   useEffect(() => {
-    if (!auth.user || !accountDisplayName) return;
+    if ((!auth.user && !isDiscordActivity) || !accountDisplayName) return;
     setConnection((current) =>
       current.playerName === accountDisplayName
         ? current
         : { ...current, playerName: accountDisplayName },
     );
-  }, [accountDisplayName, auth.user]);
+  }, [accountDisplayName, auth.user, isDiscordActivity]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1691,7 +1711,7 @@ function MahjongApp({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!connection.joined) {
+    if (isDiscordActivity || !connection.joined) {
       window.sessionStorage.removeItem(ACTIVE_SESSION_KEY);
       return;
     }
@@ -1703,7 +1723,7 @@ function MahjongApp({
       savedAt: Date.now(),
     };
     window.sessionStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(snapshot));
-  }, [connection, playMode]);
+  }, [connection, isDiscordActivity, playMode]);
 
   const isLocalReplay = Boolean(activeScenario) || playMode === "solo";
   const gameHook = useGame({
@@ -1712,13 +1732,13 @@ function MahjongApp({
     roomId: connection.roomId,
     playerIndex: connection.playerIndex,
     playerName: connection.playerName.trim() || "Player",
+    discordSessionTicket: discordActivity?.gameSessionTicket,
     enabled: !isLocalReplay && connection.joined,
     initialGame: activeScenario?.game,
     initialRules: activeScenario?.rules,
     initialHouseRules: activeScenario?.houseRules,
     pauseLocalAI: isLocalReplay && activeCoachLesson !== null,
-    chatEnabled:
-      !isLocalReplay && connection.joined && chatViewportSupported,
+    chatEnabled: !isLocalReplay && connection.joined && chatViewportSupported,
   });
   const {
     game,
@@ -1808,6 +1828,7 @@ function MahjongApp({
   };
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [leaveConfirmationOpen, setLeaveConfirmationOpen] = useState(false);
   const [activityHistoryOpen, setActivityHistoryOpen] = useState(false);
   const [mobileActivityExpanded, setMobileActivityExpanded] = useState(true);
   const [inspectedSeat, setInspectedSeat] = useState<number | undefined>();
@@ -1927,10 +1948,7 @@ function MahjongApp({
       trackAnalyticsEvent("hand_started", analyticsContext());
     }
 
-    if (
-      !game.winSummary ||
-      completedAnalyticsHandKey.current === handKey
-    ) {
+    if (!game.winSummary || completedAnalyticsHandKey.current === handKey) {
       return;
     }
 
@@ -1980,10 +1998,10 @@ function MahjongApp({
   const coachHuman = game?.players[SELF];
   const coachCanSelfHu = Boolean(
     game &&
-      coachHuman &&
-      game.phase === "discard" &&
-      game.turn === SELF &&
-      isWinningHand(coachHuman.hand, coachHuman.melds.length),
+    coachHuman &&
+    game.phase === "discard" &&
+    game.turn === SELF &&
+    isWinningHand(coachHuman.hand, coachHuman.melds.length),
   );
   const coachHumanKongs = coachHuman
     ? [
@@ -1995,10 +2013,10 @@ function MahjongApp({
     : [];
   const coachHumanIsWaiting = Boolean(
     game &&
-      coachHuman &&
-      game.phase === "discard" &&
-      game.turn !== SELF &&
-      waitCodesForHand(coachHuman.hand, coachHuman.melds.length).length > 0,
+    coachHuman &&
+    game.phase === "discard" &&
+    game.turn !== SELF &&
+    waitCodesForHand(coachHuman.hand, coachHuman.melds.length).length > 0,
   );
   const coachIsSelfDiscardTurn =
     game?.phase === "discard" && game.turn === SELF;
@@ -2208,7 +2226,10 @@ function MahjongApp({
           details: [
             { label: "Hand direction", text: recommendation.plan },
             { label: "Shape after discard", text: recommendation.impact },
-            { label: "Visible information", text: recommendation.visibilityNote },
+            {
+              label: "Visible information",
+              text: recommendation.visibilityNote,
+            },
           ],
           handShape: recommendation.handShape,
           alternatives: recommendation.alternatives.map((alternative) => ({
@@ -2319,9 +2340,7 @@ function MahjongApp({
     if (!activeCoachLesson || activeCoachLesson.eyebrow !== "Strategy coach") {
       return;
     }
-    setDismissedStrategyHands((current) =>
-      new Set(current).add(coachHandKey),
-    );
+    setDismissedStrategyHands((current) => new Set(current).add(coachHandKey));
     setActiveCoachLesson(null);
     setCoachFocusTarget(null);
     setCoachDetailsOpen(false);
@@ -2354,8 +2373,7 @@ function MahjongApp({
         active_seconds: Math.max(
           0,
           Math.round(
-            (Date.now() -
-              (analyticsSessionStartedAt.current ?? Date.now())) /
+            (Date.now() - (analyticsSessionStartedAt.current ?? Date.now())) /
               1000,
           ),
         ),
@@ -2381,9 +2399,11 @@ function MahjongApp({
       (action) => action.seq > (previousActionSeq.current ?? 0),
     );
     previousActionSeq.current = latestAction.seq;
-    const audibleAction = [...newActions].reverse().find((action) =>
-      ["discard", "claim", "kong", "score-round"].includes(action.type),
-    );
+    const audibleAction = [...newActions]
+      .reverse()
+      .find((action) =>
+        ["discard", "claim", "kong", "score-round"].includes(action.type),
+      );
     if (!audibleAction) return;
     if (audibleAction.type === "discard") playGameSound("discard");
     if (audibleAction.type === "kong") playGameSound("gong");
@@ -2697,7 +2717,8 @@ function MahjongApp({
     : game?.winSummary
       ? [game.winSummary]
       : [];
-  const roundWinnerSeats = game?.winners ?? (game?.winner === undefined ? [] : [game.winner]);
+  const roundWinnerSeats =
+    game?.winners ?? (game?.winner === undefined ? [] : [game.winner]);
   const shownHandSeats = (game?.revealedHands ?? []).filter(
     (seat) => !roundWinnerSeats.includes(seat),
   );
@@ -2707,8 +2728,9 @@ function MahjongApp({
     !roundWinnerSeats.includes(SELF) &&
     !shownHandSeats.includes(SELF);
   const activeWinSummary =
-    roundWinSummaries[Math.min(reviewWinnerIndex, roundWinSummaries.length - 1)] ??
-    game?.winSummary;
+    roundWinSummaries[
+      Math.min(reviewWinnerIndex, roundWinSummaries.length - 1)
+    ] ?? game?.winSummary;
   const winningPlayer =
     activeWinSummary?.winner === undefined
       ? undefined
@@ -2801,12 +2823,7 @@ function MahjongApp({
       setMobileActivityExpanded(false);
     }, 2600);
     return () => window.clearTimeout(timer);
-  }, [
-    game?.actionSeq,
-    game?.round,
-    isSelfDiscardTurn,
-    isSelfClaimTurn,
-  ]);
+  }, [game?.actionSeq, game?.round, isSelfDiscardTurn, isSelfClaimTurn]);
 
   const ruleRows = useMemo(() => [["Base win", "baseWin"]] as const, []);
   const activeRuleCount = houseRules.filter((rule) => rule.enabled).length;
@@ -3157,8 +3174,12 @@ function MahjongApp({
     playMode === "solo" ||
     (playMode === "online" && connection.joined && !hasOtherHumanPlayers);
 
-  const leaveCurrentGame = () => {
-    if (shouldConfirmLeave) {
+  const leaveCurrentGame = (confirmed = false) => {
+    if (shouldConfirmLeave && !confirmed) {
+      if (isDiscordActivity) {
+        setLeaveConfirmationOpen(true);
+        return;
+      }
       const message =
         playMode === "solo"
           ? "Leaving this game will lose your current progress. Continue?"
@@ -3171,6 +3192,7 @@ function MahjongApp({
     if (playMode === "online" && connection.joined) {
       leaveRoom();
     }
+    setLeaveConfirmationOpen(false);
     setSettingsOpen(false);
     setInspectedSeat(undefined);
     setChoosingChi(false);
@@ -3191,240 +3213,252 @@ function MahjongApp({
         </header>
         <section className="game-layout lobby-layout">
           <div className="lobby-entry-stack">
-          <div className="panel-block settings-section join-panel">
-            <div className="lobby-panel-heading">
-              <div>
-                <p className="eyebrow">Play</p>
-                <h2>Join table</h2>
-              </div>
-              <p>
-                {playMode === "solo"
-                  ? "Practice at your pace against three computer players."
-                  : "Create a private room or join family and friends."}
-              </p>
-            </div>
-            <div className="play-mode-control" aria-label="Game mode">
-              <button
-                className={playMode === "solo" ? "active" : ""}
-                type="button"
-                onClick={() => {
-                  setPlayMode("solo");
-                  setConnection((current) => ({
-                    ...current,
-                    roomId: createSoloRoomId(),
-                    playerIndex: 0,
-                  }));
-                }}
-              >
-                Solo vs AI
-              </button>
-              <button
-                className={playMode === "online" ? "active" : ""}
-                type="button"
-                onClick={() => {
-                  setPlayMode("online");
-                  if (guidanceMode === "strategy") {
-                    changeGuidanceMode("off");
-                  }
-                  setConnection((current) => ({
-                    ...current,
-                    roomId: "table-one",
-                    playerIndex: 0,
-                  }));
-                }}
-              >
-                Shared room
-              </button>
-            </div>
-            <div className="join-fields">
-              <label className="lobby-name-field">
-                <span>{auth.user ? "Account display name" : "Your name"}</span>
-                <input
-                  autoComplete="nickname"
-                  maxLength={18}
-                  placeholder={
-                    auth.user ? "From your account" : "Enter your name"
-                  }
-                  readOnly={Boolean(auth.user)}
-                  type="text"
-                  value={auth.user ? signedInPlayerName : connection.playerName}
-                  onChange={(event) =>
-                    auth.user
-                      ? undefined
-                      : setConnection((current) => ({
-                          ...current,
-                          playerName: event.target.value,
-                        }))
-                  }
-                />
-              </label>
-              <div className="seat-assignment-summary">
-                <span>Your seat</span>
-                <strong>
+            <div className="panel-block settings-section join-panel">
+              <div className="lobby-panel-heading">
+                <div>
+                  <p className="eyebrow">Play</p>
+                  <h2>Join table</h2>
+                </div>
+                <p>
                   {playMode === "solo"
-                    ? "East · 3 AI opponents"
-                    : "Assigned randomly"}
-                </strong>
+                    ? "Practice at your pace against three computer players."
+                    : "Create a private room or join family and friends."}
+                </p>
               </div>
-              <div className="guidance-picker">
-                <label className="strategy-coach-toggle">
-                  <span className="strategy-coach-copy">
-                    <strong>Strategy Coach</strong>
-                    <small>
-                      {playMode === "online"
-                        ? "Available in Solo vs AI"
-                        : !coachViewportSupported
-                          ? "Requires a larger screen"
-                        : guidanceMode === "strategy"
-                          ? "On"
-                          : "Off"}
-                    </small>
-                  </span>
-                  <ToggleSwitch
-                    ariaLabel="Strategy Coach"
-                    checked={guidanceMode === "strategy"}
-                    disabled={
-                      playMode === "online" || !coachViewportSupported
+              <div className="play-mode-control" aria-label="Game mode">
+                <button
+                  className={playMode === "solo" ? "active" : ""}
+                  type="button"
+                  onClick={() => {
+                    setPlayMode("solo");
+                    setConnection((current) => ({
+                      ...current,
+                      roomId: createSoloRoomId(),
+                      playerIndex: 0,
+                    }));
+                  }}
+                >
+                  Solo vs AI
+                </button>
+                <button
+                  className={playMode === "online" ? "active" : ""}
+                  type="button"
+                  onClick={() => {
+                    setPlayMode("online");
+                    if (guidanceMode === "strategy") {
+                      changeGuidanceMode("off");
                     }
-                    onChange={(checked) =>
-                      changeGuidanceMode(checked ? "strategy" : "off")
+                    setConnection((current) => ({
+                      ...current,
+                      roomId: "table-one",
+                      playerIndex: 0,
+                    }));
+                  }}
+                >
+                  Shared room
+                </button>
+              </div>
+              <div className="join-fields">
+                <label className="lobby-name-field">
+                  <span>
+                    {isDiscordActivity
+                      ? "Discord display name"
+                      : auth.user
+                        ? "Account display name"
+                        : "Your name"}
+                  </span>
+                  <input
+                    autoComplete="nickname"
+                    maxLength={18}
+                    placeholder={
+                      isDiscordActivity || auth.user
+                        ? "From your account"
+                        : "Enter your name"
+                    }
+                    readOnly={isDiscordActivity || Boolean(auth.user)}
+                    type="text"
+                    value={
+                      isDiscordActivity || auth.user
+                        ? signedInPlayerName
+                        : connection.playerName
+                    }
+                    onChange={(event) =>
+                      isDiscordActivity || auth.user
+                        ? undefined
+                        : setConnection((current) => ({
+                            ...current,
+                            playerName: event.target.value,
+                          }))
                     }
                   />
                 </label>
-                <p>
-                  Explains relevant rules and offers suggestions. Available on
-                  laptop and desktop screens.
-                </p>
-              </div>
-              {playMode === "online" ? (
-                <div className="multiplayer-lobby-section">
-                  <div className="online-room-row">
-                    <label>
-                      <span>Room ID</span>
-                      <input
-                        type="text"
-                        value={connection.roomId}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            joinOnlineRoom();
-                          }
-                        }}
-                        onChange={(event) =>
-                          setConnection((current) => ({
-                            ...current,
-                            roomId: event.target.value.replace(/\s+/g, "-"),
-                          }))
-                        }
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      disabled={!connection.roomId.trim()}
-                      onClick={() => {
-                        if (!connection.playerName.trim()) {
-                          setLobbySeatError(
-                            "Name required before joining or creating a room.",
-                          );
-                          return;
-                        }
-
-                        const roomId = connection.roomId.trim();
-                        const exists = roomList.some(
-                          (room) =>
-                            room.roomId.trim().toLowerCase() ===
-                            roomId.toLowerCase(),
-                        );
-
-                        if (exists) {
-                          setLobbySeatError(
-                            `Room "${roomId}" already exists. Join it instead or choose another room ID.`,
-                          );
-                          return;
-                        }
-
-                        setConnection((current) => ({
-                          ...current,
-                          roomId,
-                          playerIndex: 0,
-                        }));
-                        joinOnlineRoom(roomId);
-                      }}
-                    >
-                      Create room
-                    </button>
-                  </div>
-                  <div className="room-browser">
-                    <div className="room-browser-heading">
-                      <strong>Available rooms</strong>
-                      <span>
-                        {roomList.length === 1
-                          ? "1 room"
-                          : `${roomList.length} rooms`}
-                      </span>
-                    </div>
-                    <div className="room-list">
-                      {roomList.length > 0 ? (
-                        roomList.map((room) => (
-                          <button
-                            key={room.roomId}
-                            type="button"
-                            className={`secondary-button room-list-item ${room.isFull ? "is-full" : ""}`}
-                            onClick={() => joinOnlineRoom(room.roomId)}
-                          >
-                            <span>{room.roomId}</span>
-                            <span className="room-seat-count">
-                              {room.playerCount}/4 seats
-                            </span>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="room-list-empty">
-                          No active rooms right now. Create one to invite
-                          friends.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <p className="room-helper">
-                    Press Enter or choose a room above to join.
+                <div className="seat-assignment-summary">
+                  <span>Your seat</span>
+                  <strong>
+                    {playMode === "solo"
+                      ? "East · 3 AI opponents"
+                      : "Assigned randomly"}
+                  </strong>
+                </div>
+                <div className="guidance-picker">
+                  <label className="strategy-coach-toggle">
+                    <span className="strategy-coach-copy">
+                      <strong>Strategy Coach</strong>
+                      <small>
+                        {playMode === "online"
+                          ? "Available in Solo vs AI"
+                          : !coachViewportSupported
+                            ? "Requires a larger screen"
+                            : guidanceMode === "strategy"
+                              ? "On"
+                              : "Off"}
+                      </small>
+                    </span>
+                    <ToggleSwitch
+                      ariaLabel="Strategy Coach"
+                      checked={guidanceMode === "strategy"}
+                      disabled={
+                        playMode === "online" || !coachViewportSupported
+                      }
+                      onChange={(checked) =>
+                        changeGuidanceMode(checked ? "strategy" : "off")
+                      }
+                    />
+                  </label>
+                  <p>
+                    Explains relevant rules and offers suggestions. Available on
+                    laptop and desktop screens.
                   </p>
                 </div>
+                {playMode === "online" ? (
+                  <div className="multiplayer-lobby-section">
+                    <div className="online-room-row">
+                      <label>
+                        <span>Room ID</span>
+                        <input
+                          type="text"
+                          value={connection.roomId}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              joinOnlineRoom();
+                            }
+                          }}
+                          onChange={(event) =>
+                            setConnection((current) => ({
+                              ...current,
+                              roomId: event.target.value.replace(/\s+/g, "-"),
+                            }))
+                          }
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        disabled={!connection.roomId.trim()}
+                        onClick={() => {
+                          if (!connection.playerName.trim()) {
+                            setLobbySeatError(
+                              "Name required before joining or creating a room.",
+                            );
+                            return;
+                          }
+
+                          const roomId = connection.roomId.trim();
+                          const exists = roomList.some(
+                            (room) =>
+                              room.roomId.trim().toLowerCase() ===
+                              roomId.toLowerCase(),
+                          );
+
+                          if (exists) {
+                            setLobbySeatError(
+                              `Room "${roomId}" already exists. Join it instead or choose another room ID.`,
+                            );
+                            return;
+                          }
+
+                          setConnection((current) => ({
+                            ...current,
+                            roomId,
+                            playerIndex: 0,
+                          }));
+                          joinOnlineRoom(roomId);
+                        }}
+                      >
+                        Create room
+                      </button>
+                    </div>
+                    <div className="room-browser">
+                      <div className="room-browser-heading">
+                        <strong>Available rooms</strong>
+                        <span>
+                          {roomList.length === 1
+                            ? "1 room"
+                            : `${roomList.length} rooms`}
+                        </span>
+                      </div>
+                      <div className="room-list">
+                        {roomList.length > 0 ? (
+                          roomList.map((room) => (
+                            <button
+                              key={room.roomId}
+                              type="button"
+                              className={`secondary-button room-list-item ${room.isFull ? "is-full" : ""}`}
+                              onClick={() => joinOnlineRoom(room.roomId)}
+                            >
+                              <span>{room.roomId}</span>
+                              <span className="room-seat-count">
+                                {room.playerCount}/4 seats
+                              </span>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="room-list-empty">
+                            No active rooms right now. Create one to invite
+                            friends.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <p className="room-helper">
+                      Press Enter or choose a room above to join.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+              {playMode === "online" && lobbySeatError ? (
+                <p className="lobby-error" role="alert">
+                  {lobbySeatError}
+                </p>
+              ) : null}
+              {playMode === "solo" ? (
+                <button
+                  className="full-width-button lobby-primary-action"
+                  type="button"
+                  disabled={!connection.playerName.trim()}
+                  onClick={() => {
+                    setActiveScenario(null);
+                    setScenarioFeedback(null);
+                    setActiveCoachLesson(null);
+                    setCoachFocusTarget(null);
+                    setSeenCoachLessons(new Set());
+                    setDismissedStrategyHands(new Set());
+                    newHand(0, true);
+                    setConnection((current) => ({ ...current, joined: true }));
+                  }}
+                >
+                  Start game
+                </button>
               ) : null}
             </div>
-            {playMode === "online" && lobbySeatError ? (
-              <p className="lobby-error" role="alert">
-                {lobbySeatError}
-              </p>
-            ) : null}
-            {playMode === "solo" ? (
-              <button
-                className="full-width-button lobby-primary-action"
-                type="button"
-                disabled={!connection.playerName.trim()}
-                onClick={() => {
-                  setActiveScenario(null);
-                  setScenarioFeedback(null);
-                  setActiveCoachLesson(null);
-                  setCoachFocusTarget(null);
-                  setSeenCoachLessons(new Set());
-                  setDismissedStrategyHands(new Set());
-                  newHand(0, true);
-                  setConnection((current) => ({ ...current, joined: true }));
-                }}
-              >
-                Start game
-              </button>
-            ) : null}
-          </div>
-          <button
-            className="lobby-learn-link"
-            type="button"
-            onClick={onOpenLearn}
-          >
-            Learn how Taiwanese Mahjong works
-          </button>
+            <button
+              className="lobby-learn-link"
+              type="button"
+              onClick={onOpenLearn}
+            >
+              Learn how Taiwanese Mahjong works
+            </button>
           </div>
         </section>
         {authOpen ? (
@@ -3475,7 +3509,7 @@ function MahjongApp({
                   className="secondary-button"
                   style={{ marginTop: "1rem", maxWidth: "240px" }}
                   type="button"
-                  onClick={leaveCurrentGame}
+                  onClick={() => leaveCurrentGame()}
                 >
                   Leave game
                 </button>
@@ -3735,7 +3769,9 @@ function MahjongApp({
                 aria-label="Open settings"
                 onClick={() => setSettingsOpen(true)}
               >
-                <span className="gear-glyph" aria-hidden="true">{"⚙︎"}</span>
+                <span className="gear-glyph" aria-hidden="true">
+                  {"⚙︎"}
+                </span>
               </button>
             </div>
           </div>
@@ -3880,9 +3916,7 @@ function MahjongApp({
                 <span>{human.score} pts</span>
               </div>
             </div>
-            <div
-              className="compact-self-discard-lane"
-            >
+            <div className="compact-self-discard-lane">
               <span className="compact-self-discard-label">Your discards</span>
               <DiscardRiver
                 player={{ ...human, name: humanDisplayName }}
@@ -3944,11 +3978,13 @@ function MahjongApp({
                         <div className="coach-hand-shape">
                           <div className="coach-hand-shape-heading">
                             <span>
-                              One useful hand shape if you follow this recommendation
+                              One useful hand shape if you follow this
+                              recommendation
                             </span>
                             {activeCoachLesson.handShape.revealedSets > 0 ? (
                               <small>
-                                {activeCoachLesson.handShape.revealedSets} revealed
+                                {activeCoachLesson.handShape.revealedSets}{" "}
+                                revealed
                                 {activeCoachLesson.handShape.revealedSets === 1
                                   ? " set"
                                   : " sets"}{" "}
@@ -4011,7 +4047,8 @@ function MahjongApp({
                   {activeCoachLesson.target &&
                   (!["drawn-tile", "suggested-tile"].includes(
                     activeCoachLesson.target,
-                  ) || activeCoachLesson.tileId) ? (
+                  ) ||
+                    activeCoachLesson.tileId) ? (
                     <button
                       className="secondary-action"
                       type="button"
@@ -4033,7 +4070,9 @@ function MahjongApp({
                     <button
                       className="secondary-action"
                       type="button"
-                      onClick={() => setLearnTopic(activeCoachLesson.learnTopic!)}
+                      onClick={() =>
+                        setLearnTopic(activeCoachLesson.learnTopic!)
+                      }
                     >
                       Learn this concept
                     </button>
@@ -4158,7 +4197,9 @@ function MahjongApp({
             dealer={game.dealer === leftSeat}
             dealerStreak={game.dealerStreak}
             ready={game.declaredReady?.includes(leftSeat) ?? false}
-            reveal={game.winners?.includes(leftSeat) ?? game.winner === leftSeat}
+            reveal={
+              game.winners?.includes(leftSeat) ?? game.winner === leftSeat
+            }
             position="left"
             onInspect={() => setInspectedSeat(leftSeat)}
           />
@@ -4202,7 +4243,9 @@ function MahjongApp({
             dealer={game.dealer === rightSeat}
             dealerStreak={game.dealerStreak}
             ready={game.declaredReady?.includes(rightSeat) ?? false}
-            reveal={game.winners?.includes(rightSeat) ?? game.winner === rightSeat}
+            reveal={
+              game.winners?.includes(rightSeat) ?? game.winner === rightSeat
+            }
             position="right"
             onInspect={() => setInspectedSeat(rightSeat)}
           />
@@ -4217,7 +4260,10 @@ function MahjongApp({
       </section>
 
       {learnTopic ? (
-        <div className="modal-backdrop learn-overlay-backdrop" role="presentation">
+        <div
+          className="modal-backdrop learn-overlay-backdrop"
+          role="presentation"
+        >
           <section
             className="learn-overlay"
             role="dialog"
@@ -4242,7 +4288,10 @@ function MahjongApp({
           isSelf={inspectedSeat === SELF}
           dealer={game.dealer === inspectedSeat}
           ready={game.declaredReady?.includes(inspectedSeat) ?? false}
-          reveal={game.winners?.includes(inspectedSeat) ?? game.winner === inspectedSeat}
+          reveal={
+            game.winners?.includes(inspectedSeat) ??
+            game.winner === inspectedSeat
+          }
           onClose={() => setInspectedSeat(undefined)}
         />
       ) : null}
@@ -4325,7 +4374,7 @@ function MahjongApp({
               <button
                 className="settings-action settings-action-leave"
                 type="button"
-                onClick={leaveCurrentGame}
+                onClick={() => leaveCurrentGame()}
               >
                 <strong>Leave game</strong>
                 <span>Return to the lobby</span>
@@ -4335,103 +4384,105 @@ function MahjongApp({
             <div className="settings-scroll">
               <div className="settings-stack">
                 <section className="panel-block settings-section">
-                <h2>Players and style</h2>
-                {game.players.map((player, index) => (
-                  <div className="profile-row" key={index}>
-                    <div className="profile-details">
-                      <label>
-                        <span>Name</span>
-                        <input
-                          aria-label={`${player.wind} player name`}
-                          maxLength={18}
-                          type="text"
-                          value={player.name}
+                  <h2>Players and style</h2>
+                  {game.players.map((player, index) => (
+                    <div className="profile-row" key={index}>
+                      <div className="profile-details">
+                        <label>
+                          <span>Name</span>
+                          <input
+                            aria-label={`${player.wind} player name`}
+                            maxLength={18}
+                            type="text"
+                            value={player.name}
+                            onChange={(event) =>
+                              updatePlayerName(index, event.target.value)
+                            }
+                          />
+                        </label>
+                        <span>
+                          {player.wind} · {player.score} pts
+                        </span>
+                      </div>
+                      {player.controller === "human" ? (
+                        <span className="profile-badge">
+                          {index === SELF ? "You · Human" : "Human"}
+                        </span>
+                      ) : (
+                        <select
+                          value={player.difficulty}
                           onChange={(event) =>
-                            updatePlayerName(index, event.target.value)
+                            updateDifficulty(
+                              index,
+                              event.target.value as Difficulty,
+                            )
                           }
-                        />
-                      </label>
-                      <span>
-                        {player.wind} · {player.score} pts
-                      </span>
+                        >
+                          <option value="calm">Calm</option>
+                          <option value="balanced">Balanced</option>
+                          <option value="sharp">Sharp</option>
+                        </select>
+                      )}
                     </div>
-                    {player.controller === "human" ? (
-                      <span className="profile-badge">
-                        {index === SELF ? "You · Human" : "Human"}
-                      </span>
-                    ) : (
-                      <select
-                        value={player.difficulty}
-                        onChange={(event) =>
-                          updateDifficulty(
-                            index,
-                            event.target.value as Difficulty,
-                          )
-                        }
-                      >
-                        <option value="calm">Calm</option>
-                        <option value="balanced">Balanced</option>
-                        <option value="sharp">Sharp</option>
-                      </select>
-                    )}
-                  </div>
-                ))}
-                <div className="sound-setting">
-                  <strong>Game sounds</strong>
-                  <ToggleSwitch
-                    ariaLabel="Game sounds"
-                    checked={soundEnabled}
-                    onChange={setSoundEnabled}
-                  />
-                </div>
-                <div className="in-game-guidance-setting">
-                  <span>
-                    <strong>Strategy Coach</strong>
-                    <small>
-                      {playMode === "online"
-                        ? "Available in Solo vs AI"
-                        : !coachViewportSupported
-                          ? "Available on laptop and desktop screens."
-                          : "Show rules guidance and private discard suggestions on every hand."}
-                    </small>
-                  </span>
-                  <span className="guidance-setting-controls">
+                  ))}
+                  <div className="sound-setting">
+                    <strong>Game sounds</strong>
                     <ToggleSwitch
-                      ariaLabel="Strategy Coach"
-                      checked={guidanceMode === "strategy"}
-                      disabled={
-                        playMode === "online" || !coachViewportSupported
-                      }
-                      onChange={(checked) =>
-                        changeGuidanceMode(checked ? "strategy" : "off")
-                      }
+                      ariaLabel="Game sounds"
+                      checked={soundEnabled}
+                      onChange={setSoundEnabled}
                     />
-                    {hiddenCoachLessons.size > 0 ? (
-                      <button
-                        className="text-button"
-                        type="button"
-                        onClick={() => {
-                          setHiddenCoachLessons(new Set());
-                          setSeenCoachLessons(new Set());
-                          window.localStorage.removeItem(HIDDEN_LESSONS_KEY);
-                        }}
-                      >
-                        Restore hidden tips
-                      </button>
-                    ) : null}
-                  </span>
-                </div>
-                <div className="sound-setting">
-                  <span>
-                    <strong>Usage analytics</strong>
-                    <small>No player names or room names are collected.</small>
-                  </span>
-                  <ToggleSwitch
-                    ariaLabel="Usage analytics"
-                    checked={analyticsEnabled}
-                    onChange={onAnalyticsConsentChange}
-                  />
-                </div>
+                  </div>
+                  <div className="in-game-guidance-setting">
+                    <span>
+                      <strong>Strategy Coach</strong>
+                      <small>
+                        {playMode === "online"
+                          ? "Available in Solo vs AI"
+                          : !coachViewportSupported
+                            ? "Available on laptop and desktop screens."
+                            : "Show rules guidance and private discard suggestions on every hand."}
+                      </small>
+                    </span>
+                    <span className="guidance-setting-controls">
+                      <ToggleSwitch
+                        ariaLabel="Strategy Coach"
+                        checked={guidanceMode === "strategy"}
+                        disabled={
+                          playMode === "online" || !coachViewportSupported
+                        }
+                        onChange={(checked) =>
+                          changeGuidanceMode(checked ? "strategy" : "off")
+                        }
+                      />
+                      {hiddenCoachLessons.size > 0 ? (
+                        <button
+                          className="text-button"
+                          type="button"
+                          onClick={() => {
+                            setHiddenCoachLessons(new Set());
+                            setSeenCoachLessons(new Set());
+                            window.localStorage.removeItem(HIDDEN_LESSONS_KEY);
+                          }}
+                        >
+                          Restore hidden tips
+                        </button>
+                      ) : null}
+                    </span>
+                  </div>
+                  <div className="sound-setting">
+                    <span>
+                      <strong>Usage analytics</strong>
+                      <small>
+                        No player names or room names are collected.
+                      </small>
+                    </span>
+                    <ToggleSwitch
+                      ariaLabel="Usage analytics"
+                      checked={analyticsEnabled}
+                      onChange={onAnalyticsConsentChange}
+                    />
+                  </div>
                 </section>
 
                 <details className="settings-disclosure rules-disclosure">
@@ -4445,139 +4496,144 @@ function MahjongApp({
                     </span>
                   </summary>
                   <div className="settings-disclosure-body settings-section rules-section">
-                <div className="scoring-rules-grid">
-                  {ruleRows.map(([label, key]) => (
-                    <label className="rule-row" key={key}>
-                      <span>{label}</span>
-                      <input
-                        min="0"
-                        type="number"
-                        value={rules[key]}
-                        onChange={(event) =>
-                          setRules({
-                            ...rules,
-                            [key]: Math.max(0, Number(event.target.value)),
-                          })
-                        }
-                      />
-                    </label>
-                  ))}
-                </div>
-                <h3>Taiwanese scoring table</h3>
-                <p className="settings-note">
-                  Bonus conditions from the 2026 table are detected from the
-                  winning hand and added to the 4-point base. Every condition
-                  starts on; switch off any item your table does not use.
-                </p>
-                <div className="house-rule-list">
-                  {houseRules.map((rule) => (
-                    <div
-                      className="house-rule-card"
-                      key={rule.id}
-                      title={rule.description}
-                    >
-                      <div className="house-rule-toggle">
-                        <ToggleSwitch
-                          ariaLabel={`${rule.name} scoring rule`}
-                          checked={rule.enabled}
-                          onChange={(checked) =>
-                            updateHouseRule(rule.id, rule.points, checked)
-                          }
-                        />
-                        <span>
-                          <strong>{rule.name}</strong>
-                          <small>
-                            {rule.category ?? "Custom"} · {rule.description}
-                          </small>
-                        </span>
-                      </div>
-                      <div className="house-rule-actions">
-                        <label>
-                          <span>Pts</span>
+                    <div className="scoring-rules-grid">
+                      {ruleRows.map(([label, key]) => (
+                        <label className="rule-row" key={key}>
+                          <span>{label}</span>
                           <input
                             min="0"
                             type="number"
-                            value={rule.points}
+                            value={rules[key]}
                             onChange={(event) =>
-                              updateHouseRule(
-                                rule.id,
-                                Math.max(0, Number(event.target.value)),
-                                rule.enabled,
-                              )
+                              setRules({
+                                ...rules,
+                                [key]: Math.max(0, Number(event.target.value)),
+                              })
                             }
                           />
                         </label>
-                        {!rule.detector ? (
-                          <button
-                            className="text-button"
-                            type="button"
-                            onClick={() => removeHouseRule(rule.id)}
-                          >
-                            Remove
-                          </button>
-                        ) : null}
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div className="house-rule-form">
-                  <input
-                    aria-label="House scoring name"
-                    placeholder="Name"
-                    type="text"
-                    value={houseDraft.name}
-                    onChange={(event) =>
-                      setHouseDraft((current) => ({
-                        ...current,
-                        name: event.target.value,
-                      }))
-                    }
-                  />
-                  <textarea
-                    aria-label="House scoring win condition"
-                    placeholder="Describe the win condition"
-                    value={houseDraft.description}
-                    onChange={(event) =>
-                      setHouseDraft((current) => ({
-                        ...current,
-                        description: event.target.value,
-                      }))
-                    }
-                  />
-                  <label>
-                    <span>Points</span>
-                    <input
-                      min="0"
-                      type="number"
-                      value={houseDraft.points}
-                      onChange={(event) =>
-                        setHouseDraft((current) => ({
-                          ...current,
-                          points: Math.max(0, Number(event.target.value)),
-                        }))
-                      }
-                    />
-                  </label>
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={() => {
-                      if (
-                        houseDraft.name.trim() &&
-                        houseDraft.description.trim()
-                      ) {
-                        addHouseRule(
-                          houseDraft.name,
-                          houseDraft.description,
-                          houseDraft.points,
-                        );
-                        setHouseDraft({ name: "", description: "", points: 1 });
-                      }
-                    }}
-                  >
-                    Add house item
-                  </button>
-                </div>
+                    <h3>Taiwanese scoring table</h3>
+                    <p className="settings-note">
+                      Bonus conditions from the 2026 table are detected from the
+                      winning hand and added to the 4-point base. Every
+                      condition starts on; switch off any item your table does
+                      not use.
+                    </p>
+                    <div className="house-rule-list">
+                      {houseRules.map((rule) => (
+                        <div
+                          className="house-rule-card"
+                          key={rule.id}
+                          title={rule.description}
+                        >
+                          <div className="house-rule-toggle">
+                            <ToggleSwitch
+                              ariaLabel={`${rule.name} scoring rule`}
+                              checked={rule.enabled}
+                              onChange={(checked) =>
+                                updateHouseRule(rule.id, rule.points, checked)
+                              }
+                            />
+                            <span>
+                              <strong>{rule.name}</strong>
+                              <small>
+                                {rule.category ?? "Custom"} · {rule.description}
+                              </small>
+                            </span>
+                          </div>
+                          <div className="house-rule-actions">
+                            <label>
+                              <span>Pts</span>
+                              <input
+                                min="0"
+                                type="number"
+                                value={rule.points}
+                                onChange={(event) =>
+                                  updateHouseRule(
+                                    rule.id,
+                                    Math.max(0, Number(event.target.value)),
+                                    rule.enabled,
+                                  )
+                                }
+                              />
+                            </label>
+                            {!rule.detector ? (
+                              <button
+                                className="text-button"
+                                type="button"
+                                onClick={() => removeHouseRule(rule.id)}
+                              >
+                                Remove
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="house-rule-form">
+                      <input
+                        aria-label="House scoring name"
+                        placeholder="Name"
+                        type="text"
+                        value={houseDraft.name}
+                        onChange={(event) =>
+                          setHouseDraft((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                      />
+                      <textarea
+                        aria-label="House scoring win condition"
+                        placeholder="Describe the win condition"
+                        value={houseDraft.description}
+                        onChange={(event) =>
+                          setHouseDraft((current) => ({
+                            ...current,
+                            description: event.target.value,
+                          }))
+                        }
+                      />
+                      <label>
+                        <span>Points</span>
+                        <input
+                          min="0"
+                          type="number"
+                          value={houseDraft.points}
+                          onChange={(event) =>
+                            setHouseDraft((current) => ({
+                              ...current,
+                              points: Math.max(0, Number(event.target.value)),
+                            }))
+                          }
+                        />
+                      </label>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() => {
+                          if (
+                            houseDraft.name.trim() &&
+                            houseDraft.description.trim()
+                          ) {
+                            addHouseRule(
+                              houseDraft.name,
+                              houseDraft.description,
+                              houseDraft.points,
+                            );
+                            setHouseDraft({
+                              name: "",
+                              description: "",
+                              points: 1,
+                            });
+                          }
+                        }}
+                      >
+                        Add house item
+                      </button>
+                    </div>
                   </div>
                 </details>
 
@@ -4585,7 +4641,9 @@ function MahjongApp({
                   <summary>
                     <span className="settings-disclosure-copy">
                       <strong>Support and diagnostics</strong>
-                      <small>Report a problem or import a saved game state</small>
+                      <small>
+                        Report a problem or import a saved game state
+                      </small>
                     </span>
                   </summary>
                   <div className="settings-disclosure-body settings-section">
@@ -4639,6 +4697,40 @@ function MahjongApp({
         </div>
       ) : null}
 
+      {leaveConfirmationOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="leave-confirmation-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="leave-confirmation-title"
+          >
+            <p className="eyebrow">Leave table</p>
+            <h2 id="leave-confirmation-title">Leave this game?</h2>
+            <p>
+              You are the last player at this table. Leaving will reset this
+              game and return you to the lobby.
+            </p>
+            <div className="leave-confirmation-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setLeaveConfirmationOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="full-width-button"
+                type="button"
+                onClick={() => leaveCurrentGame(true)}
+              >
+                Leave game
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {game.winSummary && showWinModal ? (
         <div className="modal-backdrop win-backdrop" role="presentation">
           <section
@@ -4658,12 +4750,21 @@ function MahjongApp({
                   <p className="eyebrow">Hand complete</p>
                   <h2 id="win-title">
                     {roundWinSummaries.length > 1
-                      ? `${roundWinSummaries.map((summary) => summary.winner === SELF ? "You" : summary.winner === undefined ? "" : seatName(summary.winner)).filter(Boolean).join(" and ")} win`
+                      ? `${roundWinSummaries
+                          .map((summary) =>
+                            summary.winner === SELF
+                              ? "You"
+                              : summary.winner === undefined
+                                ? ""
+                                : seatName(summary.winner),
+                          )
+                          .filter(Boolean)
+                          .join(" and ")} win`
                       : game.winSummary.winner === undefined
-                      ? game.winSummary.title
-                      : game.winSummary.winner === SELF
-                        ? "You win"
-                        : `${seatName(game.winSummary.winner)} wins`}
+                        ? game.winSummary.title
+                        : game.winSummary.winner === SELF
+                          ? "You win"
+                          : `${seatName(game.winSummary.winner)} wins`}
                   </h2>
                 </div>
               </div>
@@ -4696,9 +4797,11 @@ function MahjongApp({
                 <div className="win-total">
                   <span>{activeWinSummary?.points ?? 0} points</span>
                   <strong>
-                    +{roundWinSummaries.length > 1
-                      ? activeWinSummary?.total ?? 0
-                      : animatedWinTotal} total
+                    +
+                    {roundWinSummaries.length > 1
+                      ? (activeWinSummary?.total ?? 0)
+                      : animatedWinTotal}{" "}
+                    total
                   </strong>
                 </div>
               ) : null}
@@ -4768,8 +4871,7 @@ function MahjongApp({
                     ))}
                   </div>
                 ) : null}
-                {winStage >= 2 &&
-                scoreDeltas.some((delta) => delta !== 0) ? (
+                {winStage >= 2 && scoreDeltas.some((delta) => delta !== 0) ? (
                   <div className="score-transfers" aria-label="Point transfers">
                     <strong>Point transfer</strong>
                     <div>
@@ -4803,7 +4905,9 @@ function MahjongApp({
                     Show Your Hand
                   </button>
                 ) : playMode === "online" && shownHandSeats.includes(SELF) ? (
-                  <p className="shown-hand-confirmation">Your hand is shown to the table.</p>
+                  <p className="shown-hand-confirmation">
+                    Your hand is shown to the table.
+                  </p>
                 ) : null}
                 <button
                   className="full-width-button"
@@ -4896,17 +5000,15 @@ function learnTile(code: string, copy: number) {
   return { ...tilePrototypeFromCode(code), id: `learn-${code}-${copy}` };
 }
 
-function LearningTileRow({
-  codes,
-  label,
-}: {
-  codes: string[];
-  label: string;
-}) {
+function LearningTileRow({ codes, label }: { codes: string[]; label: string }) {
   return (
     <div className="learn-tile-example" aria-label={label}>
       {codes.map((code, index) => (
-        <TileView key={`${code}-${index}`} tile={learnTile(code, index)} disabled />
+        <TileView
+          key={`${code}-${index}`}
+          tile={learnTile(code, index)}
+          disabled
+        />
       ))}
     </div>
   );
@@ -4955,15 +5057,17 @@ function LearningReference({
       </header>
 
       <nav className="learn-nav" aria-label="Learning topics">
-        {([
-          ["objective", "Start here"],
-          ["turn", "Your turn"],
-          ["chi", "Chi"],
-          ["pong", "Pong"],
-          ["gong", "Gong"],
-          ["hu", "Hu"],
-          ["scoring", "Scoring"],
-        ] as Array<[LearnTopic, string]>).map(([topic, label]) => (
+        {(
+          [
+            ["objective", "Start here"],
+            ["turn", "Your turn"],
+            ["chi", "Chi"],
+            ["pong", "Pong"],
+            ["gong", "Gong"],
+            ["hu", "Hu"],
+            ["scoring", "Scoring"],
+          ] as Array<[LearnTopic, string]>
+        ).map(([topic, label]) => (
           <button key={topic} type="button" onClick={() => jumpTo(topic)}>
             {label}
           </button>
@@ -4997,12 +5101,23 @@ function LearningReference({
           <LearningTileRow
             label="Example winning hand structure"
             codes={[
-              "D2", "D3", "D4",
-              "B3", "B4", "B5",
-              "C6", "C7", "C8",
-              "W1", "W1", "W1",
-              "G2", "G2", "G2",
-              "D9", "D9",
+              "D2",
+              "D3",
+              "D4",
+              "B3",
+              "B4",
+              "B5",
+              "C6",
+              "C7",
+              "C8",
+              "W1",
+              "W1",
+              "W1",
+              "G2",
+              "G2",
+              "G2",
+              "D9",
+              "D9",
             ]}
           />
         </section>
@@ -5012,9 +5127,9 @@ function LearningReference({
           <h2>Three numbered suits, honor tiles, and flowers</h2>
           <p>
             Dots, Bamboo, and Characters run from one through nine. Winds and
-            Dragons are collectively called honor tiles. Honor tiles cannot
-            form a Chi, but matching tiles can form a Pong, Gong, or pair.
-            Flowers are revealed immediately and replaced from the wall.
+            Dragons are collectively called honor tiles. Honor tiles cannot form
+            a Chi, but matching tiles can form a Pong, Gong, or pair. Flowers
+            are revealed immediately and replaced from the wall.
           </p>
           <LearningTileRow
             label="Dots, Bamboo, Characters, Wind, and Dragon tiles"
@@ -5040,7 +5155,10 @@ function LearningReference({
             consecutive tiles in the same suit. Chi is lower priority than Hu,
             Pong, and Gong.
           </p>
-          <LearningTileRow label="Chi with three, four, and five Dots" codes={["D3", "D4", "D5"]} />
+          <LearningTileRow
+            label="Chi with three, four, and five Dots"
+            codes={["D3", "D4", "D5"]}
+          />
         </section>
 
         <section data-learn-topic="pong">
@@ -5050,7 +5168,10 @@ function LearningReference({
             Any player may claim the latest discard to complete three matching
             tiles. The set is revealed, and the claiming player discards next.
           </p>
-          <LearningTileRow label="Pong with three seven Bamboo tiles" codes={["B7", "B7", "B7"]} />
+          <LearningTileRow
+            label="Pong with three seven Bamboo tiles"
+            codes={["B7", "B7", "B7"]}
+          />
         </section>
 
         <section data-learn-topic="gong">
@@ -5061,7 +5182,10 @@ function LearningReference({
             replacement tile before discarding. Available Gong choices appear
             only when they are legal.
           </p>
-          <LearningTileRow label="Gong with four Red Dragons" codes={["G1", "G1", "G1", "G1"]} />
+          <LearningTileRow
+            label="Gong with four Red Dragons"
+            codes={["G1", "G1", "G1", "G1"]}
+          />
         </section>
 
         <section data-learn-topic="hu">
@@ -5072,7 +5196,10 @@ function LearningReference({
             five sets of three tiles and a pair. More than one player may Hu on
             the same discard; the discarder pays each winner independently.
           </p>
-          <LearningTileRow label="Pair of White Dragons completing a hand" codes={["G3", "G3"]} />
+          <LearningTileRow
+            label="Pair of White Dragons completing a hand"
+            codes={["G3", "G3"]}
+          />
         </section>
 
         <section data-learn-topic="dealer">
@@ -5089,11 +5216,11 @@ function LearningReference({
           <p className="eyebrow">Scoring basics</p>
           <h2>Base points plus the patterns you made</h2>
           <p>
-            Every Hu begins with the table's base win. Enabled bonuses add points
-            for patterns such as self-draw, flowers, dealer status, concealed
-            sets, honor sets, and higher-value hands. An honor set is a Pong or
-            Gong of matching Wind or Dragon tiles. Open Settings to audit every
-            enabled rule and its description.
+            Every Hu begins with the table's base win. Enabled bonuses add
+            points for patterns such as self-draw, flowers, dealer status,
+            concealed sets, honor sets, and higher-value hands. An honor set is
+            a Pong or Gong of matching Wind or Dragon tiles. Open Settings to
+            audit every enabled rule and its description.
           </p>
         </section>
 
@@ -5102,7 +5229,10 @@ function LearningReference({
           <h2>Three quick checks</h2>
           <details>
             <summary>Who may Chi a discarded 5 Bamboo?</summary>
-            <p>Only the next player in turn order, and only with a legal sequence such as 3-4-5 or 4-5-6.</p>
+            <p>
+              Only the next player in turn order, and only with a legal sequence
+              such as 3-4-5 or 4-5-6.
+            </p>
           </details>
           <details>
             <summary>What happens after a Gong?</summary>
@@ -5110,7 +5240,10 @@ function LearningReference({
           </details>
           <details>
             <summary>Can two players Hu on the same discard?</summary>
-            <p>Yes. Each eligible player chooses Hu or Pass, and the discarder pays every winner independently.</p>
+            <p>
+              Yes. Each eligible player chooses Hu or Pass, and the discarder
+              pays every winner independently.
+            </p>
           </details>
         </section>
 
@@ -5135,6 +5268,7 @@ export default function Home() {
       : "game",
   );
   const auth = useAuth();
+  const discordActivity = useDiscordActivity();
   const [analyticsConsent, setAnalyticsConsentState] =
     useState<AnalyticsConsent>(() => getAnalyticsConsent());
 
@@ -5163,7 +5297,11 @@ export default function Home() {
     setPage(nextPage);
   };
 
-  if (!ready || auth.status === "loading") {
+  if (
+    !ready ||
+    auth.status === "loading" ||
+    discordActivity.status === "loading"
+  ) {
     return (
       <main className="app-shell">
         <header className="topbar">
@@ -5177,6 +5315,28 @@ export default function Home() {
     );
   }
 
+  if (discordActivity.status === "error") {
+    return (
+      <main className="app-shell">
+        <header className="topbar">
+          <h1>Table One Mahjong</h1>
+          <div className="round-status">
+            <span>Discord connection</span>
+            <strong>Unable to start</strong>
+          </div>
+        </header>
+        <section className="game-layout">
+          <div style={{ textAlign: "center", padding: "2rem" }}>
+            <p>Discord Activity initialization failed.</p>
+            <p style={{ fontSize: "0.9rem", color: "#666" }}>
+              {discordActivity.error}
+            </p>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   if (page === "learn") {
     return <LearningReference onClose={() => navigate("game")} />;
   }
@@ -5185,6 +5345,9 @@ export default function Home() {
     <>
       <MahjongApp
         auth={auth}
+        discordActivity={
+          discordActivity.status === "ready" ? discordActivity.context : null
+        }
         analyticsEnabled={analyticsConsent === "granted"}
         onAnalyticsConsentChange={updateAnalyticsConsent}
         onOpenLearn={() => navigate("learn")}

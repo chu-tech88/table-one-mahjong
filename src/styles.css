@@ -2697,6 +2697,37 @@ textarea {
   box-shadow: 0 28px 70px rgba(24, 30, 24, 0.28);
 }
 
+.leave-confirmation-modal {
+  width: min(420px, 100%);
+  padding: 20px;
+  border: 1px solid rgba(45, 92, 66, 0.2);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 28px 70px rgba(24, 30, 24, 0.28);
+}
+
+.leave-confirmation-modal h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.leave-confirmation-modal p:not(.eyebrow) {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.leave-confirmation-actions {
+  display: flex;
+  justify-content: end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.leave-confirmation-actions .full-width-button {
+  width: auto;
+}
+
 .settings-modal {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
@@ -4307,7 +4338,9 @@ textarea {
   border: 1px solid #aeb6ac;
   border-radius: 999px;
   background: #cbd0c9;
-  transition: background 160ms ease, border-color 160ms ease;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
 }
 
 .toggle-switch > span::after {
@@ -8238,11 +8271,10 @@ textarea {
     --compact-tile-h: clamp(36px, 5.55cqw, 46px);
     --hand-tile-w: clamp(34px, 5.25cqw, 42px);
     --hand-tile-h: clamp(48px, 7.25cqw, 58px);
-    grid-template-rows: 40px clamp(156px, 19svh, 190px) minmax(180px, 1fr) clamp(
-        320px,
-        35svh,
-        360px
-      );
+    grid-template-rows: 40px clamp(156px, 19svh, 190px) minmax(
+        180px,
+        1fr
+      ) clamp(320px, 35svh, 360px);
     gap: 6px;
     padding: 7px 10px max(10px, env(safe-area-inset-bottom, 0px));
   }
@@ -8390,8 +8422,7 @@ textarea {
     position: relative;
     height: 100svh;
     background:
-      linear-gradient(rgba(6, 55, 24, 0.76), rgba(5, 35, 16, 0.9)),
-      #20723f;
+      linear-gradient(rgba(6, 55, 24, 0.76), rgba(5, 35, 16, 0.9)), #20723f;
   }
 
   .game-layout > .table {
@@ -8410,8 +8441,7 @@ textarea {
     gap: 10px;
     padding: 28px;
     background:
-      linear-gradient(rgba(7, 57, 25, 0.9), rgba(4, 34, 15, 0.96)),
-      #20723f;
+      linear-gradient(rgba(7, 57, 25, 0.9), rgba(4, 34, 15, 0.96)), #20723f;
     color: #fff7d5;
     text-align: center;
   }
@@ -8614,7 +8644,9 @@ textarea {
     transform: none;
   }
 
-  .claim-decision-active .mobile-activity-ribbon.is-expanded .mobile-activity-tile {
+  .claim-decision-active
+    .mobile-activity-ribbon.is-expanded
+    .mobile-activity-tile {
     transform: scale(1.08);
   }
 

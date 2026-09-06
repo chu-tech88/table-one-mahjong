@@ -18,6 +18,7 @@ type UseGameOptions =
       playerName: string;
       enabled?: boolean;
       chatEnabled?: boolean;
+      discordSessionTicket?: string;
       initialGame?: Game;
       initialRules?: Rules;
       initialHouseRules?: HouseRule[];
@@ -54,6 +55,7 @@ export function useGame(options: UseGameOptions) {
     options.mode === "networked" ? options.playerName : "Player",
     options.mode === "networked" ? (options.enabled ?? true) : false,
     options.mode === "networked" ? (options.chatEnabled ?? false) : false,
+    options.mode === "networked" ? options.discordSessionTicket : undefined,
   );
 
   return options.mode === "networked" ? networkedGame : localGame;

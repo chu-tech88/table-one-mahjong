@@ -66,6 +66,7 @@ export function useNetworkedGame(
   playerName: string,
   enabled = true,
   chatEnabled = false,
+  discordSessionTicket?: string,
 ): UseNetworkedGameReturn {
   const [game, setGame] = useState<Game | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -171,7 +172,11 @@ export function useNetworkedGame(
           if (client === activeClient) terminalMessage = message;
         },
         onLobbyChatMessage: (message) => {
-          if (!isMounted || client !== activeClient || !chatEnabledRef.current) {
+          if (
+            !isMounted ||
+            client !== activeClient ||
+            !chatEnabledRef.current
+          ) {
             return;
           }
           setChatMessages((current) => {
@@ -219,6 +224,7 @@ export function useNetworkedGame(
           reconnectPlayerIndex,
           playerName,
           storedSession,
+          discordSessionTicket,
         )
         .then(() => {
           if (!isMounted || client !== activeClient) return;
@@ -243,7 +249,14 @@ export function useNetworkedGame(
       window.clearTimeout(reconnectTimer);
       activeClient?.disconnect();
     };
-  }, [enabled, serverUrl, roomId, preferredPlayerIndex, playerName]);
+  }, [
+    enabled,
+    serverUrl,
+    roomId,
+    preferredPlayerIndex,
+    playerName,
+    discordSessionTicket,
+  ]);
 
   // Backgrounded/sleeping tabs can leave a WebSocket in a half-open state
   // that the server heartbeat hasn't caught yet. Proactively resync as soon

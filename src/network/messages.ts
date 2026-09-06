@@ -23,6 +23,7 @@ export type JoinRoomMessage = {
   roomId: string;
   playerIndex?: number;
   playerName: string;
+  discordSessionTicket?: string;
   playerId?: string;
   resumeToken?: string;
 };

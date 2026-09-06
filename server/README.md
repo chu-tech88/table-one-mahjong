@@ -78,6 +78,23 @@ Server to client:
 
 For Render, `PORT` is provided automatically.
 
+### Discord Activity authentication
+
+To run as a Discord Embedded App, configure these server-side environment
+variables. Keep the client secret and session signing secret private.
+
+```bash
+DISCORD_CLIENT_ID=your-discord-application-client-id
+DISCORD_CLIENT_SECRET=your-discord-application-client-secret
+DISCORD_ACTIVITY_SESSION_SECRET=replace-with-a-random-32-byte-secret
+DISCORD_ACTIVITY_ONLY=true
+```
+
+The client also needs `VITE_DISCORD_CLIENT_ID`. When `DISCORD_ACTIVITY_ONLY`
+is `true`, the WebSocket server rejects joins without a signed Discord Activity
+session ticket. Omit it or set it to `false` to serve the existing standalone
+web app and Discord Activity from the same deployment.
+
 Examples:
 
 ```bash
