@@ -283,21 +283,21 @@ const soundPatterns: Record<
       frequency: 659.25,
       offset: 0,
       duration: 0.28,
-      volume: 0.09,
+      volume: 0.11,
       wave: "sine",
     },
     {
       frequency: 880,
       offset: 0.14,
       duration: 0.34,
-      volume: 0.105,
+      volume: 0.125,
       wave: "sine",
     },
     {
       frequency: 987.77,
       offset: 0.3,
       duration: 0.42,
-      volume: 0.08,
+      volume: 0.1,
       wave: "sine",
     },
   ],
@@ -1845,6 +1845,7 @@ function MahjongApp({
   const previousActionSeq = useRef<number | undefined>(undefined);
   const previousSoundRound = useRef<number | undefined>(undefined);
   const audioUnlocked = useRef(false);
+  const audioPrimed = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const previousPresentationGame = useRef<Game | undefined>(undefined);
   const latestAnalyticsGame = useRef<Game | undefined>(undefined);
@@ -1881,30 +1882,66 @@ function MahjongApp({
       if (!AudioContextClass) return null;
       audioContextRef.current = new AudioContextClass();
     }
-    if (audioContextRef.current.state === "suspended") {
-      void audioContextRef.current.resume();
-    }
     return audioContextRef.current;
+  };
+
+  const primeAudioContext = (context: AudioContext) => {
+    if (audioPrimed.current) return;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const now = context.currentTime;
+
+    // Mobile Safari needs a real audio graph started from a user gesture before
+    // later game sounds are allowed to play.
+    gain.gain.setValueAtTime(0.0001, now);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.01);
+    audioPrimed.current = true;
+  };
+
+  const resumeAudioContext = (context: AudioContext, prime = false) => {
+    const onRunning = () => {
+      if (context.state === "running" && prime) primeAudioContext(context);
+      return context.state === "running";
+    };
+    if (context.state === "running") return Promise.resolve(onRunning());
+    return context.resume().then(onRunning).catch(() => false);
   };
 
   const playGameSound = (sound: GameSound) => {
     const context = getAudioContext();
-    if (context) playSynthSound(context, sound);
+    if (!context) return;
+    if (context.state === "running") {
+      playSynthSound(context, sound);
+      return;
+    }
+    void resumeAudioContext(context).then((isRunning) => {
+      if (isRunning && soundEnabled && audioUnlocked.current) {
+        playSynthSound(context, sound);
+      }
+    });
   };
 
   useEffect(() => {
     const unlockAudio = () => {
       audioUnlocked.current = true;
-      getAudioContext();
+      const context = getAudioContext();
+      if (context) void resumeAudioContext(context, true);
     };
-    window.addEventListener("pointerdown", unlockAudio, { once: true });
-    window.addEventListener("keydown", unlockAudio, { once: true });
+    const eventOptions = { capture: true, passive: true };
+    window.addEventListener("pointerdown", unlockAudio, eventOptions);
+    window.addEventListener("touchend", unlockAudio, eventOptions);
+    window.addEventListener("keydown", unlockAudio);
     return () => {
-      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("pointerdown", unlockAudio, eventOptions);
+      window.removeEventListener("touchend", unlockAudio, eventOptions);
       window.removeEventListener("keydown", unlockAudio);
       if (audioContextRef.current) {
         void audioContextRef.current.close();
         audioContextRef.current = null;
+        audioPrimed.current = false;
       }
     };
   }, [soundEnabled]);

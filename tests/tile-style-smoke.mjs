@@ -228,8 +228,18 @@ assert.match(
 );
 assert.match(
   app,
-  /turn:[\s\S]*volume:\s*0\.105[\s\S]*playGameSound\("turn"\)/,
+  /turn:[\s\S]*volume:\s*0\.125[\s\S]*playGameSound\("turn"\)/,
   "The player's turn cue must be the most prominent sound",
+);
+assert.match(
+  app,
+  /turn:[\s\S]*volume:\s*0\.11[\s\S]*volume:\s*0\.125[\s\S]*volume:\s*0\.1/,
+  "The supporting notes in the player's turn cue must remain audible",
+);
+assert.match(
+  app,
+  /primeAudioContext[\s\S]*resumeAudioContext[\s\S]*pointerdown[\s\S]*touchend/,
+  "Touch devices must prime and resume the audio engine from a player gesture",
 );
 assert.match(
   app,
