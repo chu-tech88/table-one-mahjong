@@ -66,6 +66,7 @@ import {
 
 const SOUND_SETTING_KEY = "table-one-sound-enabled";
 const GUIDANCE_SETTING_KEY = "table-one-guidance-mode";
+const FIRST_COACH_GAME_KEY = "table-one-strategy-coach-first-game-complete";
 const HIDDEN_LESSONS_KEY = "table-one-hidden-lessons";
 const COACH_VIEWPORT_QUERY = "(min-width: 1100px) and (min-height: 650px)";
 const CHAT_VIEWPORT_QUERY = "(min-width: 768px) and (min-height: 600px)";
@@ -111,7 +112,15 @@ function ToggleSwitch({
 function loadGuidanceMode(): GuidanceMode {
   if (typeof window === "undefined") return "off";
   const saved = window.localStorage.getItem(GUIDANCE_SETTING_KEY);
-  return saved === "strategy" ? "strategy" : "off";
+  if (saved === "strategy" || saved === "off") return saved;
+  return coachViewportIsSupported() ? "strategy" : "off";
+}
+
+function shouldRecommendStrategyCoach() {
+  return (
+    typeof window !== "undefined" &&
+    window.localStorage.getItem(FIRST_COACH_GAME_KEY) !== "true"
+  );
 }
 
 function loadHiddenLessons() {
@@ -830,7 +839,7 @@ function TileView({
   return (
     <button
       className={`tile ${tile.suit} ${selected ? "selected" : ""} ${drawn ? "drawn tile-motion-draw" : ""} ${latest ? "discard-latest tile-motion-discard" : ""} ${revealed ? "tile-motion-reveal" : ""} ${waiting ? "waiting" : ""} ${winning ? "winning-tile" : ""} ${coachHighlighted ? "coach-tile-focus" : ""} ${large ? "large" : ""}`}
-      aria-label={`${tile.label}${drawn ? ", newly drawn" : ""}${latest ? ", latest discard" : ""}${waiting ? ", part of a waiting set" : ""}${winning ? ", winning tile" : ""}`}
+      aria-label={`${tile.label}${drawn ? ", newly drawn" : ""}${latest ? ", latest discard" : ""}${waiting ? ", one tile from a set" : ""}${winning ? ", winning tile" : ""}`}
       disabled={disabled}
       onMouseDown={onMouseDown}
       onClick={onClick}
@@ -860,6 +869,7 @@ function MeldView({
     meld.type === "kong"
       ? "Gong"
       : meld.type.charAt(0).toUpperCase() + meld.type.slice(1);
+  const displayedTiles = meld.tiles.slice(0, meld.type === "kong" ? 4 : 3);
   return (
     <div
       className={`meld meld-motion-enter ${auditable && meld.concealed ? "meld-auditable" : ""}`}
@@ -881,7 +891,7 @@ function MeldView({
     >
       <span>{meld.concealed ? "Silent Gong" : meldName.toUpperCase()}</span>
       <div>
-        {meld.tiles.map((tile) => (
+        {displayedTiles.map((tile) => (
           <TileView
             key={tile.id}
             tile={tile}
@@ -1564,6 +1574,8 @@ function MahjongApp({
       ? "off"
       : saved;
   });
+  const [showFirstCoachRecommendation, setShowFirstCoachRecommendation] =
+    useState(shouldRecommendStrategyCoach);
   const [activeCoachLesson, setActiveCoachLesson] =
     useState<CoachLesson | null>(null);
   const [learnTopic, setLearnTopic] = useState<LearnTopic | null>(null);
@@ -1737,7 +1749,8 @@ function MahjongApp({
     initialGame: activeScenario?.game,
     initialRules: activeScenario?.rules,
     initialHouseRules: activeScenario?.houseRules,
-    pauseLocalAI: isLocalReplay && activeCoachLesson !== null,
+    pauseLocalAI:
+      isLocalReplay && (activeCoachLesson !== null || learnTopic !== null),
     chatEnabled: !isLocalReplay && connection.joined && chatViewportSupported,
   });
   const {
@@ -1749,6 +1762,8 @@ function MahjongApp({
     setHouseRules,
     selectTile,
     discard,
+    pendingUndoDiscard,
+    undoLastDiscard,
     claim,
     pass,
     hu,
@@ -1768,6 +1783,24 @@ function MahjongApp({
     aiTakeoverSeat,
     playerIndex: assignedPlayerIndex,
   } = gameHook;
+
+  useEffect(() => {
+    if (
+      !showFirstCoachRecommendation ||
+      !connection.joined ||
+      playMode !== "solo" ||
+      game?.phase !== "round-over"
+    ) {
+      return;
+    }
+    window.localStorage.setItem(FIRST_COACH_GAME_KEY, "true");
+    setShowFirstCoachRecommendation(false);
+  }, [
+    connection.joined,
+    game?.phase,
+    playMode,
+    showFirstCoachRecommendation,
+  ]);
 
   useEffect(() => {
     const latestMessage = chatMessages.at(-1);
@@ -2083,7 +2116,7 @@ function MahjongApp({
       id: "rules-goal",
       eyebrow: rulesEyebrow,
       title: "Build five sets and a pair",
-      body: "A Taiwanese Mahjong hand normally wins with 17 tiles: five sets of three tiles plus one pair.",
+      body: "A Taiwanese Mahjong hand normally wins with 17 tiles: five sets of three tiles plus one pair. You can turn Strategy Coach off anytime in Settings.",
       details: [
         {
           label: "Your objective",
@@ -2386,10 +2419,18 @@ function MahjongApp({
   const showCoachTarget = () => {
     if (!activeCoachLesson?.target) return;
     setCoachFocusTarget(activeCoachLesson.target);
+    setCoachDetailsOpen(true);
     if (activeCoachLesson.tileId) {
       setUiSelectedTileId(activeCoachLesson.tileId);
       selectTile(activeCoachLesson.tileId);
     }
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLElement>(
+          ".coach-tile-focus, .action-bar .coach-action-focus",
+        )
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    });
   };
 
   useEffect(() => {
@@ -2780,12 +2821,17 @@ function MahjongApp({
         ...(game?.lastDiscard ? [game.lastDiscard.tile] : []),
       ].find((tile) => tile.id === activeWinSummary?.winningTileId)
     : undefined;
-  const humanIsWaiting =
-    !!game &&
-    !!human &&
-    game.phase === "discard" &&
-    game.turn !== SELF &&
-    waitCodesForHand(human.hand, human.melds.length).length > 0;
+  const humanWaitCodes = useMemo(
+    () =>
+      human && game?.phase !== "round-over"
+        ? waitCodesForHand(human.hand, human.melds.length)
+        : [],
+    [game?.phase, human],
+  );
+  const humanIsWaiting = humanWaitCodes.length > 0;
+  const humanWaitLabels = humanWaitCodes.map(
+    (code) => tilePrototypeFromCode(code).label,
+  );
   const activity: Activity = game?.activity ?? {
     player: game?.turn ?? SELF,
     text: game?.message ?? "Loading game...",
@@ -3470,23 +3516,36 @@ function MahjongApp({
                 </p>
               ) : null}
               {playMode === "solo" ? (
-                <button
-                  className="full-width-button lobby-primary-action"
-                  type="button"
-                  disabled={!connection.playerName.trim()}
-                  onClick={() => {
-                    setActiveScenario(null);
-                    setScenarioFeedback(null);
-                    setActiveCoachLesson(null);
-                    setCoachFocusTarget(null);
-                    setSeenCoachLessons(new Set());
-                    setDismissedStrategyHands(new Set());
-                    newHand(0, true);
-                    setConnection((current) => ({ ...current, joined: true }));
-                  }}
-                >
-                  Start game
-                </button>
+                <>
+                  {showFirstCoachRecommendation &&
+                  coachViewportSupported ? (
+                    <aside className="first-coach-recommendation">
+                      <span>New to Mahjong?</span>
+                      <strong>Strategy Coach is recommended for your first game.</strong>
+                      <p>
+                        It explains each turn and suggests a discard. Turn it
+                        off anytime in Settings.
+                      </p>
+                    </aside>
+                  ) : null}
+                  <button
+                    className="full-width-button lobby-primary-action"
+                    type="button"
+                    disabled={!connection.playerName.trim()}
+                    onClick={() => {
+                      setActiveScenario(null);
+                      setScenarioFeedback(null);
+                      setActiveCoachLesson(null);
+                      setCoachFocusTarget(null);
+                      setSeenCoachLessons(new Set());
+                      setDismissedStrategyHands(new Set());
+                      newHand(0, true);
+                      setConnection((current) => ({ ...current, joined: true }));
+                    }}
+                  >
+                    Start game
+                  </button>
+                </>
               ) : null}
             </div>
             <button
@@ -3663,6 +3722,15 @@ function MahjongApp({
         >
           Discard
         </button>
+        {pendingUndoDiscard ? (
+          <button
+            className="undo-discard"
+            type="button"
+            onClick={undoLastDiscard}
+          >
+            Undo {pendingUndoDiscard.tileLabel}
+          </button>
+        ) : null}
         {canSelfHu ? (
           <button
             className={coachActionClass("hu")}
@@ -3951,6 +4019,11 @@ function MahjongApp({
               </div>
               <div className="seat-meta">
                 <span>{human.score} pts</span>
+                {humanWaitLabels.length > 0 ? (
+                  <span className="waiting-readout" aria-live="polite">
+                    Waiting: {humanWaitLabels.join(" · ")}
+                  </span>
+                ) : null}
               </div>
             </div>
             <div className="compact-self-discard-lane">
@@ -4091,7 +4164,9 @@ function MahjongApp({
                       type="button"
                       onClick={showCoachTarget}
                     >
-                      Show me
+                      {coachFocusTarget === activeCoachLesson.target
+                        ? "Showing it"
+                        : "Show me"}
                     </button>
                   ) : null}
                   {activeCoachLesson.details ? (

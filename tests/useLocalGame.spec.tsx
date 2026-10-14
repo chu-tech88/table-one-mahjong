@@ -53,6 +53,31 @@ describe("useLocalGame", () => {
     expect(result.current.game.actionSeq).toBeGreaterThan(initialActionSeq);
   });
 
+  it("restores a discarded tile during the two-second undo window", async () => {
+    vi.useFakeTimers();
+    const initialGame = dealRound();
+    const originalTile = initialGame.players[0].hand[0];
+    const initialActionSeq = initialGame.actionSeq;
+    const { result } = renderHook(() => useLocalGame({ initialGame }));
+
+    act(() => result.current.discard(originalTile.id));
+
+    expect(result.current.pendingUndoDiscard?.tileLabel).toBe(
+      originalTile.label,
+    );
+    expect(
+      result.current.game.players[0].hand.some((tile) => tile.id === originalTile.id),
+    ).toBe(false);
+
+    act(() => result.current.undoLastDiscard());
+
+    expect(result.current.pendingUndoDiscard).toBeUndefined();
+    expect(
+      result.current.game.players[0].hand.some((tile) => tile.id === originalTile.id),
+    ).toBe(true);
+    expect(result.current.game.actionSeq).toBe(initialActionSeq);
+  });
+
   it("starts a reset session with every AI set to Balanced", () => {
     const initialGame = dealRound();
     initialGame.players[1].difficulty = "calm";

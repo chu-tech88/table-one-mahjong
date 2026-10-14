@@ -9,6 +9,10 @@ const analytics = await readFile(
 );
 const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const server = await readFile(new URL("../server/game-server.ts", import.meta.url), "utf8");
+const networkedGameHook = await readFile(
+  new URL("../src/hooks/useNetworkedGame.ts", import.meta.url),
+  "utf8",
+);
 
 assert.match(
   css,
@@ -382,7 +386,7 @@ assert.match(
 );
 assert.match(
   app,
-  /handShape: recommendation\.handShape[\s\S]*?One useful hand shape if you follow this recommendation[\s\S]*?coach-shape-group[\s\S]*?<TileFace tile=\{tile\}/,
+  /handShape: recommendation\.handShape[\s\S]*?One useful hand shape if you follow this\s+recommendation[\s\S]*?coach-shape-group[\s\S]*?<TileFace tile=\{tile\}/,
   "Strategy explanations must visualize the recommended post-discard hand shape with real tiles",
 );
 assert.match(
@@ -397,8 +401,43 @@ assert.match(
 );
 assert.match(
   app,
-  /pauseLocalAI:\s*isLocalReplay && activeCoachLesson !== null/,
-  "Open solo lessons must pause AI play without pausing multiplayer",
+  /pauseLocalAI:\s*isLocalReplay && \(activeCoachLesson !== null \|\| learnTopic !== null\)/,
+  "Open solo lessons and Learn must pause AI play without pausing multiplayer",
+);
+assert.match(
+  app,
+  /Waiting: \{humanWaitLabels\.join\(" · "\)\}/,
+  "A waiting hand must have an always-visible list of winning tiles",
+);
+assert.match(
+  app,
+  /return coachViewportIsSupported\(\) \? "strategy" : "off"/,
+  "A new player on a supported screen must begin with Strategy Coach enabled",
+);
+assert.match(
+  app,
+  /FIRST_COACH_GAME_KEY[\s\S]*?game\?\.phase !== "round-over"/,
+  "The first-game recommendation must end after a completed solo hand",
+);
+assert.match(
+  app,
+  /Strategy Coach is recommended for your first game/,
+  "The lobby must explain why Strategy Coach is enabled for a first game",
+);
+assert.match(
+  app,
+  /one tile from a set/,
+  "Coach tile descriptions must not call a pair a set",
+);
+assert.match(
+  app,
+  /const displayedTiles = meld\.tiles\.slice\(0, meld\.type === "kong" \? 4 : 3\)/,
+  "Pong and Chi displays must be capped at three tile faces",
+);
+assert.match(
+  networkedGameHook,
+  /setPendingUndoDiscard\(\{ tileId, tileLabel: tile\.label, expiresAt \}\)[\s\S]*?window\.setTimeout\([\s\S]*?clientRef\.current\?\.discard\(tileId\)[\s\S]*?\}, 2_000\)/,
+  "Multiplayer discards must wait through the undo window before reaching the server",
 );
 assert.match(
   app,

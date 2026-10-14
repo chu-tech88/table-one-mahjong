@@ -185,12 +185,18 @@ export function tilePrototypeFromCode(code: string): Tile {
           : suit === "winds"
             ? "Wind"
             : "Dragon";
+  const honorName =
+    suit === "winds"
+      ? ["East", "South", "West", "North"][rank - 1]
+      : suit === "dragons"
+        ? ["Red", "Green", "White"][rank - 1]
+        : undefined;
   return {
     id: `wait-${code}`,
     code,
     suit,
     rank,
-    label: `${rank} ${suitName}`,
+    label: honorName ? `${honorName} ${suitName}` : `${rank} ${suitName}`,
     short: code,
     sort: tileSortFromCode(code),
   };

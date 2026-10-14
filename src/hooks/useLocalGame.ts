@@ -38,6 +38,8 @@ type UseLocalGameReturn = {
   setHouseRules: (rules: HouseRule[]) => void;
   selectTile: (tileId: string) => void;
   discard: (tileId: string) => void;
+  pendingUndoDiscard?: { tileLabel: string; expiresAt: number };
+  undoLastDiscard: () => void;
   claim: (type: "chi" | "pong" | "kong", tiles?: any) => void;
   pass: () => void;
   hu: (source: "discard" | "self-draw") => void;
@@ -83,6 +85,30 @@ export function useLocalGame(
       ),
   );
   const timerRef = useRef<number | undefined>(undefined);
+  const undoTimerRef = useRef<number | undefined>(undefined);
+  const gameRef = useRef(game);
+  const [pendingUndoDiscard, setPendingUndoDiscard] = useState<
+    | {
+        game: Game;
+        tileLabel: string;
+        expiresAt: number;
+      }
+    | undefined
+  >();
+
+  useEffect(() => {
+    gameRef.current = game;
+  }, [game]);
+
+  const clearPendingUndo = useCallback(() => {
+    window.clearTimeout(undoTimerRef.current);
+    setPendingUndoDiscard(undefined);
+  }, []);
+
+  useEffect(
+    () => () => window.clearTimeout(undoTimerRef.current),
+    [],
+  );
 
   useEffect(() => {
     if (!options.initialGame) return;
@@ -96,13 +122,20 @@ export function useLocalGame(
         ...rule,
       })),
     );
-  }, [options.initialGame, options.initialRules, options.initialHouseRules]);
+    clearPendingUndo();
+  }, [
+    clearPendingUndo,
+    options.initialGame,
+    options.initialRules,
+    options.initialHouseRules,
+  ]);
 
   // Auto-play AI turns
   useEffect(() => {
     window.clearTimeout(timerRef.current);
     if (
       options.pauseAI ||
+      pendingUndoDiscard ||
       game.phase !== "discard" ||
       game.turn === HUMAN ||
       game.winner !== undefined
@@ -125,7 +158,7 @@ export function useLocalGame(
       aiTurnDelayMs(),
     );
     return () => window.clearTimeout(timerRef.current);
-  }, [game, rules, houseRules, options.pauseAI]);
+  }, [game, rules, houseRules, options.pauseAI, pendingUndoDiscard]);
 
   const selectTile = useCallback((tileId: string) => {
     setGame((current) => {
@@ -140,12 +173,39 @@ export function useLocalGame(
 
   const discard = useCallback(
     (tileId: string) => {
-      setGame((current) =>
-        discardTile(current, HUMAN, tileId, rules, houseRules),
+      const current = gameRef.current;
+      if (current.phase !== "discard" || current.turn !== HUMAN) return;
+      const tile = current.players[HUMAN].hand.find(
+        (candidate) => candidate.id === tileId,
       );
+      if (!tile) return;
+
+      const next = discardTile(current, HUMAN, tileId, rules, houseRules);
+      if (next === current) return;
+
+      const expiresAt = Date.now() + 2_000;
+      window.clearTimeout(undoTimerRef.current);
+      setGame(next);
+      setPendingUndoDiscard({
+        game: structuredCloneGame(current),
+        tileLabel: tile.label,
+        expiresAt,
+      });
+      undoTimerRef.current = window.setTimeout(() => {
+        setPendingUndoDiscard((pending) =>
+          pending?.expiresAt === expiresAt ? undefined : pending,
+        );
+      }, 2_000);
     },
     [rules, houseRules],
   );
+
+  const undoLastDiscard = useCallback(() => {
+    if (!pendingUndoDiscard) return;
+    window.clearTimeout(undoTimerRef.current);
+    setGame(structuredCloneGame(pendingUndoDiscard.game));
+    setPendingUndoDiscard(undefined);
+  }, [pendingUndoDiscard]);
 
   const claim = useCallback(
     (type: "chi" | "pong" | "kong", tiles?: any) => {
@@ -278,6 +338,7 @@ export function useLocalGame(
 
   const newHand = useCallback(
     (dealer?: number, resetGame = false) => {
+      clearPendingUndo();
       setGame((current) => {
         if (resetGame) {
           const balancedProfiles = current.players.map((player) => ({
@@ -311,7 +372,7 @@ export function useLocalGame(
         );
       });
     },
-    [rules, houseRules],
+    [clearPendingUndo, rules, houseRules],
   );
 
   const readyNextHand = useCallback(() => {
@@ -327,6 +388,13 @@ export function useLocalGame(
     setHouseRules,
     selectTile,
     discard,
+    pendingUndoDiscard: pendingUndoDiscard
+      ? {
+          tileLabel: pendingUndoDiscard.tileLabel,
+          expiresAt: pendingUndoDiscard.expiresAt,
+        }
+      : undefined,
+    undoLastDiscard,
     claim,
     pass,
     hu,

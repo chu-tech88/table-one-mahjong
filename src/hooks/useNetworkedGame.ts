@@ -26,6 +26,8 @@ type UseNetworkedGameReturn = {
   error: string | null;
   selectTile: (tileId: string) => void;
   discard: (tileId: string) => void;
+  pendingUndoDiscard?: { tileLabel: string; expiresAt: number };
+  undoLastDiscard: () => void;
   claim: (type: "chi" | "pong" | "kong", tiles?: any) => void;
   pass: () => void;
   hu: (winBy: "discard" | "self-draw") => void;
@@ -72,6 +74,10 @@ export function useNetworkedGame(
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTileId, setSelectedTileId] = useState<string | undefined>();
+  const [pendingUndoDiscard, setPendingUndoDiscard] = useState<
+    | { tileId: string; tileLabel: string; expiresAt: number }
+    | undefined
+  >();
   const [playerIndex, setPlayerIndex] = useState(preferredPlayerIndex ?? -1);
   const [aiTakeoverSeat, setAiTakeoverSeat] = useState<number>();
   const [chatMessages, setChatMessages] = useState<StoredLobbyChatMessage[]>(
@@ -80,6 +86,7 @@ export function useNetworkedGame(
   const playerIndexRef = useRef(preferredPlayerIndex ?? -1);
   const chatEnabledRef = useRef(chatEnabled);
   const clientRef = useRef<GameClient | null>(null);
+  const discardTimerRef = useRef<number | undefined>(undefined);
   const activeRoomIdRef = useRef(roomId);
 
   useEffect(() => {
@@ -106,6 +113,8 @@ export function useNetworkedGame(
   // Connect to server
   useEffect(() => {
     if (!enabled) {
+      window.clearTimeout(discardTimerRef.current);
+      setPendingUndoDiscard(undefined);
       setGame(null);
       setIsConnected(false);
       setError(null);
@@ -288,10 +297,36 @@ export function useNetworkedGame(
   );
 
   const discard = useCallback((tileId: string) => {
-    if (!clientRef.current) return;
-    clientRef.current.discard(tileId);
-    setSelectedTileId(undefined);
-  }, []);
+    if (!clientRef.current || !game || playerIndex < 0) return;
+    if (game.phase !== "discard" || game.turn !== playerIndex) return;
+    const tile = game.players[playerIndex]?.hand.find(
+      (candidate) => candidate.id === tileId,
+    );
+    if (!tile) return;
+
+    const expiresAt = Date.now() + 2_000;
+    window.clearTimeout(discardTimerRef.current);
+    setPendingUndoDiscard({ tileId, tileLabel: tile.label, expiresAt });
+    discardTimerRef.current = window.setTimeout(() => {
+      clientRef.current?.discard(tileId);
+      setSelectedTileId(undefined);
+      setPendingUndoDiscard((pending) =>
+        pending?.expiresAt === expiresAt ? undefined : pending,
+      );
+    }, 2_000);
+  }, [game, playerIndex]);
+
+  const undoLastDiscard = useCallback(() => {
+    if (!pendingUndoDiscard) return;
+    window.clearTimeout(discardTimerRef.current);
+    setSelectedTileId(pendingUndoDiscard.tileId);
+    setPendingUndoDiscard(undefined);
+  }, [pendingUndoDiscard]);
+
+  useEffect(
+    () => () => window.clearTimeout(discardTimerRef.current),
+    [],
+  );
 
   const claim = useCallback((type: "chi" | "pong" | "kong", tiles?: any) => {
     if (!clientRef.current) return;
@@ -435,6 +470,13 @@ export function useNetworkedGame(
     error,
     selectTile,
     discard,
+    pendingUndoDiscard: pendingUndoDiscard
+      ? {
+          tileLabel: pendingUndoDiscard.tileLabel,
+          expiresAt: pendingUndoDiscard.expiresAt,
+        }
+      : undefined,
+    undoLastDiscard,
     claim,
     pass,
     hu,
