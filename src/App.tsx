@@ -3728,7 +3728,7 @@ function MahjongApp({
             type="button"
             onClick={undoLastDiscard}
           >
-            Undo discard
+            Undo
           </button>
         ) : null}
         {canSelfHu ? (
