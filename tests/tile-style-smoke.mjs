@@ -436,8 +436,8 @@ assert.match(
 );
 assert.match(
   networkedGameHook,
-  /setPendingUndoDiscard\(\{ tileId, tileLabel: tile\.label, expiresAt \}\)[\s\S]*?window\.setTimeout\([\s\S]*?clientRef\.current\?\.discard\(tileId\)[\s\S]*?\}, 2_000\)/,
-  "Multiplayer discards must wait through the undo window before reaching the server",
+  /const DISCARD_UNDO_WINDOW_MS = 1_500;[\s\S]*?setPendingUndoDiscard\(\{ tileId, tileLabel: tile\.label, expiresAt \}\)[\s\S]*?window\.setTimeout\([\s\S]*?clientRef\.current\?\.discard\(tileId\)[\s\S]*?\}, DISCARD_UNDO_WINDOW_MS\)/,
+  "Multiplayer discards must wait 1.5 seconds through the undo window before reaching the server",
 );
 assert.match(
   app,

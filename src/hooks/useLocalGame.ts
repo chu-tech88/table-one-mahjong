@@ -22,6 +22,8 @@ import {
 } from "../game-logic/helpers";
 import type { StoredLobbyChatMessage } from "../game-logic/lobbyChatStorage";
 
+const DISCARD_UNDO_WINDOW_MS = 1_500;
+
 type UseLocalGameOptions = {
   initialGame?: Game;
   initialRules?: Rules;
@@ -183,7 +185,7 @@ export function useLocalGame(
       const next = discardTile(current, HUMAN, tileId, rules, houseRules);
       if (next === current) return;
 
-      const expiresAt = Date.now() + 2_000;
+      const expiresAt = Date.now() + DISCARD_UNDO_WINDOW_MS;
       window.clearTimeout(undoTimerRef.current);
       setGame(next);
       setPendingUndoDiscard({
@@ -195,7 +197,7 @@ export function useLocalGame(
         setPendingUndoDiscard((pending) =>
           pending?.expiresAt === expiresAt ? undefined : pending,
         );
-      }, 2_000);
+      }, DISCARD_UNDO_WINDOW_MS);
     },
     [rules, houseRules],
   );

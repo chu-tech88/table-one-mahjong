@@ -53,7 +53,7 @@ describe("useLocalGame", () => {
     expect(result.current.game.actionSeq).toBeGreaterThan(initialActionSeq);
   });
 
-  it("restores a discarded tile during the two-second undo window", async () => {
+  it("restores a discarded tile during the 1.5-second undo window", async () => {
     vi.useFakeTimers();
     const initialGame = dealRound();
     const originalTile = initialGame.players[0].hand[0];

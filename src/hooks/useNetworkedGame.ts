@@ -13,6 +13,8 @@ import {
   type StoredLobbyChatMessage,
 } from "../game-logic/lobbyChatStorage";
 
+const DISCARD_UNDO_WINDOW_MS = 1_500;
+
 type UseNetworkedGameReturn = {
   game: Game | null;
   selectedTileId?: string;
@@ -304,7 +306,7 @@ export function useNetworkedGame(
     );
     if (!tile) return;
 
-    const expiresAt = Date.now() + 2_000;
+    const expiresAt = Date.now() + DISCARD_UNDO_WINDOW_MS;
     window.clearTimeout(discardTimerRef.current);
     setPendingUndoDiscard({ tileId, tileLabel: tile.label, expiresAt });
     discardTimerRef.current = window.setTimeout(() => {
@@ -313,7 +315,7 @@ export function useNetworkedGame(
       setPendingUndoDiscard((pending) =>
         pending?.expiresAt === expiresAt ? undefined : pending,
       );
-    }, 2_000);
+    }, DISCARD_UNDO_WINDOW_MS);
   }, [game, playerIndex]);
 
   const undoLastDiscard = useCallback(() => {
