@@ -5155,6 +5155,7 @@ html.tile-ranks-hidden .tile-rank {
   aspect-ratio: 1;
   border-width: max(1px, 2.5cqw);
   box-sizing: border-box;
+  transform: translateY(12%);
 }
 
 .tile .dot-1 .dot-pip {

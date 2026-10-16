@@ -476,7 +476,7 @@ function BambooFace({ rank }: { rank: number }) {
   );
 }
 
-function TileRank({ rank }: { rank: number }) {
+function TileRank({ rank }: { rank: number | string }) {
   return <span className="tile-rank">{rank}</span>;
 }
 
@@ -781,6 +781,7 @@ function TileFace({ tile }: { tile: Tile }) {
     return (
       <span className="tile-face honor-face wind-face" aria-hidden="true">
         {windCharacters[tile.code] ?? tile.short}
+        <TileRank rank={["E", "S", "W", "N"][tile.rank - 1] ?? ""} />
       </span>
     );
   }
@@ -792,6 +793,7 @@ function TileFace({ tile }: { tile: Tile }) {
         aria-hidden="true"
       >
         {dragonCharacters[tile.code] ?? tile.short}
+        <TileRank rank={{ G1: "R", G2: "G", G3: "W" }[tile.code] ?? ""} />
       </span>
     );
   }
