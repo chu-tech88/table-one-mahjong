@@ -5164,6 +5164,7 @@ html.tile-ranks-hidden .tile-rank {
   width: 62%;
   height: auto;
   place-self: center;
+  transform: none;
 }
 
 .tile .dot-1 {
@@ -5249,19 +5250,20 @@ html.tile-ranks-hidden .tile-rank {
 }
 
 .tile .dragon-3 {
-  inset: 50% auto auto 50%;
-  width: 72%;
-  height: 66%;
-  padding: 0;
-  border: max(1px, 4cqw) solid currentColor;
-  border-radius: 8cqw;
-  font-size: 45cqw;
-  transform: translate(-50%, -56%);
+  inset: 0 0 auto;
+  width: 100%;
+  height: calc(100% - var(--tile-base-depth));
+  padding: 7cqw 5cqw 5cqw;
+  border: 0;
+  border-radius: 0;
+  font-size: 68cqw;
+  transform: none;
 }
 
-.tile .dragon-3 .tile-rank {
-  top: -13%;
-  right: -10%;
+/* Compact opponent melds need tile faces, not instructional corner labels. */
+.opponent-revealed-zone .tile-rank,
+.opponent-revealed-strip .tile-rank {
+  display: none;
 }
 
 .tile .flower-illustration-face {

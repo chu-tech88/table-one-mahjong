@@ -4587,47 +4587,7 @@ function MahjongApp({
             <div className="settings-scroll">
               <div className="settings-stack">
                 <section className="panel-block settings-section">
-                  <h2>Players and style</h2>
-                  {game.players.map((player, index) => (
-                    <div className="profile-row" key={index}>
-                      <div className="profile-details">
-                        <label>
-                          <span>Name</span>
-                          <input
-                            aria-label={`${player.wind} player name`}
-                            maxLength={18}
-                            type="text"
-                            value={player.name}
-                            onChange={(event) =>
-                              updatePlayerName(index, event.target.value)
-                            }
-                          />
-                        </label>
-                        <span>
-                          {player.wind} · {player.score} pts
-                        </span>
-                      </div>
-                      {player.controller === "human" ? (
-                        <span className="profile-badge">
-                          {index === SELF ? "You · Human" : "Human"}
-                        </span>
-                      ) : (
-                        <select
-                          value={player.difficulty}
-                          onChange={(event) =>
-                            updateDifficulty(
-                              index,
-                              event.target.value as Difficulty,
-                            )
-                          }
-                        >
-                          <option value="calm">Calm</option>
-                          <option value="balanced">Balanced</option>
-                          <option value="sharp">Sharp</option>
-                        </select>
-                      )}
-                    </div>
-                  ))}
+                  <h2>Style and guidance</h2>
                   <div className="sound-setting">
                     <strong>Game sounds</strong>
                     <ToggleSwitch
@@ -4711,6 +4671,57 @@ function MahjongApp({
                     />
                   </div>
                 </section>
+
+                <details className="settings-disclosure players-disclosure">
+                  <summary>
+                    <span className="settings-disclosure-copy">
+                      <strong>Players</strong>
+                      <small>Names and AI difficulty</small>
+                    </span>
+                  </summary>
+                  <div className="settings-disclosure-body settings-section">
+                    {game.players.map((player, index) => (
+                      <div className="profile-row" key={index}>
+                        <div className="profile-details">
+                          <label>
+                            <span>Name</span>
+                            <input
+                              aria-label={`${player.wind} player name`}
+                              maxLength={18}
+                              type="text"
+                              value={player.name}
+                              onChange={(event) =>
+                                updatePlayerName(index, event.target.value)
+                              }
+                            />
+                          </label>
+                          <span>
+                            {player.wind} · {player.score} pts
+                          </span>
+                        </div>
+                        {player.controller === "human" ? (
+                          <span className="profile-badge">
+                            {index === SELF ? "You · Human" : "Human"}
+                          </span>
+                        ) : (
+                          <select
+                            value={player.difficulty}
+                            onChange={(event) =>
+                              updateDifficulty(
+                                index,
+                                event.target.value as Difficulty,
+                              )
+                            }
+                          >
+                            <option value="calm">Calm</option>
+                            <option value="balanced">Balanced</option>
+                            <option value="sharp">Sharp</option>
+                          </select>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
 
                 <details className="settings-disclosure rules-disclosure">
                   <summary>

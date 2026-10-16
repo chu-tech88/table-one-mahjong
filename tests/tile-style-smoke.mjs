@@ -46,8 +46,8 @@ assert.match(
 );
 assert.match(
   css,
-  /\.tile \.dragon-3 \.tile-rank\s*\{[^}]*top:\s*-13%;[^}]*right:\s*-10%;/s,
-  "White Dragon shorthand must align to the same outer tile corner as other labels",
+  /\.tile \.dragon-3\s*\{[^}]*inset:\s*0 0 auto;[^}]*width:\s*100%;[^}]*font-size:\s*68cqw;[^}]*transform:\s*none;/s,
+  "White Dragon must use the same full-tile visual treatment as the other dragons",
 );
 assert.match(
   app,
@@ -98,6 +98,16 @@ assert.match(
   css,
   /\.tile \.dot-1\s*\{[^}]*grid-template-columns:\s*1fr;[^}]*grid-template-rows:\s*1fr;[^}]*padding:\s*0;/s,
   "One dot must use a dedicated full-face centering grid",
+);
+assert.match(
+  css,
+  /\.tile \.dot-1 \.dot-pip\s*\{[^}]*transform:\s*none;/s,
+  "One dot must remain visually centered rather than inherit the multi-dot offset",
+);
+assert.match(
+  css,
+  /\.opponent-revealed-zone \.tile-rank,[\s\S]*?\.opponent-revealed-strip \.tile-rank\s*\{[^}]*display:\s*none;/s,
+  "Compact opponent revealed walls must hide corner labels when they do not fit",
 );
 assert.match(
   css,
@@ -536,8 +546,8 @@ assert.match(
 );
 assert.match(
   app,
-  /settings-quick-actions[\s\S]*New hand[\s\S]*Leave game[\s\S]*settings-scroll[\s\S]*Players and style/,
-  "Settings must keep new-hand and leave-game actions above scrollable preferences",
+  /settings-quick-actions[\s\S]*New hand[\s\S]*Leave game[\s\S]*settings-scroll[\s\S]*Style and guidance[\s\S]*players-disclosure[\s\S]*Names and AI difficulty/,
+  "Settings must keep key style preferences visible while player editing stays collapsed",
 );
 assert.match(
   app,
