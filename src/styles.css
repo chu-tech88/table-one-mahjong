@@ -5155,7 +5155,7 @@ html.tile-ranks-hidden .tile-rank {
   aspect-ratio: 1;
   border-width: max(1px, 2.5cqw);
   box-sizing: border-box;
-  transform: translateY(12%);
+  transform: translateY(30%);
 }
 
 .tile .dot-1 .dot-pip {
@@ -5257,6 +5257,11 @@ html.tile-ranks-hidden .tile-rank {
   border-radius: 8cqw;
   font-size: 45cqw;
   transform: translate(-50%, -56%);
+}
+
+.tile .dragon-3 .tile-rank {
+  top: -13%;
+  right: -10%;
 }
 
 .tile .flower-illustration-face {

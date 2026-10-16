@@ -41,8 +41,13 @@ assert.match(
 );
 assert.match(
   css,
-  /\.tile \.dot-pip\s*\{[^}]*transform:\s*translateY\(12%\);/s,
+  /\.tile \.dot-pip\s*\{[^}]*transform:\s*translateY\(30%\);/s,
   "Dot artwork must sit below its upper-right numeric label",
+);
+assert.match(
+  css,
+  /\.tile \.dragon-3 \.tile-rank\s*\{[^}]*top:\s*-13%;[^}]*right:\s*-10%;/s,
+  "White Dragon shorthand must align to the same outer tile corner as other labels",
 );
 assert.match(
   app,
