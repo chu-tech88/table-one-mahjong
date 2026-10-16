@@ -78,6 +78,21 @@ describe("useLocalGame", () => {
     expect(result.current.game.actionSeq).toBe(initialActionSeq);
   });
 
+  it("commits a discard immediately when undo is disabled", () => {
+    const initialGame = dealRound();
+    const originalTile = initialGame.players[0].hand[0];
+    const { result } = renderHook(() =>
+      useLocalGame({ initialGame, discardUndoEnabled: false }),
+    );
+
+    act(() => result.current.discard(originalTile.id));
+
+    expect(result.current.pendingUndoDiscard).toBeUndefined();
+    expect(
+      result.current.game.players[0].hand.some((tile) => tile.id === originalTile.id),
+    ).toBe(false);
+  });
+
   it("starts a reset session with every AI set to Balanced", () => {
     const initialGame = dealRound();
     initialGame.players[1].difficulty = "calm";

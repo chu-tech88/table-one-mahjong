@@ -506,6 +506,11 @@ assert.match(
 );
 assert.match(
   app,
+  /Usage analytics[\s\S]*?<strong>Discard undo<\/strong>[\s\S]*?ariaLabel="Discard undo"[\s\S]*?checked=\{discardUndoEnabled\}/,
+  "Settings must offer an enabled-by-default discard undo preference below analytics",
+);
+assert.match(
+  app,
   /settings-quick-actions[\s\S]*New hand[\s\S]*Leave game[\s\S]*settings-scroll[\s\S]*Players and style/,
   "Settings must keep new-hand and leave-game actions above scrollable preferences",
 );

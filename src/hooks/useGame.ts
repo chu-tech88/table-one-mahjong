@@ -9,6 +9,7 @@ type UseGameOptions =
       initialRules?: Rules;
       initialHouseRules?: HouseRule[];
       pauseLocalAI?: boolean;
+      discardUndoEnabled?: boolean;
     }
   | {
       mode: "networked";
@@ -23,6 +24,7 @@ type UseGameOptions =
       initialRules?: Rules;
       initialHouseRules?: HouseRule[];
       pauseLocalAI?: boolean;
+      discardUndoEnabled?: boolean;
     };
 
 /**
@@ -46,6 +48,7 @@ export function useGame(options: UseGameOptions) {
     initialRules: options.initialRules,
     initialHouseRules: options.initialHouseRules,
     pauseAI: options.pauseLocalAI,
+    discardUndoEnabled: options.discardUndoEnabled,
   });
 
   const networkedGame = useNetworkedGame(
@@ -56,6 +59,7 @@ export function useGame(options: UseGameOptions) {
     options.mode === "networked" ? (options.enabled ?? true) : false,
     options.mode === "networked" ? (options.chatEnabled ?? false) : false,
     options.mode === "networked" ? options.discordSessionTicket : undefined,
+    options.mode === "networked" ? (options.discardUndoEnabled ?? true) : true,
   );
 
   return options.mode === "networked" ? networkedGame : localGame;

@@ -29,6 +29,7 @@ type UseLocalGameOptions = {
   initialRules?: Rules;
   initialHouseRules?: HouseRule[];
   pauseAI?: boolean;
+  discardUndoEnabled?: boolean;
 };
 
 type UseLocalGameReturn = {
@@ -113,6 +114,12 @@ export function useLocalGame(
   );
 
   useEffect(() => {
+    if (options.discardUndoEnabled !== false || !pendingUndoDiscard) return;
+    window.clearTimeout(undoTimerRef.current);
+    setPendingUndoDiscard(undefined);
+  }, [options.discardUndoEnabled, pendingUndoDiscard]);
+
+  useEffect(() => {
     if (!options.initialGame) return;
 
     setGame(structuredCloneGame(options.initialGame));
@@ -185,6 +192,13 @@ export function useLocalGame(
       const next = discardTile(current, HUMAN, tileId, rules, houseRules);
       if (next === current) return;
 
+      if (options.discardUndoEnabled === false) {
+        window.clearTimeout(undoTimerRef.current);
+        setPendingUndoDiscard(undefined);
+        setGame(next);
+        return;
+      }
+
       const expiresAt = Date.now() + DISCARD_UNDO_WINDOW_MS;
       window.clearTimeout(undoTimerRef.current);
       setGame(next);
@@ -199,7 +213,7 @@ export function useLocalGame(
         );
       }, DISCARD_UNDO_WINDOW_MS);
     },
-    [rules, houseRules],
+    [rules, houseRules, options.discardUndoEnabled],
   );
 
   const undoLastDiscard = useCallback(() => {

@@ -65,6 +65,7 @@ import {
 } from "./analytics";
 
 const SOUND_SETTING_KEY = "table-one-sound-enabled";
+const DISCARD_UNDO_SETTING_KEY = "table-one-discard-undo-enabled";
 const GUIDANCE_SETTING_KEY = "table-one-guidance-mode";
 const FIRST_COACH_GAME_KEY = "table-one-strategy-coach-first-game-complete";
 const HIDDEN_LESSONS_KEY = "table-one-hidden-lessons";
@@ -1598,6 +1599,10 @@ function MahjongApp({
     chatViewportIsSupported,
   );
   const [chatOpen, setChatOpen] = useState(false);
+  const [discardUndoEnabled, setDiscardUndoEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem(DISCARD_UNDO_SETTING_KEY) !== "false";
+  });
   const [chatDraft, setChatDraft] = useState("");
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const chatMessagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -1752,6 +1757,7 @@ function MahjongApp({
     pauseLocalAI:
       isLocalReplay && (activeCoachLesson !== null || learnTopic !== null),
     chatEnabled: !isLocalReplay && connection.joined && chatViewportSupported,
+    discardUndoEnabled,
   });
   const {
     game,
@@ -1982,6 +1988,13 @@ function MahjongApp({
   useEffect(() => {
     window.localStorage.setItem(SOUND_SETTING_KEY, String(soundEnabled));
   }, [soundEnabled]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      DISCARD_UNDO_SETTING_KEY,
+      String(discardUndoEnabled),
+    );
+  }, [discardUndoEnabled]);
 
   useEffect(() => {
     if (!analyticsEnabled || !connection.joined || !game) {
@@ -3722,7 +3735,7 @@ function MahjongApp({
         >
           Discard
         </button>
-        {pendingUndoDiscard ? (
+        {discardUndoEnabled && pendingUndoDiscard ? (
           <button
             className="undo-discard"
             type="button"
@@ -4593,6 +4606,19 @@ function MahjongApp({
                       ariaLabel="Usage analytics"
                       checked={analyticsEnabled}
                       onChange={onAnalyticsConsentChange}
+                    />
+                  </div>
+                  <div className="sound-setting">
+                    <span>
+                      <strong>Discard undo</strong>
+                      <small>
+                        Pause for 1.5 seconds after a discard so you can undo it.
+                      </small>
+                    </span>
+                    <ToggleSwitch
+                      ariaLabel="Discard undo"
+                      checked={discardUndoEnabled}
+                      onChange={setDiscardUndoEnabled}
                     />
                   </div>
                 </section>

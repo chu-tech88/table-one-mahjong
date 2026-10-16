@@ -71,6 +71,7 @@ export function useNetworkedGame(
   enabled = true,
   chatEnabled = false,
   discordSessionTicket?: string,
+  discardUndoEnabled = true,
 ): UseNetworkedGameReturn {
   const [game, setGame] = useState<Game | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -306,8 +307,15 @@ export function useNetworkedGame(
     );
     if (!tile) return;
 
-    const expiresAt = Date.now() + DISCARD_UNDO_WINDOW_MS;
     window.clearTimeout(discardTimerRef.current);
+    if (!discardUndoEnabled) {
+      setPendingUndoDiscard(undefined);
+      clientRef.current.discard(tileId);
+      setSelectedTileId(undefined);
+      return;
+    }
+
+    const expiresAt = Date.now() + DISCARD_UNDO_WINDOW_MS;
     setPendingUndoDiscard({ tileId, tileLabel: tile.label, expiresAt });
     discardTimerRef.current = window.setTimeout(() => {
       clientRef.current?.discard(tileId);
@@ -316,7 +324,7 @@ export function useNetworkedGame(
         pending?.expiresAt === expiresAt ? undefined : pending,
       );
     }, DISCARD_UNDO_WINDOW_MS);
-  }, [game, playerIndex]);
+  }, [discardUndoEnabled, game, playerIndex]);
 
   const undoLastDiscard = useCallback(() => {
     if (!pendingUndoDiscard) return;
@@ -329,6 +337,14 @@ export function useNetworkedGame(
     () => () => window.clearTimeout(discardTimerRef.current),
     [],
   );
+
+  useEffect(() => {
+    if (discardUndoEnabled || !pendingUndoDiscard) return;
+    window.clearTimeout(discardTimerRef.current);
+    clientRef.current?.discard(pendingUndoDiscard.tileId);
+    setSelectedTileId(undefined);
+    setPendingUndoDiscard(undefined);
+  }, [discardUndoEnabled, pendingUndoDiscard]);
 
   const claim = useCallback((type: "chi" | "pong" | "kong", tiles?: any) => {
     if (!clientRef.current) return;
