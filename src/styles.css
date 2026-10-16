@@ -5777,6 +5777,11 @@ html.tile-ranks-hidden .tile-rank {
   border-color: rgba(126, 211, 156, 0.78);
 }
 
+.learning-coach.coach-compact {
+  min-height: 0;
+  padding-block: 9px;
+}
+
 .learning-coach.coach-expanded,
 .learning-coach:has(.coach-details) {
   grid-template-columns: minmax(0, 1fr);

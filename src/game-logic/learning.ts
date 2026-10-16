@@ -33,6 +33,7 @@ export type CoachLesson = {
   details?: Array<{ label: string; text: string }>;
   handShape?: HandShapeBreakdown;
   progress?: string;
+  compact?: boolean;
   alternatives?: Array<{ tileId: string; label: string; reason: string }>;
   learnTopic?: "objective" | "turn" | "chi" | "pong" | "gong" | "hu" | "scoring";
 };
@@ -229,6 +230,29 @@ function handShapeSummary(hand: Tile[], meldCount: number) {
   return { pairs, triplets, connected, plan };
 }
 
+function handProgressSnapshot(hand: Tile[], meldCount: number) {
+  const handShape = explainHandShape(hand, meldCount);
+  const completedSets =
+    meldCount + handShape.groups.filter((group) => group.kind === "set").length;
+  const pairs = handShape.groups.filter((group) => group.kind === "pair").length;
+  const connections = handShape.groups.filter(
+    (group) => group.kind === "connected",
+  ).length;
+  const setsRemaining = Math.max(0, 5 - completedSets);
+  const pairGoal = pairs > 0 ? "protect a pair" : "build a pair";
+  return {
+    handShape,
+    progress: `Hand progress: ${completedSets} complete ${
+      completedSets === 1 ? "set" : "sets"
+    } · ${pairs} ${pairs === 1 ? "pair" : "pairs"} · ${connections} promising ${
+      connections === 1 ? "connection" : "connections"
+    }`,
+    nextGoal: `Next goal: build ${setsRemaining} more ${
+      setsRemaining === 1 ? "set" : "sets"
+    } and ${pairGoal}.`,
+  };
+}
+
 export function recommendDiscard(
   hand: Tile[],
   meldCount: number,
@@ -274,18 +298,7 @@ export function recommendDiscard(
 
   const remainingHand = hand.filter((candidate) => candidate.id !== tile.id);
   const remainingShape = handShapeSummary(remainingHand, meldCount);
-  const handShape = explainHandShape(remainingHand, meldCount);
-  const completedSets =
-    meldCount + handShape.groups.filter((group) => group.kind === "set").length;
-  const pairs = handShape.groups.filter((group) => group.kind === "pair").length;
-  const connections = handShape.groups.filter(
-    (group) => group.kind === "connected",
-  ).length;
-  const progress = `Hand progress: ${completedSets} complete ${
-    completedSets === 1 ? "set" : "sets"
-  } · ${pairs} ${pairs === 1 ? "pair" : "pairs"} · ${connections} promising ${
-    connections === 1 ? "connection" : "connections"
-  }`;
+  const progressSnapshot = handProgressSnapshot(remainingHand, meldCount);
   const visibleCopies = publicCounts[tile.code] ?? 0;
   const impact = `Keeps ${remainingShape.pairs} pair${remainingShape.pairs === 1 ? "" : "s"} and ${remainingShape.connected} connected numbered tile${remainingShape.connected === 1 ? "" : "s"}.`;
   const visibilityNote =
@@ -299,8 +312,9 @@ export function recommendDiscard(
     plan: handShapeSummary(hand, meldCount).plan,
     impact,
     visibilityNote,
-    handShape,
-    progress,
+    handShape: progressSnapshot.handShape,
+    progress: progressSnapshot.progress,
+    nextGoal: progressSnapshot.nextGoal,
     isHonorRecommendation: tile.suit === "winds" || tile.suit === "dragons",
     alternatives: uniqueRanked.slice(1, 3).map((option) => ({
       tile: option.tile,
@@ -309,5 +323,106 @@ export function recommendDiscard(
           ? "A reasonable honor discard if you prefer to preserve numbered-tile flexibility."
           : "A close alternative that keeps most of the same pairs and sequence shapes.",
     })),
+  };
+}
+
+type ClaimType = "chi" | "pong" | "kong";
+
+type ClaimOption = {
+  type: ClaimType;
+  tiles: Tile[];
+};
+
+function claimScore(hand: Tile[], meldCount: number, type: ClaimType, tile: Tile) {
+  const exposureCost = type === "chi" ? 4 : type === "pong" ? 3 : 1;
+  const honorSetBonus =
+    type !== "chi" && (tile.suit === "winds" || tile.suit === "dragons")
+      ? 7
+      : 0;
+  return (
+    handProgressScore(hand, meldCount) +
+    highValueHandPotential(hand) +
+    honorSetBonus -
+    exposureCost
+  );
+}
+
+export function recommendClaim(
+  hand: Tile[],
+  meldCount: number,
+  tile: Tile,
+  options: {
+    canChi: boolean;
+    canPong: boolean;
+    canKong: boolean;
+    chiOptions?: Tile[][];
+  },
+) {
+  const claimOptions: ClaimOption[] = [];
+  if (options.canKong) {
+    claimOptions.push({
+      type: "kong",
+      tiles: hand.filter((candidate) => candidate.code === tile.code).slice(0, 3),
+    });
+  }
+  if (options.canPong) {
+    claimOptions.push({
+      type: "pong",
+      tiles: hand.filter((candidate) => candidate.code === tile.code).slice(0, 2),
+    });
+  }
+  if (options.canChi) {
+    (options.chiOptions ?? []).forEach((chi) => {
+      claimOptions.push({
+        type: "chi",
+        tiles: chi.filter((candidate) => candidate.id !== tile.id),
+      });
+    });
+  }
+
+  const passScore = handProgressScore(hand, meldCount) + highValueHandPotential(hand);
+  const best = claimOptions
+    .map((option) => {
+      const claimedIds = new Set(option.tiles.map((candidate) => candidate.id));
+      const remainingHand = hand.filter((candidate) => !claimedIds.has(candidate.id));
+      return {
+        ...option,
+        remainingHand,
+        score: claimScore(remainingHand, meldCount + 1, option.type, tile),
+      };
+    })
+    .sort((left, right) => right.score - left.score)[0];
+
+  const completesHonorSet =
+    best &&
+    best.type !== "chi" &&
+    (tile.suit === "winds" || tile.suit === "dragons");
+  if (!best || (!completesHonorSet && best.score <= passScore)) {
+    const progress = handProgressSnapshot(hand, meldCount);
+    return {
+      action: "pass" as const,
+      title: "Recommend passing",
+      body: "Keep this hand concealed and flexible. A stronger claim may appear later.",
+      details: [
+        { label: "Why pass", text: "This claim would reveal tiles without improving your hand enough to offset the loss of flexibility." },
+        { label: "Your next goal", text: progress.nextGoal },
+      ],
+      progress: progress.progress,
+    };
+  }
+
+  const actionName = best.type === "kong" ? "Gong" : best.type === "pong" ? "Pong" : "Chi";
+  const progress = handProgressSnapshot(best.remainingHand, meldCount + 1);
+  return {
+    action: best.type,
+    title: `Recommend ${actionName}`,
+    body: `${actionName} completes a set now. You will reveal it, then discard with ${progress.nextGoal.toLowerCase()}`,
+    target: best.type === "kong" ? ("gong" as const) : best.type,
+    details: [
+      { label: "Why claim", text: `This is the strongest available claim for the shape of your hand.` },
+      { label: "Tradeoff", text: "The set becomes visible, so opponents learn more about your hand." },
+      { label: "Your next goal", text: progress.nextGoal },
+    ],
+    progress: progress.progress,
   };
 }

@@ -45,6 +45,7 @@ import {
   type CoachLesson,
   type CoachTarget,
   type GuidanceMode,
+  recommendClaim,
   recommendDiscard,
 } from "./game-logic/learning";
 import { useGame } from "./hooks/useGame";
@@ -2173,6 +2174,40 @@ function MahjongApp({
       learnTopic: "objective",
     });
 
+    if (
+      guidanceMode === "strategy" &&
+      game.phase === "claim" &&
+      game.pendingClaim?.claimer === SELF &&
+      !game.pendingClaim.canHu
+    ) {
+      const claimRecommendation = recommendClaim(
+        coachHuman.hand,
+        coachHuman.melds.length,
+        game.pendingClaim.tile,
+        {
+          canChi: game.pendingClaim.canChi,
+          canPong: game.pendingClaim.canPong,
+          canKong: game.pendingClaim.canKong,
+          chiOptions: possibleChiOptions(coachHuman.hand, game.pendingClaim.tile),
+        },
+      );
+      addLesson({
+        id: `strategy-claim-${coachHandKey}-${game.actionSeq}`,
+        eyebrow: "Strategy coach",
+        title: claimRecommendation.title,
+        body: claimRecommendation.body,
+        target: claimRecommendation.target,
+        details: claimRecommendation.details,
+        progress: claimRecommendation.progress,
+        learnTopic:
+          claimRecommendation.action === "pass"
+            ? "turn"
+            : claimRecommendation.action === "kong"
+              ? "gong"
+              : claimRecommendation.action,
+      });
+    }
+
     if (coachCanSelfHu) {
       addLesson({
         id: "rules-self-hu",
@@ -2328,30 +2363,38 @@ function MahjongApp({
         hasSeenHonorAdvice,
       );
       if (recommendation) {
+        const compactHonorAdvice =
+          recommendation.isHonorRecommendation && hasSeenHonorAdvice;
         addLesson({
           id: `strategy-discard-${coachHandKey}-${game.actionSeq}${
             recommendation.isHonorRecommendation ? "-honor" : ""
           }`,
           eyebrow: "Strategy coach",
           title: `Consider discarding ${recommendation.tile.label}`,
-          body: recommendation.reason,
+          body: compactHonorAdvice ? "" : recommendation.reason,
           target: "suggested-tile",
           tileId: recommendation.tile.id,
-          details: [
-            { label: "Hand direction", text: recommendation.plan },
-            { label: "Shape after discard", text: recommendation.impact },
-            {
-              label: "Visible information",
-              text: recommendation.visibilityNote,
-            },
-          ],
-          handShape: recommendation.handShape,
-          progress: recommendation.progress,
-          alternatives: recommendation.alternatives.map((alternative) => ({
-            tileId: alternative.tile.id,
-            label: alternative.tile.label,
-            reason: alternative.reason,
-          })),
+          details: compactHonorAdvice
+            ? undefined
+            : [
+                { label: "Hand direction", text: recommendation.plan },
+                { label: "Shape after discard", text: recommendation.impact },
+                { label: "Next goal", text: recommendation.nextGoal },
+                {
+                  label: "Visible information",
+                  text: recommendation.visibilityNote,
+                },
+              ],
+          handShape: compactHonorAdvice ? undefined : recommendation.handShape,
+          progress: `${recommendation.progress} · ${recommendation.nextGoal}`,
+          compact: compactHonorAdvice,
+          alternatives: compactHonorAdvice
+            ? undefined
+            : recommendation.alternatives.map((alternative) => ({
+                tileId: alternative.tile.id,
+                label: alternative.tile.label,
+                reason: alternative.reason,
+              })),
           learnTopic: "turn",
         });
       }
@@ -4113,14 +4156,14 @@ function MahjongApp({
             ) : null}
             {activeCoachLesson ? (
               <aside
-                className={`learning-coach learning-coach-${guidanceMode} ${coachDetailsOpen ? "coach-expanded" : ""}`}
+                className={`learning-coach learning-coach-${guidanceMode} ${coachDetailsOpen ? "coach-expanded" : ""} ${activeCoachLesson.compact ? "coach-compact" : ""}`}
                 aria-live="polite"
                 aria-label={activeCoachLesson.eyebrow}
               >
                 <div className="learning-coach-copy">
                   <span>{activeCoachLesson.eyebrow}</span>
                   <strong>{activeCoachLesson.title}</strong>
-                  <p>{activeCoachLesson.body}</p>
+                  {activeCoachLesson.body ? <p>{activeCoachLesson.body}</p> : null}
                   {activeCoachLesson.progress ? (
                     <p className="coach-progress">{activeCoachLesson.progress}</p>
                   ) : null}

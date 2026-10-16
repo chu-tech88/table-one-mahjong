@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   explainHandShape,
+  recommendClaim,
   recommendDiscard,
 } from "../src/game-logic/learning";
 import { Tile } from "../src/game-logic/types";
@@ -69,6 +70,26 @@ describe("learning coach", () => {
 
     expect(recommendation?.reason).toContain("still an isolated honor tile");
     expect(recommendation?.progress).toContain("Hand progress");
+    expect(recommendation?.nextGoal).toContain("Next goal");
+  });
+
+  it("recommends claiming an honor Pong that completes a set", () => {
+    const hand = [
+      tile("W1", "winds", 1, 31),
+      tile("W1", "winds", 1, 31),
+      tile("D2", "dots", 2, 2),
+      tile("D3", "dots", 3, 3),
+    ];
+    const discard = tile("W1", "winds", 1, 31);
+
+    const recommendation = recommendClaim(hand, 0, discard, {
+      canChi: false,
+      canPong: true,
+      canKong: false,
+    });
+
+    expect(recommendation.action).toBe("pong");
+    expect(recommendation.title).toBe("Recommend Pong");
   });
 
   it("groups the actual hand into novice-friendly shapes without reusing tiles", () => {

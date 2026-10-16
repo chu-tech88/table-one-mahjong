@@ -411,7 +411,7 @@ assert.match(
 );
 assert.match(
   app,
-  /handShape: recommendation\.handShape[\s\S]*?One useful hand shape if you follow this\s+recommendation[\s\S]*?coach-shape-group[\s\S]*?<TileFace tile=\{tile\}/,
+  /handShape: compactHonorAdvice \? undefined : recommendation\.handShape[\s\S]*?One useful hand shape if you follow this\s+recommendation[\s\S]*?coach-shape-group[\s\S]*?<TileFace tile=\{tile\}/,
   "Strategy explanations must visualize the recommended post-discard hand shape with real tiles",
 );
 assert.match(
