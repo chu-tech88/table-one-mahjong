@@ -2131,6 +2131,23 @@ textarea {
   transform: translate(-50%, -50%);
 }
 
+.tile-rank {
+  position: absolute;
+  top: 5%;
+  right: 7%;
+  z-index: 1;
+  color: #76652d;
+  font-family: Arial, sans-serif;
+  font-size: clamp(0.45rem, 20cqi, 0.95rem);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+html.tile-ranks-hidden .tile-rank {
+  display: none;
+}
+
 .human-hand .tile {
   flex: 0 1 auto;
   width: clamp(42px, 4.65vw, 82px);

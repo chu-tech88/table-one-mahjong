@@ -26,6 +26,16 @@ assert.match(
 );
 assert.match(
   app,
+  /TILE_RANKS_SETTING_KEY[\s\S]*?Tile numbers[\s\S]*?ariaLabel="Tile numbers"[\s\S]*?checked=\{tileRanksEnabled\}/,
+  "Settings must let players hide the default-on tile number labels",
+);
+assert.match(
+  css,
+  /\.tile-rank\s*\{[^}]*top:\s*5%;[^}]*right:\s*7%;[\s\S]*?html\.tile-ranks-hidden \.tile-rank\s*\{[^}]*display:\s*none;/s,
+  "Tile numbers must appear in the upper-right and hide when requested",
+);
+assert.match(
+  app,
   /function visualRelativeSeat[\s\S]*?relativeSeat === 1\) return 3;[\s\S]*?relativeSeat === 3\) return 1;[\s\S]*?players\.map\(\(player, index\)[\s\S]*?visualRelativeSeat\(index, selfIndex\)[\s\S]*?discard-lane-\$\{relativeSeat\}[\s\S]*?<DiscardRiver[\s\S]*?player=\{player\}/,
   "All four players must render into the shared center discard field",
 );

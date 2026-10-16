@@ -66,6 +66,7 @@ import {
 
 const SOUND_SETTING_KEY = "table-one-sound-enabled";
 const DISCARD_UNDO_SETTING_KEY = "table-one-discard-undo-enabled";
+const TILE_RANKS_SETTING_KEY = "table-one-tile-ranks-enabled";
 const GUIDANCE_SETTING_KEY = "table-one-guidance-mode";
 const FIRST_COACH_GAME_KEY = "table-one-strategy-coach-first-game-complete";
 const HIDDEN_LESSONS_KEY = "table-one-hidden-lessons";
@@ -470,8 +471,13 @@ function BambooFace({ rank }: { rank: number }) {
           </g>
         ))}
       </svg>
+      <TileRank rank={rank} />
     </span>
   );
+}
+
+function TileRank({ rank }: { rank: number }) {
+  return <span className="tile-rank">{rank}</span>;
 }
 
 function FlowerPetals({
@@ -744,6 +750,7 @@ function TileFace({ tile }: { tile: Tile }) {
         {Array.from({ length: tile.rank }, (_, index) => (
           <i className="dot-pip" key={index} />
         ))}
+        <TileRank rank={tile.rank} />
       </span>
     );
   }
@@ -753,6 +760,7 @@ function TileFace({ tile }: { tile: Tile }) {
       return (
         <span className="tile-face bamboo-bird-face" aria-hidden="true">
           <img src={oneBambooBird} alt="" />
+          <TileRank rank={tile.rank} />
         </span>
       );
     }
@@ -764,6 +772,7 @@ function TileFace({ tile }: { tile: Tile }) {
       <span className="tile-face character-face" aria-hidden="true">
         <b>{characterRanks[tile.rank]}</b>
         <em>萬</em>
+        <TileRank rank={tile.rank} />
       </span>
     );
   }
@@ -1599,6 +1608,10 @@ function MahjongApp({
     chatViewportIsSupported,
   );
   const [chatOpen, setChatOpen] = useState(false);
+  const [tileRanksEnabled, setTileRanksEnabled] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem(TILE_RANKS_SETTING_KEY) !== "false";
+  });
   const [discardUndoEnabled, setDiscardUndoEnabled] = useState(() => {
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem(DISCARD_UNDO_SETTING_KEY) !== "false";
@@ -1988,6 +2001,17 @@ function MahjongApp({
   useEffect(() => {
     window.localStorage.setItem(SOUND_SETTING_KEY, String(soundEnabled));
   }, [soundEnabled]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      TILE_RANKS_SETTING_KEY,
+      String(tileRanksEnabled),
+    );
+    document.documentElement.classList.toggle(
+      "tile-ranks-hidden",
+      !tileRanksEnabled,
+    );
+  }, [tileRanksEnabled]);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -4565,6 +4589,17 @@ function MahjongApp({
                       ariaLabel="Game sounds"
                       checked={soundEnabled}
                       onChange={setSoundEnabled}
+                    />
+                  </div>
+                  <div className="sound-setting">
+                    <span>
+                      <strong>Tile numbers</strong>
+                      <small>Show 1-9 in the upper-right of suited tiles.</small>
+                    </span>
+                    <ToggleSwitch
+                      ariaLabel="Tile numbers"
+                      checked={tileRanksEnabled}
+                      onChange={setTileRanksEnabled}
                     />
                   </div>
                   <div className="in-game-guidance-setting">
