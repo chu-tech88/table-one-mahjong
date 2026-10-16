@@ -2286,21 +2286,26 @@ function MahjongApp({
     }
 
     if (coachIsSelfDiscardTurn && guidanceMode === "strategy") {
+      const hasSeenHonorAdvice = [...seenCoachLessons].some(
+        (lessonId) =>
+          lessonId.startsWith(`strategy-discard-${coachHandKey}-`) &&
+          lessonId.endsWith("-honor"),
+      );
       const recommendation = recommendDiscard(
         coachHuman.hand,
         coachHuman.melds.length,
-        [
-          ...coachHuman.hand,
-          ...game.players.flatMap((player) => [
-            ...player.discards,
-            ...player.flowers,
-            ...player.melds.flatMap((meld) => meld.tiles),
-          ]),
-        ],
+        game.players.flatMap((player) => [
+          ...player.discards,
+          ...player.flowers,
+          ...player.melds.flatMap((meld) => meld.tiles),
+        ]),
+        hasSeenHonorAdvice,
       );
       if (recommendation) {
         addLesson({
-          id: `strategy-discard-${coachHandKey}-${game.actionSeq}`,
+          id: `strategy-discard-${coachHandKey}-${game.actionSeq}${
+            recommendation.isHonorRecommendation ? "-honor" : ""
+          }`,
           eyebrow: "Strategy coach",
           title: `Consider discarding ${recommendation.tile.label}`,
           body: recommendation.reason,
@@ -2315,6 +2320,7 @@ function MahjongApp({
             },
           ],
           handShape: recommendation.handShape,
+          progress: recommendation.progress,
           alternatives: recommendation.alternatives.map((alternative) => ({
             tileId: alternative.tile.id,
             label: alternative.tile.label,
@@ -4089,6 +4095,9 @@ function MahjongApp({
                   <span>{activeCoachLesson.eyebrow}</span>
                   <strong>{activeCoachLesson.title}</strong>
                   <p>{activeCoachLesson.body}</p>
+                  {activeCoachLesson.progress ? (
+                    <p className="coach-progress">{activeCoachLesson.progress}</p>
+                  ) : null}
                   {coachDetailsOpen && activeCoachLesson.details ? (
                     <div className="coach-details">
                       {activeCoachLesson.details.map((detail) => (

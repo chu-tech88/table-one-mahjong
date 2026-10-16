@@ -39,6 +39,38 @@ describe("learning coach", () => {
     expect(recommendation?.reason).toContain("single honor tile");
   });
 
+  it("uses only public tiles for the visible-copy explanation", () => {
+    const hand = [
+      tile("W1", "winds", 1, 31),
+      tile("D2", "dots", 2, 2),
+      tile("D3", "dots", 3, 3),
+      tile("D4", "dots", 4, 4),
+    ];
+
+    const privateOnly = recommendDiscard(hand, 0);
+    const publicCopy = recommendDiscard(hand, 0, [
+      tile("W1", "winds", 1, 31),
+      tile("W1", "winds", 1, 31),
+    ]);
+
+    expect(privateOnly?.visibilityNote).toContain("Few copies are visible");
+    expect(publicCopy?.visibilityNote).toContain("already visible");
+  });
+
+  it("shortens repeat advice for isolated honor tiles and reports hand progress", () => {
+    const hand = [
+      tile("D2", "dots", 2, 2),
+      tile("D3", "dots", 3, 3),
+      tile("D4", "dots", 4, 4),
+      tile("W1", "winds", 1, 31),
+    ];
+
+    const recommendation = recommendDiscard(hand, 0, [], true);
+
+    expect(recommendation?.reason).toContain("still an isolated honor tile");
+    expect(recommendation?.progress).toContain("Hand progress");
+  });
+
   it("groups the actual hand into novice-friendly shapes without reusing tiles", () => {
     const hand = [
       tile("D1", "dots", 1, 1),

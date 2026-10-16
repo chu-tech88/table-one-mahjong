@@ -32,6 +32,7 @@ export type CoachLesson = {
   tileId?: string;
   details?: Array<{ label: string; text: string }>;
   handShape?: HandShapeBreakdown;
+  progress?: string;
   alternatives?: Array<{ tileId: string; label: string; reason: string }>;
   learnTopic?: "objective" | "turn" | "chi" | "pong" | "gong" | "hu" | "scoring";
 };
@@ -232,6 +233,7 @@ export function recommendDiscard(
   hand: Tile[],
   meldCount: number,
   publicTiles: Tile[] = [],
+  hasSeenHonorAdvice = false,
 ) {
   if (hand.length === 0) return undefined;
 
@@ -262,7 +264,9 @@ export function recommendDiscard(
   const reason =
     tile.suit === "winds" || tile.suit === "dragons"
       ? copies === 1
-        ? "It is a single honor tile, so it cannot join a sequence and currently has no matching partner."
+        ? hasSeenHonorAdvice
+          ? "It is still an isolated honor tile. Keeping your connected numbered tiles gives the hand more ways to improve."
+          : "It is a single honor tile, so it cannot join a sequence and currently has no matching partner."
         : "This keeps more connected groups available while preserving your strongest pairs."
       : copies === 1 && neighbors === 0
         ? "It is isolated from matching and nearby tiles, so removing it preserves more useful combinations."
@@ -270,6 +274,18 @@ export function recommendDiscard(
 
   const remainingHand = hand.filter((candidate) => candidate.id !== tile.id);
   const remainingShape = handShapeSummary(remainingHand, meldCount);
+  const handShape = explainHandShape(remainingHand, meldCount);
+  const completedSets =
+    meldCount + handShape.groups.filter((group) => group.kind === "set").length;
+  const pairs = handShape.groups.filter((group) => group.kind === "pair").length;
+  const connections = handShape.groups.filter(
+    (group) => group.kind === "connected",
+  ).length;
+  const progress = `Hand progress: ${completedSets} complete ${
+    completedSets === 1 ? "set" : "sets"
+  } · ${pairs} ${pairs === 1 ? "pair" : "pairs"} · ${connections} promising ${
+    connections === 1 ? "connection" : "connections"
+  }`;
   const visibleCopies = publicCounts[tile.code] ?? 0;
   const impact = `Keeps ${remainingShape.pairs} pair${remainingShape.pairs === 1 ? "" : "s"} and ${remainingShape.connected} connected numbered tile${remainingShape.connected === 1 ? "" : "s"}.`;
   const visibilityNote =
@@ -283,7 +299,9 @@ export function recommendDiscard(
     plan: handShapeSummary(hand, meldCount).plan,
     impact,
     visibilityNote,
-    handShape: explainHandShape(remainingHand, meldCount),
+    handShape,
+    progress,
+    isHonorRecommendation: tile.suit === "winds" || tile.suit === "dragons",
     alternatives: uniqueRanked.slice(1, 3).map((option) => ({
       tile: option.tile,
       reason:
